@@ -1,16 +1,16 @@
 import React from 'react';
 import { useNavigation } from '../lib/navigation';
-import { FolderGit2, Terminal, DollarSign, Bug, Settings as SettingsIcon } from 'lucide-react';
+import { Layers, FolderGit2, Terminal, DollarSign, Bug, Settings as SettingsIcon } from 'lucide-react';
 
 export const MobileNavBar: React.FC = () => {
   const { screen, navigate } = useNavigation();
 
   const tabs = [
+    { kind: 'control_plane', label: 'Control', icon: Layers },
     { kind: 'portfolio', label: 'Portfolio', icon: FolderGit2 },
     { kind: 'console', label: 'Console', icon: Terminal },
     { kind: 'costs', label: 'Costs', icon: DollarSign },
-    { kind: 'qa', label: 'QA', icon: Bug },
-    { kind: 'settings', label: 'Settings', icon: SettingsIcon }
+    { kind: 'qa', label: 'QA', icon: Bug }
   ] as const;
 
   return (
@@ -28,7 +28,9 @@ export const MobileNavBar: React.FC = () => {
           <button
             key={tab.kind}
             onClick={() => {
-              if (tab.kind === 'portfolio') {
+              if (tab.kind === 'control_plane') {
+                navigate({ kind: 'control_plane' });
+              } else if (tab.kind === 'portfolio') {
                 navigate({ kind: 'portfolio' });
               } else if (tab.kind === 'console') {
                 navigate({ kind: 'console' });
@@ -36,8 +38,6 @@ export const MobileNavBar: React.FC = () => {
                 navigate({ kind: 'costs' });
               } else if (tab.kind === 'qa') {
                 navigate({ kind: 'qa' });
-              } else if (tab.kind === 'settings') {
-                navigate({ kind: 'settings' });
               }
             }}
             className="flex flex-col items-center justify-center flex-1 h-full py-1 focus:outline-none transition-colors"

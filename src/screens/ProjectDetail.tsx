@@ -8,6 +8,8 @@ import { useNavigation, ProjectTab } from '../lib/navigation';
 import { StatusPill } from '../components/StatusPill';
 import { SeverityBadge } from '../components/SeverityBadge';
 import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
+import { TaskDisclosureRow } from '../components/disclosure';
+import { ProjectOverview } from '../components/ProjectOverview';
 import { CostChart } from '../components/CostChart';
 import { CostPieChart } from '../components/CostPieChart';
 import { ProjectChatTab } from '../components/ProjectChatTab';
@@ -191,54 +193,14 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
 
       {/* ── TAB 1: OVERVIEW ── */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
-          {/* Key Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] font-mono text-[#8b98a8] uppercase">UPTIME HEALTH</span>
-              <div className="text-xl font-bold font-mono text-emerald-400">
-                {project.uptime_pct || 99.9}%
-              </div>
-              <span className="text-[11px] text-[#8b98a8]">Status: {project.health_status || 'healthy'}</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] font-mono text-[#8b98a8] uppercase">MONTHLY SPEND</span>
-              <div className="text-xl font-bold font-mono text-[#FFBD59]">
-                {formatCost(monthSpend)}
-              </div>
-              <span className="text-[11px] text-[#8b98a8]">Budget: {formatCost(project.monthly_budget_usd || 1000)}</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] font-mono text-[#8b98a8] uppercase">TOTAL AGENT TASKS</span>
-              <div className="text-xl font-bold font-mono text-[#e6edf3]">
-                {tasks.length}
-              </div>
-              <span className="text-[11px] text-[#8b98a8]">{tasks.filter((t) => t.status === 'running').length} in progress</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] font-mono text-[#8b98a8] uppercase">QA RUNS & FINDINGS</span>
-              <div className="text-xl font-bold font-mono text-[#0873B7]">
-                {qaRuns.length} runs
-              </div>
-              <span className="text-[11px] text-[#8b98a8]">
-                {qaRuns.reduce((sum, r) => sum + r.findings_count, 0)} open issues
-              </span>
-            </div>
-          </div>
-
-          {/* Instructions Block */}
-          <div className="p-5 rounded-xl bg-[#161b22] border border-white/5 space-y-2">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[#FFBD59] font-mono">
-              Agent System Instructions (Coding Standards & Governance)
-            </h3>
-            <p className="text-xs font-mono text-[#e6edf3] bg-[#0d1117] p-3 rounded-lg border border-white/5 whitespace-pre-line leading-relaxed">
-              {project.agent_instructions || 'No special policy defined for this vertical.'}
-            </p>
-          </div>
-        </div>
+        <ProjectOverview
+          project={project}
+          tasks={tasks}
+          costEvents={costEvents}
+          qaRuns={qaRuns}
+          onNavigateToTab={setActiveTab}
+          onDispatchTask={() => navigate({ kind: 'console' })}
+        />
       )}
 
       {/* ── TAB 2: TASKS (Virtualized Table - Addendum A9) ── */}
@@ -288,58 +250,18 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
               onAction={() => navigate({ kind: 'console' })}
             />
           ) : (
-            <div className="bg-[#161b22] border border-white/5 rounded-xl overflow-hidden">
-              {/* Virtualized List Container */}
-              <div
-                ref={taskParentRef}
-                className="max-h-[520px] overflow-auto divide-y divide-white/5"
-              >
-                <div
-                  style={{
-                    height: `${taskVirtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative'
-                  }}
-                >
-                  {taskVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const task = sortedTasks[virtualRow.index];
-                    return (
-                      <div
-                        key={task.id}
-                        onClick={() => setSelectedTask(task)}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: `${virtualRow.size}px`,
-                          transform: `translateY(${virtualRow.start}px)`
-                        }}
-                        className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-[#1c2333] transition-colors cursor-pointer text-xs"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <StatusPill status={task.status} size="sm" />
-                          <div className="min-w-0">
-                            <span className="font-mono text-[10px] text-[#FFBD59] block">
-                              {task.task_type}
-                            </span>
-                            <p className="text-[#e6edf3] font-medium truncate max-w-md">
-                              {task.prompt}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-4 shrink-0 text-right font-mono text-[11px] text-[#8b98a8]">
-                          <span className="hidden sm:inline">
-                            {task.assigned_agent || 'Coordinator'}
-                          </span>
-                          <span>{formatRelative(task.created_at)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="bg-[#161b22] border border-white/5 rounded-xl overflow-hidden divide-y divide-white/5">
+              {sortedTasks.map((task) => (
+                <TaskDisclosureRow
+                  key={task.id}
+                  task={task}
+                  onOpenDrawer={setSelectedTask}
+                  onApprove={approveTask}
+                  onReject={rejectTask}
+                  onCancel={cancelTask}
+                  onRetry={retryTask}
+                />
+              ))}
             </div>
           )}
         </div>

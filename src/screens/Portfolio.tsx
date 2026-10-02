@@ -5,6 +5,7 @@ import { useCosts } from '../hooks/useCosts';
 import { useQA } from '../hooks/useQA';
 import { useNavigation } from '../lib/navigation';
 import { ProjectCard } from '../components/ProjectCard';
+import { ProjectDisclosureCard } from '../components/disclosure';
 import { LiveActivityFeed } from '../components/LiveActivityFeed';
 import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
 import { PendingActionsBar } from '../components/PendingActionsBar';
@@ -124,14 +125,14 @@ export const PortfolioScreen: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {projects.map((proj) => {
                 const projSpend = projectMonthlySpend(costEvents, proj.id);
-                const projTasks = tasks.filter((t) => t.project_id === proj.id && t.status === 'running').length;
                 return (
-                  <ProjectCard
+                  <ProjectDisclosureCard
                     key={proj.id}
                     project={proj}
                     monthlySpend={projSpend}
-                    activeTasksCount={projTasks}
-                    onClick={(id) => navigate({ kind: 'project', projectId: id, tab: 'overview' })}
+                    tasks={tasks}
+                    qaFindings={qaFindings}
+                    onOpenProject={(id) => navigate({ kind: 'project', projectId: id, tab: 'overview' })}
                   />
                 );
               })}

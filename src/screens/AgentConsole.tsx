@@ -5,6 +5,7 @@ import { TaskType, AgentTask } from '../lib/types';
 import { StatusPill } from '../components/StatusPill';
 import { PlanApproval } from '../components/PlanApproval';
 import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
+import { AgentSwarmWorkbench } from '../components/AgentSwarmWorkbench';
 import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { formatRelative, formatDateTime } from '../lib/format';
@@ -256,6 +257,9 @@ export const AgentConsoleScreen: React.FC = () => {
           </div>
         </div>
       </form>
+
+      {/* Hardware-Accelerated Swarm Telemetry & Packet Transit */}
+      <AgentSwarmWorkbench />
 
       {/* Recent Dispatched Tasks Stream */}
       <div className="space-y-3 pt-2">

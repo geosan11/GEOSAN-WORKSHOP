@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './lib/auth';
 import { DataProvider } from './lib/dataProvider';
 import { ToastProvider } from './components/Toast';
 import { NavigationProvider, useNavigation } from './lib/navigation';
+import { DensityProvider } from './lib/density';
 import { TopBar } from './components/TopBar';
 import { MobileNavBar } from './components/MobileNavBar';
 import { LoadingState } from './components/LoadingState';
@@ -16,6 +17,8 @@ import { AgentConsoleScreen } from './screens/AgentConsole';
 import { CostCenterScreen } from './screens/CostCenter';
 import { QARunsScreen } from './screens/QARuns';
 import { SettingsScreen } from './screens/Settings';
+import { ControlPlaneLayout } from './components/dashboard/ControlPlaneLayout';
+import { FoundryChassis } from './components/foundry/FoundryChassis';
 
 const AppContent: React.FC = () => {
   const { session, loading } = useAuth();
@@ -42,6 +45,8 @@ const AppContent: React.FC = () => {
 
       {/* Main Content Area (pb added so content is not obscured by mobile bottom nav - Addendum A10) */}
       <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8">
+        {screen.kind === 'control_plane' && <ControlPlaneLayout />}
+        {screen.kind === 'foundry' && <FoundryChassis />}
         {screen.kind === 'portfolio' && <PortfolioScreen />}
         {screen.kind === 'project' && (
           <ProjectDetailScreen projectId={screen.projectId} initialTab={screen.tab} />
@@ -65,7 +70,9 @@ export default function App() {
         <DataProvider>
           <ToastProvider>
             <NavigationProvider>
-              <AppContent />
+              <DensityProvider>
+                <AppContent />
+              </DensityProvider>
             </NavigationProvider>
           </ToastProvider>
         </DataProvider>

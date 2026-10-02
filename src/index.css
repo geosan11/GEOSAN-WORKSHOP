@@ -91,3 +91,56 @@ code, pre, .font-mono {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-gold-deep);
 }
+
+/* GPU-Accelerated Zero-CPU Swarm Telemetry & Crash Glitch */
+@keyframes glitch-shake {
+  0% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(-3px, 1px, 0); }
+  50% { transform: translate3d(2px, -1px, 0); }
+  75% { transform: translate3d(-1px, 2px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+.crashed {
+  border-color: #ef4444 !important;
+  background-color: rgba(69, 10, 10, 0.6) !important;
+  animation: glitch-shake 0.15s infinite;
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Cyber-Industrial Foundry PCB Traces & Avatars */
+@keyframes spin-cw {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spin-ccw {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-trace {
+  0% { stroke-dashoffset: 40; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes fuse-flicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.trace-active {
+  animation: pulse-trace 1.2s linear infinite;
+}
+
+.trace-blown {
+  stroke: #ef4444 !important;
+  stroke-dasharray: 4 3 !important;
+  animation: fuse-flicker 0.2s ease-in-out infinite alternate !important;
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+}

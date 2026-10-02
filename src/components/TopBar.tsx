@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigation } from '../lib/navigation';
 import { useDataProvider } from '../lib/dataProvider';
 import { useAuth } from '../lib/auth';
+import { useDensity } from '../lib/density';
 import { formatRelative } from '../lib/format';
 import {
   ShieldCheck,
@@ -18,7 +19,8 @@ import {
   CheckCircle2,
   Activity,
   Layers,
-  Check
+  Check,
+  Cpu
 } from 'lucide-react';
 
 interface NotificationItem {
@@ -73,6 +75,7 @@ export const TopBar: React.FC = () => {
   const { screen, navigate } = useNavigation();
   const dataProvider = useDataProvider();
   const { user } = useAuth();
+  const { density, setDensity } = useDensity();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [bellOpen, setBellOpen] = useState(false);
@@ -138,6 +141,8 @@ export const TopBar: React.FC = () => {
   }, [bellOpen]);
 
   const navTabs = [
+    { kind: 'control_plane', label: 'CONTROL PLANE', icon: Layers },
+    { kind: 'foundry', label: 'SILICON FOUNDRY', icon: Cpu },
     { kind: 'portfolio', label: 'PORTFOLIO', icon: FolderGit2 },
     { kind: 'console', label: 'AGENT CONSOLE', icon: Terminal },
     { kind: 'costs', label: 'COST CENTER', icon: DollarSign },
@@ -189,7 +194,11 @@ export const TopBar: React.FC = () => {
             <button
               key={tab.kind}
               onClick={() => {
-                if (tab.kind === 'portfolio') {
+                if (tab.kind === 'control_plane') {
+                  navigate({ kind: 'control_plane' });
+                } else if (tab.kind === 'foundry') {
+                  navigate({ kind: 'foundry' });
+                } else if (tab.kind === 'portfolio') {
                   navigate({ kind: 'portfolio' });
                 } else if (tab.kind === 'console') {
                   navigate({ kind: 'console' });
@@ -214,8 +223,33 @@ export const TopBar: React.FC = () => {
         })}
       </nav>
 
-      {/* Right Tools: Manual Refresh, Notification Bell, Theme Toggle */}
+      {/* Right Tools: Density Toggle, Manual Refresh, Notification Bell, Theme Toggle */}
       <div className="flex items-center gap-2">
+        {/* Density Mode Switch (Compact | Normal | Expanded) */}
+        <div
+          className="hidden sm:flex items-center rounded-lg bg-[#0d1117] border border-white/10 p-0.5 font-mono text-[10px]"
+          title="Information Density: Compact | Normal | Expanded"
+          role="radiogroup"
+          aria-label="Information Density"
+        >
+          {(['compact', 'normal', 'expanded'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="radio"
+              aria-checked={density === mode}
+              onClick={() => setDensity(mode)}
+              className={`px-2 py-0.5 rounded capitalize transition-all ${
+                density === mode
+                  ? 'bg-[#F0B230] text-[#0A1420] font-bold shadow-sm'
+                  : 'text-[#8b98a8] hover:text-white'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
         {/* Manual Refresh (Addendum A8) */}
         <button
           onClick={handleManualRefresh}

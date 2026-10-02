@@ -3,6 +3,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 export type ProjectTab = 'overview' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings';
 
 export type Screen =
+  | { kind: 'control_plane' }
+  | { kind: 'foundry' }
   | { kind: 'portfolio' }
   | { kind: 'project'; projectId: string; tab: ProjectTab }
   | { kind: 'console' }

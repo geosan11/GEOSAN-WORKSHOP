@@ -44,6 +44,7 @@ export interface Project {
   health_status?: 'healthy' | 'degraded' | 'down';
   uptime_pct?: number;
   last_activity_at?: string;
+  git_branch?: string;
 }
 
 export interface AgentTask {
@@ -59,6 +60,7 @@ export interface AgentTask {
   result: Record<string, unknown> | null;
   branch_name: string | null;
   pr_url: string | null;
+  cost_usd?: number;
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
