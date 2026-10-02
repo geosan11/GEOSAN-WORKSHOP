@@ -71,7 +71,7 @@ Managing multi-tier autonomous projects without a visual control plane forces op
 
 ```css
 :root {
-  /* Surface Tokens */
+  /* Surface Tokens (Default Dark Obsidian) */
   --bg-app: #0d1117;          /* Obsidian Deep */
   --color-surface-1: #161b22; /* Card Surface */
   --color-surface-2: #1c2333; /* Elevated Surface / Disclosure Detail */
@@ -95,6 +95,25 @@ Managing multi-tier autonomous projects without a visual control plane forces op
   --color-status-warning: #f59e0b; /* Amber 500 */
   --color-status-danger: #ef4444;  /* Red 500 */
   --color-status-info: #06b6d4;    /* Cyan 500 */
+}
+
+/* Clean Corporate Light Mode Tokens */
+html.light {
+  --bg-app: #F4F6F9;          /* Crisp Porcelain Base */
+  --color-surface-1: #FFFFFF; /* High-Contrast White Card Surface */
+  --color-surface-2: #F8FAFC; /* Elevated Inset Surface */
+  --color-surface-3: #F1F5F9; /* Hover State */
+  
+  --color-gold: #D97706;       /* High-Contrast Amber-700 Accent */
+  --color-gold-hover: #B45309; /* Deep Amber-800 Hover */
+  --color-navy: #0A1420;       /* Deep Ink Blue */
+  
+  --color-text-main: #0A1420;  /* Slate-950 Ink Primary Text */
+  --color-text-sub: #526071;   /* Slate-600 Muted Metadata */
+  
+  --color-border-subtle: rgba(15, 23, 42, 0.09);
+  --color-border-strong: rgba(15, 23, 42, 0.18);
+  color-scheme: light;
 }
 ```
 

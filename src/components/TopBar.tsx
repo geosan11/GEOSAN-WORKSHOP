@@ -3,6 +3,7 @@ import { useNavigation } from '../lib/navigation';
 import { useDataProvider } from '../lib/dataProvider';
 import { useAuth } from '../lib/auth';
 import { useDensity } from '../lib/density';
+import { useTheme } from '../lib/theme';
 import { formatRelative } from '../lib/format';
 import {
   ShieldCheck,
@@ -76,11 +77,11 @@ export const TopBar: React.FC = () => {
   const dataProvider = useDataProvider();
   const { user } = useAuth();
   const { density, setDensity } = useDensity();
+  const { theme, isLight, toggleTheme } = useTheme();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [bellOpen, setBellOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLightMode, setIsLightMode] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -92,18 +93,6 @@ export const TopBar: React.FC = () => {
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
     }
-  };
-
-  const toggleTheme = () => {
-    setIsLightMode((prev) => {
-      const next = !prev;
-      if (next) {
-        document.documentElement.classList.add('light');
-      } else {
-        document.documentElement.classList.remove('light');
-      }
-      return next;
-    });
   };
 
   const handleNotificationClick = (item: NotificationItem) => {
@@ -261,14 +250,28 @@ export const TopBar: React.FC = () => {
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#F0B230]' : ''}`} />
         </button>
 
-        {/* Light/Dark Toggle */}
+        {/* Light/Dark Mode Toggle with Persistent State */}
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-lg text-[#8b98a8] hover:text-white hover:bg-white/5 transition-colors focus:outline-none"
-          title={isLightMode ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all focus:outline-none ${
+            isLight
+              ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 shadow-sm'
+              : 'bg-white/5 text-[#8b98a8] border-white/5 hover:text-white hover:bg-white/10'
+          }`}
+          title={isLight ? 'Switch to Obsidian Dark Mode' : 'Switch to Clean Light Mode'}
           aria-label="Toggle theme mode"
         >
-          {isLightMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+          {isLight ? (
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+              <span className="hidden sm:inline">LIGHT</span>
+            </>
+          ) : (
+            <>
+              <Moon className="w-3.5 h-3.5 text-[#F0B230]" />
+              <span className="hidden sm:inline">DARK</span>
+            </>
+          )}
         </button>
 
         {/* Notification Bell with Badge & Dropdown (Addendum A7) */}

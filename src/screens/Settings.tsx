@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../lib/auth';
+import { useTheme } from '../lib/theme';
+import { useDensity } from '../lib/density';
 import { useProjects } from '../hooks/useProjects';
 import { useDataProvider } from '../lib/dataProvider';
 import { useToast } from '../components/Toast';
@@ -16,11 +18,15 @@ import {
   Lock,
   Unlock,
   CheckCircle2,
-  Layers
+  Layers,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export const SettingsScreen: React.FC = () => {
   const { user, orgId, signOut } = useAuth();
+  const { theme, isLight, setTheme } = useTheme();
+  const { density, setDensity } = useDensity();
   const { projects } = useProjects();
   const dataProvider = useDataProvider();
   const toast = useToast();
@@ -123,7 +129,104 @@ export const SettingsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Section 2: Project Budgets & Hard-Stop Config */}
+      {/* Section 2: Appearance & Display Engine */}
+      <div className="p-5 rounded-xl bg-[#161b22] border border-white/5 space-y-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFBD59] font-mono flex items-center gap-2">
+          <Sun className="w-4 h-4 text-[#F0B230]" />
+          Appearance & Visual Display Mode
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono text-xs">
+          {/* Light Mode Selector Card */}
+          <button
+            type="button"
+            onClick={() => setTheme('light')}
+            className={`p-4 rounded-xl border text-left transition-all space-y-2 relative ${
+              isLight
+                ? 'bg-amber-50/90 border-[#D97706] shadow-md ring-2 ring-[#D97706]/40'
+                : 'bg-[#0d1117] border-white/5 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
+                  <Sun className="w-4 h-4" />
+                </div>
+                <span className={`font-bold ${isLight ? 'text-slate-900' : 'text-[#e6edf3]'}`}>
+                  Clean Light Mode
+                </span>
+              </div>
+              {isLight && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#D97706] text-white">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
+              High-contrast corporate SaaS theme with crisp porcelain backgrounds, clear slate borders, and readable dark ink typography.
+            </p>
+          </button>
+
+          {/* Dark Mode Selector Card */}
+          <button
+            type="button"
+            onClick={() => setTheme('dark')}
+            className={`p-4 rounded-xl border text-left transition-all space-y-2 relative ${
+              !isLight
+                ? 'bg-slate-900/90 border-[#F0B230] shadow-md ring-2 ring-[#F0B230]/40'
+                : 'bg-[#0d1117] border-white/5 hover:border-white/20'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-[#F0B230]">
+                  <Moon className="w-4 h-4" />
+                </div>
+                <span className={`font-bold ${!isLight ? 'text-white' : 'text-[#e6edf3]'}`}>
+                  Obsidian Dark Mode
+                </span>
+              </div>
+              {!isLight && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#F0B230] text-[#0A1420]">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+              Industrial blueprint dark mode with deep navy surfaces, gold telemetry highlights, and reduced eye strain for night shifts.
+            </p>
+          </button>
+        </div>
+
+        {/* Density Engine Control */}
+        <div className="pt-3 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div>
+            <span className="text-[#e6edf3] font-bold block">Information Density Engine</span>
+            <span className="text-[11px] text-[#8b98a8]">
+              Controls row heights, disclosure padding, and font spacing.
+            </span>
+          </div>
+
+          <div className="flex items-center rounded-lg bg-[#0d1117] border border-white/10 p-1">
+            {(['compact', 'normal', 'expanded'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setDensity(mode)}
+                className={`px-3 py-1 rounded capitalize text-xs font-bold transition-all ${
+                  density === mode
+                    ? 'bg-[#F0B230] text-[#0A1420] shadow-sm'
+                    : 'text-[#8b98a8] hover:text-white'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Section 3: Project Budgets & Hard-Stop Config */}
       <div className="p-5 rounded-xl bg-[#161b22] border border-white/5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFBD59] font-mono flex items-center gap-2">

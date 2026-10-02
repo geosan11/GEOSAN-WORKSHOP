@@ -5,6 +5,7 @@ import { DataProvider } from './lib/dataProvider';
 import { ToastProvider } from './components/Toast';
 import { NavigationProvider, useNavigation } from './lib/navigation';
 import { DensityProvider } from './lib/density';
+import { ThemeProvider } from './lib/theme';
 import { TopBar } from './components/TopBar';
 import { MobileNavBar } from './components/MobileNavBar';
 import { LoadingState } from './components/LoadingState';
@@ -66,17 +67,19 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <DataProvider>
-          <ToastProvider>
-            <NavigationProvider>
-              <DensityProvider>
-                <AppContent />
-              </DensityProvider>
-            </NavigationProvider>
-          </ToastProvider>
-        </DataProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <DataProvider>
+            <ToastProvider>
+              <NavigationProvider>
+                <DensityProvider>
+                  <AppContent />
+                </DensityProvider>
+              </NavigationProvider>
+            </ToastProvider>
+          </DataProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

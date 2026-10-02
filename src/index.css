@@ -144,3 +144,162 @@ code, pre, .font-mono {
   animation: fuse-flicker 0.2s ease-in-out infinite alternate !important;
   filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
 }
+
+/* ============================================================
+   LIGHT MODE DESIGN SYSTEM
+   High-contrast, clean corporate SaaS aesthetic with AA/AAA compliance
+   ============================================================ */
+html.light {
+  --color-obsidian: #F4F6F9;
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F8FAFC;
+  --color-border: rgba(15, 23, 42, 0.09);
+  --color-text: #0A1420;
+  --color-text-sub: #526071;
+
+  --bg-app: #F4F6F9;
+  --bg-card: #FFFFFF;
+  --bg-card-elevated: #F8FAFC;
+  --border-app: rgba(15, 23, 42, 0.09);
+  --text-main: #0A1420;
+  --text-muted: #526071;
+  color-scheme: light;
+}
+
+html.light body {
+  background-color: #F4F6F9 !important;
+  color: #0A1420 !important;
+}
+
+/* Structural Shell & Cards in Light Mode */
+html.light .bg-\[\#0d1117\],
+html.light .bg-\[\#090d16\],
+html.light .bg-\[\#040914\],
+html.light .bg-slate-950 {
+  background-color: #F4F6F9 !important;
+  color: #0A1420 !important;
+}
+
+html.light .bg-\[\#161b22\],
+html.light .bg-slate-900,
+html.light .bg-\[\#060c18\],
+html.light .bg-\[\#060c1a\],
+html.light .bg-\[\#050b18\],
+html.light .bg-\[\#081022\],
+html.light .bg-\[\#071022\] {
+  background-color: #FFFFFF !important;
+  border-color: rgba(15, 23, 42, 0.09) !important;
+  color: #0A1420 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+html.light .bg-\[\#1c2333\],
+html.light .bg-slate-800,
+html.light .bg-\[\#070e1c\] {
+  background-color: #F8FAFC !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: #0A1420 !important;
+}
+
+html.light .bg-white\/5,
+html.light .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.04) !important;
+}
+
+html.light .border-white\/5,
+html.light .border-white\/10,
+html.light .border-white\/15,
+html.light .border-white\/20,
+html.light .border-slate-800,
+html.light .border-slate-800\/80,
+html.light .border-slate-800\/90,
+html.light .border-slate-700 {
+  border-color: rgba(15, 23, 42, 0.09) !important;
+}
+
+/* Text Readability in Light Mode */
+html.light .text-\[\#e6edf3\],
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-white {
+  color: #0A1420 !important;
+}
+
+html.light .text-\[\#8b98a8\],
+html.light .text-slate-400,
+html.light .text-slate-500 {
+  color: #526071 !important;
+}
+
+html.light .text-slate-300 {
+  color: #1E293B !important;
+}
+
+/* Header & Navigation Bar in Light Mode */
+html.light header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.09) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+html.light nav {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(15, 23, 42, 0.09) !important;
+}
+
+/* Inputs, Selects, and Textareas in Light Mode */
+html.light input,
+html.light select,
+html.light textarea {
+  background-color: #FFFFFF !important;
+  color: #0A1420 !important;
+  border-color: #CBD5E1 !important;
+}
+
+html.light input:focus,
+html.light select:focus,
+html.light textarea:focus {
+  border-color: #D97706 !important;
+  outline-color: #D97706 !important;
+}
+
+/* Gold Accents with High Contrast in Light Mode */
+html.light .text-\[\#F0B230\],
+html.light .text-\[\#FFBD59\],
+html.light .text-\[\#d97706\] {
+  color: #B45309 !important;
+}
+
+html.light .border-\[\#F0B230\],
+html.light .border-\[\#d97706\] {
+  border-color: #D97706 !important;
+}
+
+html.light .bg-\[\#F0B230\]\/10,
+html.light .bg-\[\#F0B230\]\/15,
+html.light .bg-\[\#F0B230\]\/20 {
+  background-color: #FEF3C7 !important;
+  color: #92400E !important;
+}
+
+/* Code, Pre, and Terminals in Light Mode */
+html.light pre,
+html.light code {
+  background-color: #F8FAFC;
+  color: #0F172A;
+  border-color: #E2E8F0;
+}
+
+/* Custom crisp light scrollbars */
+html.light ::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
