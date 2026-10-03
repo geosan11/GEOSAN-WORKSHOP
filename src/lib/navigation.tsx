@@ -1,15 +1,16 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-export type ProjectTab = 'overview' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings';
+export type ProjectTab = 'overview' | 'discovery' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings';
 
 export type Screen =
-  | { kind: 'control_plane' }
-  | { kind: 'foundry' }
   | { kind: 'portfolio' }
+  | { kind: 'discovery'; projectId?: string }
+  | { kind: 'knowledge' }
   | { kind: 'project'; projectId: string; tab: ProjectTab }
   | { kind: 'console' }
   | { kind: 'costs' }
   | { kind: 'qa' }
+  | { kind: 'monitoring' }
   | { kind: 'settings' };
 
 interface NavigationContextType {

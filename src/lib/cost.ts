@@ -11,13 +11,15 @@ export function projectMonthlySpend(
   start.setDate(1);
   start.setHours(0, 0, 0, 0);
 
-  return events
+  const total = events
     .filter((e) => {
       const isProjectMatch = !projectId || e.project_id === projectId;
       const isThisMonth = new Date(e.created_at) >= start;
       return isProjectMatch && isThisMonth;
     })
     .reduce((sum, e) => sum + Number(e.cost_usd || 0), 0);
+
+  return Math.round(total * 1000000) / 1000000;
 }
 
 /**
@@ -38,12 +40,15 @@ export function spendByProvider(
     google: 0,
     anthropic: 0,
     xai: 0,
-    openai: 0
+    openai: 0,
+    deepseek: 0,
+    kimi: 0,
   };
 
   for (const e of filtered) {
     const p = e.provider || 'local';
-    byProvider[p] = (byProvider[p] || 0) + Number(e.cost_usd || 0);
+    const sum = (byProvider[p] || 0) + Number(e.cost_usd || 0);
+    byProvider[p] = Math.round(sum * 1000000) / 1000000;
   }
 
   return byProvider;
@@ -66,7 +71,8 @@ export function spendByAttribution(
   const byTag: Record<string, number> = {};
   for (const e of filtered) {
     if (!e.attributed_to) continue;
-    byTag[e.attributed_to] = (byTag[e.attributed_to] || 0) + Number(e.cost_usd || 0);
+    const sum = (byTag[e.attributed_to] || 0) + Number(e.cost_usd || 0);
+    byTag[e.attributed_to] = Math.round(sum * 1000000) / 1000000;
   }
 
   return byTag;

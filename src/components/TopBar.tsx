@@ -5,6 +5,8 @@ import { useAuth } from '../lib/auth';
 import { useDensity } from '../lib/density';
 import { useTheme } from '../lib/theme';
 import { formatRelative } from '../lib/format';
+import { HarnessStatus } from './HarnessStatus';
+import { AetherOrchLogo, SupabaseLogo } from './ServiceLogos';
 import {
   ShieldCheck,
   FolderGit2,
@@ -21,7 +23,9 @@ import {
   Activity,
   Layers,
   Check,
-  Cpu
+  Cpu,
+  Compass,
+  Brain
 } from 'lucide-react';
 
 interface NotificationItem {
@@ -130,28 +134,29 @@ export const TopBar: React.FC = () => {
   }, [bellOpen]);
 
   const navTabs = [
-    { kind: 'control_plane', label: 'CONTROL PLANE', icon: Layers },
-    { kind: 'foundry', label: 'SILICON FOUNDRY', icon: Cpu },
     { kind: 'portfolio', label: 'PORTFOLIO', icon: FolderGit2 },
+    { kind: 'discovery', label: 'SDLC SCOPING', icon: Compass },
+    { kind: 'knowledge', label: 'LLM VAULT', icon: Brain },
     { kind: 'console', label: 'AGENT CONSOLE', icon: Terminal },
     { kind: 'costs', label: 'COST CENTER', icon: DollarSign },
     { kind: 'qa', label: 'QA WORKBENCH', icon: Bug },
+    { kind: 'monitoring', label: 'MONITORING', icon: Activity },
     { kind: 'settings', label: 'SETTINGS', icon: SettingsIcon }
   ] as const;
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#161b22]/95 border-b border-white/5 backdrop-blur-md px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
-      {/* Brand & Demo Pill */}
+      {/* Brand & Demo Pill & Shared Status Pill */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate({ kind: 'portfolio' })}
-          className="flex items-center gap-2.5 focus:outline-none"
+          className="flex items-center gap-2.5 focus:outline-none group cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-lg bg-[#F0B230]/15 border border-[#F0B230]/40 flex items-center justify-center text-[#F0B230]">
-            <ShieldCheck className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1c2333] to-[#0d1117] border border-white/10 flex items-center justify-center shadow-sm group-hover:border-[#FFBD59]/40 transition-colors">
+            <AetherOrchLogo className="w-6 h-6" />
           </div>
           <div className="text-left hidden sm:block">
-            <span className="font-bold text-sm tracking-tight text-[#e6edf3] font-display block">
+            <span className="font-bold text-sm tracking-tight text-[#e6edf3] font-display block group-hover:text-white">
               AetherOrch
             </span>
             <span className="text-[10px] font-mono text-[#8b98a8] block -mt-1">
@@ -160,8 +165,16 @@ export const TopBar: React.FC = () => {
           </div>
         </button>
 
-        {/* Demo Mode Indicator (Addendum A2: small pill, gold outline, text "DEMO MODE") */}
-        {dataProvider.isDemo && (
+        {/* Production vs Demo Badge */}
+        {!dataProvider.isDemo ? (
+          <span
+            className="px-2.5 py-0.5 rounded-full border border-emerald-500/50 bg-emerald-950/60 text-emerald-300 font-mono text-[9px] font-bold tracking-wider ml-1 flex items-center gap-1.5 shadow-sm"
+            title="Production Supabase connected: zxdxsizyvotkcsrtzscw"
+          >
+            <SupabaseLogo className="w-3 h-3" />
+            <span>PROD: zxdxsizyvotkcsrtzscw</span>
+          </span>
+        ) : (
           <span
             className="px-2 py-0.5 rounded-full border border-[#F0B230] text-[#F0B230] font-mono text-[9px] font-bold tracking-wider animate-pulse ml-1"
             title="Running in mock memory mode with zero external credentials required"
@@ -169,6 +182,11 @@ export const TopBar: React.FC = () => {
             DEMO MODE
           </span>
         )}
+
+        {/* Shared Upstream & Budget Status Pill */}
+        <div className="hidden lg:block ml-2">
+          <HarnessStatus />
+        </div>
       </div>
 
       {/* Desktop Navigation Tabs (>= 768px - Addendum A4) */}
@@ -183,18 +201,20 @@ export const TopBar: React.FC = () => {
             <button
               key={tab.kind}
               onClick={() => {
-                if (tab.kind === 'control_plane') {
-                  navigate({ kind: 'control_plane' });
-                } else if (tab.kind === 'foundry') {
-                  navigate({ kind: 'foundry' });
-                } else if (tab.kind === 'portfolio') {
+                if (tab.kind === 'portfolio') {
                   navigate({ kind: 'portfolio' });
+                } else if (tab.kind === 'discovery') {
+                  navigate({ kind: 'discovery' });
+                } else if (tab.kind === 'knowledge') {
+                  navigate({ kind: 'knowledge' });
                 } else if (tab.kind === 'console') {
                   navigate({ kind: 'console' });
                 } else if (tab.kind === 'costs') {
                   navigate({ kind: 'costs' });
                 } else if (tab.kind === 'qa') {
                   navigate({ kind: 'qa' });
+                } else if (tab.kind === 'monitoring') {
+                  navigate({ kind: 'monitoring' });
                 } else if (tab.kind === 'settings') {
                   navigate({ kind: 'settings' });
                 }

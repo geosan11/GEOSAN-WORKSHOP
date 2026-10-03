@@ -49,13 +49,45 @@ export const INITIAL_MODEL_PRICING: ModelPricing[] = [
     output_per_million: 4.40,
     context_window: '200k tokens',
     best_for: 'Formal verification, deterministic SQL invariant checking'
+  },
+  {
+    provider: 'deepseek',
+    model: 'deepseek-r1',
+    input_per_million: 0.55,
+    output_per_million: 2.19,
+    context_window: '128k tokens',
+    best_for: 'Open reasoning, mathematical invariant validation, deep code analysis'
+  },
+  {
+    provider: 'deepseek',
+    model: 'deepseek-v3',
+    input_per_million: 0.14,
+    output_per_million: 0.28,
+    context_window: '64k tokens',
+    best_for: 'High-throughput code synthesis, repo tree refactoring, budget efficiency'
+  },
+  {
+    provider: 'kimi',
+    model: 'kimi-k1.5',
+    input_per_million: 0.60,
+    output_per_million: 2.40,
+    context_window: '256k tokens',
+    best_for: 'Massive context multimodal reasoning, cross-repo dependency indexing'
+  },
+  {
+    provider: 'kimi',
+    model: 'kimi-chat',
+    input_per_million: 0.40,
+    output_per_million: 1.60,
+    context_window: '128k tokens',
+    best_for: 'Context-heavy instruction following, rapid turnaround verification'
   }
 ];
 
 export const INITIAL_PROJECTS: ProjectRegistry[] = [
   {
     id: 'proj-ehi-001',
-    name: 'EHI Cargo Hubs & Waybills',
+    name: 'EHI Multisystems (Cargo Hubs & Waybills)',
     vertical: 'logistics',
     supabase_project_url: 'https://ehi-cargo-core.supabase.co',
     supabase_anon_key_masked: 'sb_anon_••••••••••••ehi92',
@@ -82,7 +114,7 @@ export const INITIAL_PROJECTS: ProjectRegistry[] = [
   },
   {
     id: 'proj-iya-002',
-    name: 'Iyanuoluwa AgroSupply & Silos',
+    name: 'Iyanuoluwa Vegetable Oil (AgroSupply & Silos)',
     vertical: 'agriculture',
     supabase_project_url: 'https://iyanuoluwa-agro.supabase.co',
     supabase_anon_key_masked: 'sb_anon_••••••••••••iya44',
@@ -105,11 +137,11 @@ export const INITIAL_PROJECTS: ProjectRegistry[] = [
     health: 'healthy',
     created_at: '2026-07-10T12:00:00Z',
     updated_at: '2026-09-28T14:30:00Z',
-    description: 'IoT telemetry aggregation for grain moisture, cocoa cooperative bulk payout dispatch, and warehouse receipt tokenization.'
+    description: 'IoT telemetry aggregation for grain moisture, vegetable oil processing, bulk payout dispatch, and warehouse receipt tokenization.'
   },
   {
     id: 'proj-aero-003',
-    name: 'AeroOps Apron & Dispatch',
+    name: 'Aviation Log Entry (AeroOps Turnaround)',
     vertical: 'aviation',
     supabase_project_url: 'https://aeroops-ground.supabase.co',
     supabase_anon_key_masked: 'sb_anon_••••••••••••aero77',
@@ -132,11 +164,11 @@ export const INITIAL_PROJECTS: ProjectRegistry[] = [
     health: 'healthy',
     created_at: '2026-09-01T08:30:00Z',
     updated_at: '2026-09-28T17:05:00Z',
-    description: 'Ground handling turnaround management, fuel bowser dispatch, baggage carousel allocation, and runway ramp telemetry.'
+    description: 'Electronic flight log entries, turnaround management, fuel bowser dispatch, baggage allocation, and runway ramp telemetry.'
   },
   {
     id: 'proj-edge-004',
-    name: 'EdgePoint Cross-Border Settlement',
+    name: 'EdgePoint (Cross-Border Settlement)',
     vertical: 'fintech',
     supabase_project_url: 'https://edgepoint-treasury.supabase.co',
     supabase_anon_key_masked: 'sb_anon_••••••••••••edge11',

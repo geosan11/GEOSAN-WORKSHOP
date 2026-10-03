@@ -9,6 +9,7 @@ import { AgentSwarmWorkbench } from '../components/AgentSwarmWorkbench';
 import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { formatRelative, formatDateTime } from '../lib/format';
+import { useToast } from '../components/Toast';
 import {
   Terminal,
   Send,
@@ -23,6 +24,8 @@ import {
   Cpu,
   Lock
 } from 'lucide-react';
+import { TaskImportance, getRecommendedModel } from '../lib/modelRouter';
+import { ModelRouterIntelligence } from '../components/ModelRouterIntelligence';
 
 const TASK_TYPES: { value: TaskType; label: string; agent: string; desc: string }[] = [
   { value: 'BUILD_FEATURE', label: 'BUILD FEATURE', agent: 'CodingAgent + Reviewer', desc: 'Create code, tests, and open PR' },
@@ -41,14 +44,26 @@ const PRESET_PROMPTS = [
 ];
 
 export const AgentConsoleScreen: React.FC = () => {
+  const toast = useToast();
   const { projects, loading: pLoading } = useProjects();
   const { tasks, loading: tLoading, error: tError, refetch: tRefetch, createTask, approveTask, rejectTask, cancelTask, retryTask } = useTasks();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [taskType, setTaskType] = useState<TaskType>('BUILD_FEATURE');
+  const [importance, setImportance] = useState<TaskImportance>('standard');
+  const [autoRoute, setAutoRoute] = useState<boolean>(true);
+  const [selectedModelId, setSelectedModelId] = useState<string>('deepseek-v3');
   const [promptText, setPromptText] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
+
+  const handleTaskTypeChange = (newType: TaskType) => {
+    setTaskType(newType);
+    if (autoRoute) {
+      const rec = getRecommendedModel(newType, importance);
+      setSelectedModelId(rec.modelId);
+    }
+  };
 
   // Set default project when loaded
   const currentProjectId = selectedProjectId || (projects[0]?.id ?? '');
@@ -60,13 +75,16 @@ export const AgentConsoleScreen: React.FC = () => {
     const proj = projects.find((p) => p.id === currentProjectId);
     try {
       setSubmitting(true);
-      await createTask({
+      const created = await createTask({
         org_id: proj?.org_id || 'org-ehi-global',
         project_id: currentProjectId,
         task_type: taskType,
         prompt: promptText.trim()
       });
       setPromptText('');
+      toast.success(`Dispatched ${created.id} to CoordinatorAgent (${selectedModelId})`);
+    } catch {
+      toast.error('Failed to dispatch task');
     } finally {
       setSubmitting(false);
     }
@@ -166,7 +184,7 @@ export const AgentConsoleScreen: React.FC = () => {
                 <button
                   key={t.value}
                   type="button"
-                  onClick={() => setTaskType(t.value)}
+                  onClick={() => handleTaskTypeChange(t.value)}
                   className={`p-3 rounded-xl border text-left transition-all ${
                     isSelected
                       ? 'bg-[#F0B230]/15 border-[#F0B230] text-[#FFBD59] shadow-sm'
@@ -186,11 +204,38 @@ export const AgentConsoleScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* STEP 3: SPECIFICATION & GUARDRAILS */}
+        {/* STEP 3: FOUNDATION MODEL & INTELLIGENT ROUTER */}
         <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 space-y-3.5 shadow-md">
           <div className="flex items-center gap-3">
             <div className="w-6 h-6 rounded-full bg-[#F0B230] text-[#0A1420] font-bold text-xs flex items-center justify-center font-mono">
               3
+            </div>
+            <div>
+              <h3 className="text-xs font-bold text-[#e6edf3] uppercase tracking-wider font-mono">
+                Model Routing Intelligence & Criticality Matching
+              </h3>
+              <p className="text-[11px] text-[#8b98a8]">
+                Match task type and criticality level with the optimal AI foundation model profile
+              </p>
+            </div>
+          </div>
+
+          <ModelRouterIntelligence
+            taskType={taskType}
+            selectedModelId={selectedModelId}
+            importance={importance}
+            onImportanceChange={setImportance}
+            onModelSelect={setSelectedModelId}
+            autoRoute={autoRoute}
+            onToggleAutoRoute={setAutoRoute}
+          />
+        </div>
+
+        {/* STEP 4: SPECIFICATION & GUARDRAILS */}
+        <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 space-y-3.5 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full bg-[#F0B230] text-[#0A1420] font-bold text-xs flex items-center justify-center font-mono">
+              4
             </div>
             <div>
               <h3 className="text-xs font-bold text-[#e6edf3] uppercase tracking-wider font-mono">

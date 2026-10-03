@@ -1,16 +1,18 @@
 import React from 'react';
 import { useNavigation } from '../lib/navigation';
-import { Layers, FolderGit2, Terminal, DollarSign, Bug, Settings as SettingsIcon } from 'lucide-react';
+import { FolderGit2, Terminal, DollarSign, Bug, Activity, Settings as SettingsIcon, Compass, Brain } from 'lucide-react';
 
 export const MobileNavBar: React.FC = () => {
   const { screen, navigate } = useNavigation();
 
   const tabs = [
-    { kind: 'control_plane', label: 'Control', icon: Layers },
     { kind: 'portfolio', label: 'Portfolio', icon: FolderGit2 },
+    { kind: 'discovery', label: 'Discovery', icon: Compass },
+    { kind: 'knowledge', label: 'Vault', icon: Brain },
     { kind: 'console', label: 'Console', icon: Terminal },
-    { kind: 'costs', label: 'Costs', icon: DollarSign },
-    { kind: 'qa', label: 'QA', icon: Bug }
+    { kind: 'qa', label: 'QA', icon: Bug },
+    { kind: 'monitoring', label: 'Monitor', icon: Activity },
+    { kind: 'settings', label: 'Settings', icon: SettingsIcon }
   ] as const;
 
   return (
@@ -28,16 +30,20 @@ export const MobileNavBar: React.FC = () => {
           <button
             key={tab.kind}
             onClick={() => {
-              if (tab.kind === 'control_plane') {
-                navigate({ kind: 'control_plane' });
-              } else if (tab.kind === 'portfolio') {
+              if (tab.kind === 'portfolio') {
                 navigate({ kind: 'portfolio' });
+              } else if (tab.kind === 'discovery') {
+                navigate({ kind: 'discovery' });
+              } else if (tab.kind === 'knowledge') {
+                navigate({ kind: 'knowledge' });
               } else if (tab.kind === 'console') {
                 navigate({ kind: 'console' });
-              } else if (tab.kind === 'costs') {
-                navigate({ kind: 'costs' });
               } else if (tab.kind === 'qa') {
                 navigate({ kind: 'qa' });
+              } else if (tab.kind === 'monitoring') {
+                navigate({ kind: 'monitoring' });
+              } else if (tab.kind === 'settings') {
+                navigate({ kind: 'settings' });
               }
             }}
             className="flex flex-col items-center justify-center flex-1 h-full py-1 focus:outline-none transition-colors"

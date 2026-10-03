@@ -13,13 +13,14 @@ import { LoadingState } from './components/LoadingState';
 // Screens
 import { LoginScreen } from './screens/LoginScreen';
 import { PortfolioScreen } from './screens/Portfolio';
+import { DiscoveryScreen } from './screens/DiscoveryScreen';
+import { KnowledgeVaultScreen } from './screens/KnowledgeVault';
 import { ProjectDetailScreen } from './screens/ProjectDetail';
 import { AgentConsoleScreen } from './screens/AgentConsole';
 import { CostCenterScreen } from './screens/CostCenter';
 import { QARunsScreen } from './screens/QARuns';
+import { MonitoringScreen } from './screens/Monitoring';
 import { SettingsScreen } from './screens/Settings';
-import { ControlPlaneLayout } from './components/dashboard/ControlPlaneLayout';
-import { FoundryChassis } from './components/foundry/FoundryChassis';
 
 const AppContent: React.FC = () => {
   const { session, loading } = useAuth();
@@ -46,15 +47,16 @@ const AppContent: React.FC = () => {
 
       {/* Main Content Area (pb added so content is not obscured by mobile bottom nav - Addendum A10) */}
       <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8">
-        {screen.kind === 'control_plane' && <ControlPlaneLayout />}
-        {screen.kind === 'foundry' && <FoundryChassis />}
         {screen.kind === 'portfolio' && <PortfolioScreen />}
+        {screen.kind === 'discovery' && <DiscoveryScreen initialProjectId={screen.projectId} />}
+        {screen.kind === 'knowledge' && <KnowledgeVaultScreen />}
         {screen.kind === 'project' && (
           <ProjectDetailScreen projectId={screen.projectId} initialTab={screen.tab} />
         )}
         {screen.kind === 'console' && <AgentConsoleScreen />}
         {screen.kind === 'costs' && <CostCenterScreen />}
         {screen.kind === 'qa' && <QARunsScreen />}
+        {screen.kind === 'monitoring' && <MonitoringScreen />}
         {screen.kind === 'settings' && <SettingsScreen />}
       </main>
 

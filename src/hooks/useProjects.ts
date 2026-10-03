@@ -29,5 +29,20 @@ export function useProjects() {
     return unsubscribe;
   }, [fetchProjects, dataProvider]);
 
-  return { projects, loading, error, refetch: fetchProjects };
+  const createProject = useCallback(
+    async (params: {
+      name: string;
+      vertical: string;
+      monthly_budget_usd?: number;
+      repo_url?: string | null;
+      agent_instructions?: string;
+    }) => {
+      const created = await dataProvider.createProject(params);
+      await fetchProjects();
+      return created;
+    },
+    [dataProvider, fetchProjects]
+  );
+
+  return { projects, loading, error, refetch: fetchProjects, createProject };
 }

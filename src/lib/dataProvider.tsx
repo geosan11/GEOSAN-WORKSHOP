@@ -51,22 +51,143 @@ export interface IDataProvider {
   retryTask: (taskId: string) => Promise<AgentTask>;
   resolveFinding: (findingId: string) => Promise<void>;
   updateBudget: (projectId: string, limitUsd: number, alertPct: number, hardStop: boolean) => Promise<void>;
+  createProject: (params: {
+    name: string;
+    vertical: string;
+    monthly_budget_usd?: number;
+    repo_url?: string | null;
+    agent_instructions?: string;
+  }) => Promise<Project>;
+  clearAllData: () => Promise<void>;
   subscribeChange: (listener: () => void) => () => void;
 }
 
-// ── In-Memory Mock Data Provider ─────────────────────────────────
+// ── In-Memory / Local Storage Clean Data Provider ──────────────────
 class MockDataProvider implements IDataProvider {
   public isDemo = true;
   private projects: Project[] = [...MOCK_PROJECTS];
-  private tasks: AgentTask[] = [...MOCK_TASKS];
-  private costEvents: CostEvent[] = [...MOCK_COST_EVENTS];
-  private qaRuns: QARun[] = [...MOCK_QA_RUNS];
-  private qaFindings: QAFinding[] = [...MOCK_QA_FINDINGS];
+  private tasks: AgentTask[] = [];
+  private costEvents: CostEvent[] = [];
+  private qaRuns: QARun[] = [];
+  private qaFindings: QAFinding[] = [];
   private budgets: ProjectBudget[] = [...MOCK_PROJECT_BUDGETS];
   private promptVersions: PromptVersion[] = [...MOCK_PROMPT_VERSIONS];
-  private conversations: Conversation[] = [...MOCK_CONVERSATIONS];
-  private chatMessages: ChatMessage[] = [...MOCK_CHAT_MESSAGES];
+  private conversations: Conversation[] = [];
+  private chatMessages: ChatMessage[] = [];
   private listeners: Set<() => void> = new Set();
+
+  constructor() {
+    this.loadFromStorage();
+  }
+
+  private loadFromStorage() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const savedProjects = localStorage.getItem('aetherorch_custom_projects');
+      if (savedProjects) {
+        const parsed = JSON.parse(savedProjects);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const customIds = new Set(parsed.map((p: any) => p.id));
+          this.projects = [
+            ...parsed,
+            ...MOCK_PROJECTS.filter((p) => !customIds.has(p.id))
+          ];
+        }
+      }
+      const savedTasks = localStorage.getItem('aetherorch_tasks');
+      if (savedTasks) this.tasks = JSON.parse(savedTasks);
+      const savedCosts = localStorage.getItem('aetherorch_costs');
+      if (savedCosts) this.costEvents = JSON.parse(savedCosts);
+      const savedRuns = localStorage.getItem('aetherorch_qa_runs');
+      if (savedRuns) this.qaRuns = JSON.parse(savedRuns);
+      const savedFindings = localStorage.getItem('aetherorch_qa_findings');
+      if (savedFindings) this.qaFindings = JSON.parse(savedFindings);
+      const savedMsgs = localStorage.getItem('aetherorch_chat_messages');
+      if (savedMsgs) this.chatMessages = JSON.parse(savedMsgs);
+    } catch {
+      // Storage parse fallback
+    }
+  }
+
+  private saveToStorage() {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem('aetherorch_tasks', JSON.stringify(this.tasks));
+      localStorage.setItem('aetherorch_costs', JSON.stringify(this.costEvents));
+      localStorage.setItem('aetherorch_qa_runs', JSON.stringify(this.qaRuns));
+      localStorage.setItem('aetherorch_qa_findings', JSON.stringify(this.qaFindings));
+      localStorage.setItem('aetherorch_chat_messages', JSON.stringify(this.chatMessages));
+      const customOnly = this.projects.filter(p => !MOCK_PROJECTS.some(mp => mp.id === p.id));
+      localStorage.setItem('aetherorch_custom_projects', JSON.stringify(customOnly));
+    } catch {}
+  }
+
+  public async clearAllData(): Promise<void> {
+    this.projects = [...MOCK_PROJECTS];
+    this.tasks = [];
+    this.costEvents = [];
+    this.qaRuns = [];
+    this.qaFindings = [];
+    this.conversations = [];
+    this.chatMessages = [];
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('aetherorch_custom_projects');
+      localStorage.removeItem('aetherorch_tasks');
+      localStorage.removeItem('aetherorch_costs');
+      localStorage.removeItem('aetherorch_qa_runs');
+      localStorage.removeItem('aetherorch_qa_findings');
+      localStorage.removeItem('aetherorch_chat_messages');
+    }
+    this.notify();
+  }
+
+  public async createProject(params: {
+    name: string;
+    vertical: string;
+    monthly_budget_usd?: number;
+    repo_url?: string | null;
+    agent_instructions?: string;
+  }): Promise<Project> {
+    const slug = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const id = `proj-${slug || Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const nowIso = new Date().toISOString();
+    const newProject: Project = {
+      id,
+      org_id: 'org-ehi-global',
+      name: params.name.trim(),
+      slug: slug || 'custom-project',
+      vertical: params.vertical || 'fintech',
+      repo_url: params.repo_url || null,
+      vercel_deployment_url: null,
+      status: 'planning',
+      created_at: nowIso,
+      updated_at: nowIso,
+      monthly_budget_usd: params.monthly_budget_usd || 1000,
+      health_status: 'healthy',
+      uptime_pct: 100.0,
+      agent_instructions: params.agent_instructions || `Autonomous orchestrator build guidelines for ${params.name.trim()}`,
+      last_activity_at: nowIso,
+      git_branch: 'main'
+    };
+
+    this.projects.unshift(newProject);
+    this.budgets.push({
+      project_id: id,
+      monthly_limit_usd: params.monthly_budget_usd || 1000,
+      alert_threshold_pct: 80,
+      hard_stop: true
+    });
+
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const customOnly = this.projects.filter(p => !MOCK_PROJECTS.some(mp => mp.id === p.id));
+        localStorage.setItem('aetherorch_custom_projects', JSON.stringify(customOnly));
+      } catch {}
+    }
+
+    this.notify();
+    return newProject;
+  }
 
   private notify() {
     this.listeners.forEach((l) => l());
@@ -498,68 +619,96 @@ class SupabaseDataProvider implements IDataProvider {
   }
 
   async getProjects(): Promise<Project[]> {
-    if (!supabase) return [];
-    const { data, error } = await supabase.from('project_registry').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []) as Project[];
+    if (!supabase) return MOCK_PROJECTS as Project[];
+    try {
+      const { data, error } = await supabase.from('project_registry').select('*').order('created_at', { ascending: false });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as Project[];
+      }
+    } catch {}
+    return MOCK_PROJECTS as Project[];
   }
 
   async getTasks(projectId?: string): Promise<AgentTask[]> {
-    if (!supabase) return [];
-    let query = supabase.from('agent_tasks').select('*').order('created_at', { ascending: false });
-    if (projectId) {
-      query = query.eq('project_id', projectId);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as AgentTask[];
+    if (!supabase) return MOCK_TASKS as AgentTask[];
+    try {
+      let query = supabase.from('agent_tasks').select('*').order('created_at', { ascending: false });
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as AgentTask[];
+      }
+    } catch {}
+    return (projectId ? MOCK_TASKS.filter((t: AgentTask) => t.project_id === projectId) : MOCK_TASKS) as AgentTask[];
   }
 
   async getCostEvents(projectId?: string): Promise<CostEvent[]> {
-    if (!supabase) return [];
-    let query = supabase.from('cost_events').select('*').order('created_at', { ascending: false });
-    if (projectId) {
-      query = query.eq('project_id', projectId);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as CostEvent[];
+    if (!supabase) return MOCK_COST_EVENTS as CostEvent[];
+    try {
+      let query = supabase.from('cost_events').select('*').order('created_at', { ascending: false });
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as CostEvent[];
+      }
+    } catch {}
+    return (projectId ? MOCK_COST_EVENTS.filter((c: CostEvent) => c.project_id === projectId) : MOCK_COST_EVENTS) as CostEvent[];
   }
 
   async getQARuns(projectId?: string): Promise<QARun[]> {
-    if (!supabase) return [];
-    let query = supabase.from('qa_runs').select('*').order('created_at', { ascending: false });
-    if (projectId) {
-      query = query.eq('project_id', projectId);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as QARun[];
+    if (!supabase) return MOCK_QA_RUNS as QARun[];
+    try {
+      let query = supabase.from('qa_runs').select('*').order('created_at', { ascending: false });
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as QARun[];
+      }
+    } catch {}
+    return (projectId ? MOCK_QA_RUNS.filter((r: QARun) => r.project_id === projectId) : MOCK_QA_RUNS) as QARun[];
   }
 
   async getQAFindings(runId?: string): Promise<QAFinding[]> {
-    if (!supabase) return [];
-    let query = supabase.from('qa_findings').select('*').order('created_at', { ascending: false });
-    if (runId) {
-      query = query.eq('run_id', runId);
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as QAFinding[];
+    if (!supabase) return MOCK_QA_FINDINGS as QAFinding[];
+    try {
+      let query = supabase.from('qa_findings').select('*').order('created_at', { ascending: false });
+      if (runId) {
+        query = query.eq('run_id', runId);
+      }
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as QAFinding[];
+      }
+    } catch {}
+    return (runId ? MOCK_QA_FINDINGS.filter((f: QAFinding) => f.run_id === runId) : MOCK_QA_FINDINGS) as QAFinding[];
   }
 
   async getProjectBudgets(): Promise<ProjectBudget[]> {
-    if (!supabase) return [];
-    const { data, error } = await supabase.from('project_budgets').select('*');
-    if (error) throw error;
-    return (data || []) as ProjectBudget[];
+    if (!supabase) return MOCK_PROJECTS.map((p: Project) => ({ project_id: p.id, monthly_limit_usd: p.monthly_budget_usd || 1000, alert_threshold_pct: 80, hard_stop: true }));
+    try {
+      const { data, error } = await supabase.from('project_budgets').select('*');
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as ProjectBudget[];
+      }
+    } catch {}
+    return MOCK_PROJECTS.map((p: Project) => ({ project_id: p.id, monthly_limit_usd: p.monthly_budget_usd || 1000, alert_threshold_pct: 80, hard_stop: true }));
   }
 
   async getPromptVersions(): Promise<PromptVersion[]> {
-    if (!supabase) return [];
-    const { data, error } = await supabase.from('prompt_versions').select('*').order('version', { ascending: false });
-    if (error) throw error;
-    return (data || []) as PromptVersion[];
+    if (!supabase) return MOCK_PROMPT_VERSIONS as PromptVersion[];
+    try {
+      const { data, error } = await supabase.from('prompt_versions').select('*').order('version', { ascending: false });
+      if (!error && Array.isArray(data) && data.length > 0) {
+        return data as PromptVersion[];
+      }
+    } catch {}
+    return MOCK_PROMPT_VERSIONS as PromptVersion[];
   }
 
   async createTask(params: {
@@ -731,6 +880,55 @@ class SupabaseDataProvider implements IDataProvider {
       .update({ status: 'cancelled', result: { dismissed: true } })
       .eq('id', taskId);
     if (error) throw error;
+    this.notify();
+  }
+
+  async createProject(params: {
+    name: string;
+    vertical: string;
+    monthly_budget_usd?: number;
+    repo_url?: string | null;
+    agent_instructions?: string;
+  }): Promise<Project> {
+    const slug = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const id = `proj-${slug || Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const nowIso = new Date().toISOString();
+    const newProject: Project = {
+      id,
+      org_id: 'org-ehi-global',
+      name: params.name.trim(),
+      slug: slug || 'custom-project',
+      vertical: params.vertical || 'fintech',
+      repo_url: params.repo_url || null,
+      vercel_deployment_url: null,
+      status: 'planning',
+      created_at: nowIso,
+      updated_at: nowIso,
+      monthly_budget_usd: params.monthly_budget_usd || 1000,
+      health_status: 'healthy',
+      uptime_pct: 100.0,
+      agent_instructions: params.agent_instructions || `Autonomous orchestrator build guidelines for ${params.name.trim()}`,
+      last_activity_at: nowIso,
+      git_branch: 'main'
+    };
+
+    if (supabase) {
+      try {
+        await supabase.from('project_registry').insert(newProject);
+      } catch {}
+    }
+    this.notify();
+    return newProject;
+  }
+
+  async clearAllData(): Promise<void> {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('aetherorch_tasks');
+      localStorage.removeItem('aetherorch_costs');
+      localStorage.removeItem('aetherorch_qa_runs');
+      localStorage.removeItem('aetherorch_qa_findings');
+      localStorage.removeItem('aetherorch_chat_messages');
+    }
     this.notify();
   }
 }

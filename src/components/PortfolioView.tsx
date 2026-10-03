@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ProjectRegistry, ProjectVertical } from '../types';
 import { DeploymentBadge } from './DeploymentBadge';
+import { GitHubLogo, SupabaseLogo, VercelLogo } from './ServiceLogos';
 import {
   ExternalLink,
   ChevronRight,
@@ -249,7 +250,7 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
                 <div className="mt-3.5 p-3 rounded-lg bg-slate-950/80 border border-slate-800/80 space-y-2">
                   <div className="flex items-center justify-between text-xs font-mono">
                     <div className="flex items-center gap-1.5">
-                      <Github className="w-3.5 h-3.5 text-slate-400" />
+                      <GitHubLogo className="w-3.5 h-3.5 text-slate-300" />
                       <a
                         href={project.github_repo_url}
                         target="_blank"
@@ -327,14 +328,14 @@ export const PortfolioView: React.FC<PortfolioViewProps> = ({
 
                 {/* Subsystem Endpoints */}
                 <div className="mt-3 pt-2.5 border-t border-slate-800/60 grid grid-cols-2 gap-2 text-xs font-mono text-slate-400">
-                  <div className="flex items-center gap-1 truncate">
-                    <span className="text-slate-500">Supabase:</span>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <SupabaseLogo className="w-3.5 h-3.5 shrink-0" />
                     <span className="text-slate-300 truncate" title={project.supabase_project_url}>
                       {project.supabase_project_url.replace('https://', '')}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 truncate">
-                    <span className="text-slate-500">Vercel:</span>
+                  <div className="flex items-center gap-1.5 truncate">
+                    <VercelLogo className="w-3 h-3 text-white shrink-0" />
                     <a
                       href={project.vercel_deployment_url}
                       target="_blank"

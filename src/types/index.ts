@@ -113,7 +113,7 @@ export interface AgentResult {
   diff?: string;
 }
 
-export type LLMProvider = 'google' | 'anthropic' | 'xai' | 'openai';
+export type LLMProvider = 'google' | 'anthropic' | 'xai' | 'openai' | 'deepseek' | 'kimi';
 
 export interface CostEvent {
   id: string;

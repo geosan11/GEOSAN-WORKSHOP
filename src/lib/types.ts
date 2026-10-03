@@ -100,7 +100,7 @@ export interface CostEvent {
   org_id: string;
   project_id: string | null;
   task_id: string | null;
-  provider: 'google' | 'anthropic' | 'xai' | 'openai' | 'local';
+  provider: 'google' | 'anthropic' | 'xai' | 'openai' | 'deepseek' | 'kimi' | 'local';
   model: string;
   tokens_input: number;
   tokens_output: number;

@@ -29,6 +29,15 @@
   - **Grok 3:** Fast edge-case debugging and second-opinion fuzzer.
 - **Status:** APPROVED & BASELINED.
 
+### ADR 005: 2026-10-02 - Telemetry Gateway & Shared Weekly Budget Ledger
+- **Context:** Need strict client-server budget gating, hourly upstream pull throttling, and weight minimization for demo readiness.
+- **Decision:**
+  - One upstream status pull per hour (3,600,000ms TTL), fan-out via SSE `/status/stream` and WebSocket `/telemetry`.
+  - `POST /budget/admit` enforces weekly ledger (default 400 calls, $3.00 USD, 60/30/10 tier allocation).
+  - `?force=1` explicitly does not start a new pull inside the hour.
+  - Removed heavy graphic and ORM dependencies (`@google/genai`, `motion`, `recharts`, `@supabase/supabase-js`).
+- **Status:** APPROVED & DEPLOYED.
+
 ---
 
 ## Known Constraints, Quirks & Technical Debt
@@ -44,9 +53,10 @@
 | :--- | :--- | :--- | :--- |
 | `VITE_APP_NAME` | Dev, Prod | Display title in browser header and metadata | `"GEOSAN-WORKSHOP AetherOrch"` |
 | `VITE_ENABLE_MOCK_DATA` | Dev | Toggles fixture mode vs live API proxy | `"true"` (Dev), `"false"` (Prod) |
-| `GEMINI_API_KEY` | Server | Backend coordinator LLM synthesis | Server-only secret |
-| `ANTHROPIC_API_KEY`| Server | Backend adversarial code review critic | Server-only secret |
-| `SUPABASE_URL` | Server | PostgreSQL multi-tenant database endpoint | Cloud URL |
+| `VITE_SUPABASE_URL` | Optional | Supabase database URL (optional; if empty, demo mode runs) | `""` (Demo Mode) |
+| `VITE_SUPABASE_ANON_KEY` | Optional | Supabase public anonymous key (optional) | `""` (Demo Mode) |
+| `GEMINI_API_KEY` | Optional | Backend coordinator LLM synthesis (optional) | Server-only secret |
+| `ANTHROPIC_API_KEY`| Optional | Backend adversarial code review critic (optional) | Server-only secret |
 
 ---
 

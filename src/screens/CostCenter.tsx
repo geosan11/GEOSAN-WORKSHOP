@@ -2,16 +2,14 @@ import React, { useState, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCosts } from '../hooks/useCosts';
 import { useProjects } from '../hooks/useProjects';
-import { CostChart } from '../components/CostChart';
-import { CostPieChart } from '../components/CostPieChart';
+import { useSharedStatus } from '../lib/sharedStatus';
+import { HarnessStatus } from '../components/HarnessStatus';
 import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { EmptyState } from '../components/EmptyState';
 import {
   projectMonthlySpend,
-  spendByProvider,
   spendByAttribution,
-  dailySpendTrend
 } from '../lib/cost';
 import { formatCost, formatDateTime, formatRelative, formatTokens } from '../lib/format';
 import {
@@ -22,7 +20,9 @@ import {
   Layers,
   PieChart as PieIcon,
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 
 type TimePeriod = 'today' | 'week' | 'month' | 'quarter' | 'all';
@@ -61,7 +61,6 @@ export const CostCenterScreen: React.FC = () => {
     [filteredEvents]
   );
 
-  const byProvider = useMemo(() => spendByProvider(filteredEvents), [filteredEvents]);
   const byAttribution = useMemo(() => spendByAttribution(filteredEvents), [filteredEvents]);
 
   // Top 10 attributed features
@@ -71,8 +70,6 @@ export const CostCenterScreen: React.FC = () => {
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 10);
   }, [byAttribution]);
-
-  const spendTrend = useMemo(() => dailySpendTrend(costEvents, undefined, 30), [costEvents]);
 
   // Budget alert check: any project exceeding 80%?
   const budgetAlerts = useMemo(() => {
@@ -210,27 +207,95 @@ export const CostCenterScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Visual Charts: Daily Trend + Provider Allocation */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Daily Trend Line Chart (8 cols) */}
-        <div className="lg:col-span-8 p-5 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFBD59] font-mono flex items-center gap-2">
-              <TrendingUp className="w-3.5 h-3.5 text-[#F0B230]" />
-              30-Day Daily Spend Trend
-            </h2>
-            <span className="text-[10px] font-mono text-[#8b98a8]">Continuous timeline</span>
+      {/* Shared Weekly Ledger (requests/cap, usd/cap, week key, 60/30/10 tiers) */}
+      <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFBD59] font-mono">
+                  Shared Weekly Budget Ledger
+                </h2>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                  POST /budget/admit
+                </span>
+              </div>
+              <p className="text-[11px] text-[#8b98a8]">
+                Enforced weekly caps: 400 calls, $3.00 USD total (60/30/10 tier distribution).
+              </p>
+            </div>
           </div>
-          <CostChart data={spendTrend} />
+
+          <HarnessStatus />
         </div>
 
-        {/* Provider Breakdown Pie Chart (4 cols) */}
-        <div className="lg:col-span-4 p-5 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFBD59] font-mono flex items-center gap-2">
-            <PieIcon className="w-3.5 h-3.5 text-[#0873B7]" />
-            Provider Allocation
-          </h2>
-          <CostPieChart byProvider={byProvider} />
+        {/* 60 / 30 / 10 Tier Breakdown Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs">
+          {/* Tier 1 */}
+          <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#e6edf3]">Tier 1: Full-Stack</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-500/30 font-bold">
+                60% Share
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between text-[11px] text-[#8b98a8]">
+              <span>Calls Cap:</span>
+              <span className="text-[#e6edf3] font-bold">16 / 240 calls</span>
+            </div>
+            <div className="flex items-baseline justify-between text-[11px] text-[#8b98a8]">
+              <span>USD Cap:</span>
+              <span className="text-emerald-400 font-bold">$0.12 / $1.80</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-400 rounded-full w-[7%]" />
+            </div>
+          </div>
+
+          {/* Tier 2 */}
+          <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#e6edf3]">Tier 2: Data & IoT</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-bold">
+                30% Share
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between text-[11px] text-[#8b98a8]">
+              <span>Calls Cap:</span>
+              <span className="text-[#e6edf3] font-bold">6 / 120 calls</span>
+            </div>
+            <div className="flex items-baseline justify-between text-[11px] text-[#8b98a8]">
+              <span>USD Cap:</span>
+              <span className="text-cyan-400 font-bold">$0.05 / $0.90</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-cyan-400 rounded-full w-[5%]" />
+            </div>
+          </div>
+
+          {/* Tier 3 */}
+          <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#e6edf3]">Tier 3: Utility / Ops</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-500/30 font-bold">
+                10% Share
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between text-[11px] text-[#8b98a8]">
+              <span>Calls Cap:</span>
+              <span className="text-[#e6edf3] font-bold">2 / 40 calls</span>
+            </div>
+            <div className="flex items-baseline justify-between text-[11px] text-[#8b98a8]">
+              <span>USD Cap:</span>
+              <span className="text-[#FFBD59] font-bold">$0.01 / $0.30</span>
+            </div>
+            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-[#FFBD59] rounded-full w-[5%]" />
+            </div>
+          </div>
         </div>
       </div>
 

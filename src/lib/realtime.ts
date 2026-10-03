@@ -1,5 +1,7 @@
-import { SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import { AgentTask, QARun, CostEvent } from './types';
+import type { SupabaseClient } from './supabase';
+
+export type RealtimeChannel = any;
 
 export interface SubscriptionHandle {
   unsubscribe: () => void;
@@ -28,8 +30,8 @@ export function subscribeToTasks(
         table: 'agent_tasks',
         filter: `org_id=eq.${orgId}`
       },
-      (payload) => {
-        if (payload.new) {
+      (payload: any) => {
+        if (payload?.new) {
           onTask(payload.new as AgentTask);
         }
       }
@@ -38,7 +40,7 @@ export function subscribeToTasks(
 
   return {
     unsubscribe: () => {
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     }
   };
 }
@@ -65,8 +67,8 @@ export function subscribeToQARuns(
         table: 'qa_runs',
         filter: `org_id=eq.${orgId}`
       },
-      (payload) => {
-        if (payload.new) {
+      (payload: any) => {
+        if (payload?.new) {
           onRun(payload.new as QARun);
         }
       }
@@ -75,15 +77,15 @@ export function subscribeToQARuns(
 
   return {
     unsubscribe: () => {
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     }
   };
 }
 
 /**
- * Subscribes to new cost_events for an organization.
+ * Subscribes to changes on cost_events for an organization.
  */
-export function subscribeToCosts(
+export function subscribeToCostEvents(
   supabase: SupabaseClient | null,
   orgId: string,
   onCost: (cost: CostEvent) => void
@@ -102,8 +104,8 @@ export function subscribeToCosts(
         table: 'cost_events',
         filter: `org_id=eq.${orgId}`
       },
-      (payload) => {
-        if (payload.new) {
+      (payload: any) => {
+        if (payload?.new) {
           onCost(payload.new as CostEvent);
         }
       }
@@ -112,7 +114,7 @@ export function subscribeToCosts(
 
   return {
     unsubscribe: () => {
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     }
   };
 }
