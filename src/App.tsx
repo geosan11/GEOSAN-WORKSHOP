@@ -22,9 +22,12 @@ import { QARunsScreen } from './screens/QARuns';
 import { MonitoringScreen } from './screens/Monitoring';
 import { SettingsScreen } from './screens/Settings';
 
+import { SupabaseSidebar } from './components/SupabaseSidebar';
+
 const AppContent: React.FC = () => {
   const { session, loading } = useAuth();
   const { screen } = useNavigation();
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 
   // Addendum A1: While auth.loading is true, show minimal checking session splash (do NOT flash login screen)
   if (loading) {
@@ -41,27 +44,42 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-main)] flex flex-col">
-      {/* Top Header Navigation */}
-      <TopBar />
+    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-main)] flex">
+      {/* Supabase Left Sidebar Navigation (Desktop) */}
+      <div className="hidden md:block">
+        <SupabaseSidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        />
+      </div>
 
-      {/* Main Content Area (pb added so content is not obscured by mobile bottom nav - Addendum A10) */}
-      <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8">
-        {screen.kind === 'portfolio' && <PortfolioScreen />}
-        {screen.kind === 'discovery' && <DiscoveryScreen initialProjectId={screen.projectId} />}
-        {screen.kind === 'knowledge' && <KnowledgeVaultScreen />}
-        {screen.kind === 'project' && (
-          <ProjectDetailScreen projectId={screen.projectId} initialTab={screen.tab} />
-        )}
-        {screen.kind === 'console' && <AgentConsoleScreen />}
-        {screen.kind === 'costs' && <CostCenterScreen />}
-        {screen.kind === 'qa' && <QARunsScreen />}
-        {screen.kind === 'monitoring' && <MonitoringScreen />}
-        {screen.kind === 'settings' && <SettingsScreen />}
-      </main>
+      {/* Main Right Area */}
+      <div
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
+          sidebarCollapsed ? 'md:pl-16' : 'md:pl-64'
+        }`}
+      >
+        {/* Top Header Navigation */}
+        <TopBar />
 
-      {/* Mobile Fixed Bottom Tab Bar (Addendum A10) */}
-      <MobileNavBar />
+        {/* Main Content Area */}
+        <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8">
+          {screen.kind === 'portfolio' && <PortfolioScreen />}
+          {screen.kind === 'discovery' && <DiscoveryScreen initialProjectId={screen.projectId} />}
+          {screen.kind === 'knowledge' && <KnowledgeVaultScreen />}
+          {screen.kind === 'project' && (
+            <ProjectDetailScreen projectId={screen.projectId} initialTab={screen.tab} />
+          )}
+          {screen.kind === 'console' && <AgentConsoleScreen />}
+          {screen.kind === 'costs' && <CostCenterScreen />}
+          {screen.kind === 'qa' && <QARunsScreen />}
+          {screen.kind === 'monitoring' && <MonitoringScreen />}
+          {screen.kind === 'settings' && <SettingsScreen />}
+        </main>
+
+        {/* Mobile Fixed Bottom Tab Bar */}
+        <MobileNavBar />
+      </div>
     </div>
   );
 };
