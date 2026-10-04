@@ -39,7 +39,7 @@ export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({ tasks, onSel
             <div
               key={t.id}
               onClick={() => onSelectTask(t)}
-              className="p-3 rounded-lg bg-[#161b22] hover:bg-[#1c2333] border border-white/5 hover:border-[#F0B230]/30 transition-all cursor-pointer text-xs space-y-1.5"
+              className="p-3.5 rounded-xl bg-[#161b22]/90 hover:bg-[#1c2333] border border-white/10 hover:border-[#F0B230]/50 transition-all duration-200 cursor-pointer text-xs space-y-2 glow-amber-hover group relative overflow-hidden"
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -50,20 +50,22 @@ export const LiveActivityFeed: React.FC<LiveActivityFeedProps> = ({ tasks, onSel
               }}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-mono text-[10px] text-[#FFBD59] font-semibold truncate">
+                <span className="font-mono text-[10px] text-[#FFBD59] font-bold tracking-wide uppercase px-2 py-0.5 rounded bg-[#F0B230]/10 border border-[#F0B230]/20">
                   {t.task_type}
                 </span>
-                <span className="font-mono text-[10px] text-[#8b98a8] shrink-0">
+                <span className="font-mono text-[10px] text-[#8b98a8] shrink-0 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-[#F0B230]" />
                   {formatRelative(t.completed_at || t.started_at || t.created_at)}
                 </span>
               </div>
 
-              <p className="text-[#e6edf3] font-sans line-clamp-2 leading-relaxed text-[11px]">
+              <p className="text-[#e6edf3] font-sans line-clamp-2 leading-relaxed text-[11px] group-hover:text-white transition-colors">
                 {t.prompt}
               </p>
 
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-[10px] font-mono text-[#8b98a8]">
+              <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                <span className="text-[10px] font-mono text-[#8b98a8] flex items-center gap-1">
+                  <Terminal className="w-3 h-3 text-cyan-400" />
                   {t.assigned_agent || 'Coordinator'}
                 </span>
                 <StatusPill status={t.status} size="sm" />
