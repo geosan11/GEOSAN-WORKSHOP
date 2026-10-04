@@ -36,6 +36,7 @@ import {
   Trash2,
   Database
 } from 'lucide-react';
+import { MCPSettings } from '../components/MCPSettings';
 
 export const SettingsScreen: React.FC = () => {
   const { user, orgId, signOut } = useAuth();
@@ -142,6 +143,9 @@ export const SettingsScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Model Context Protocol (MCP) Control Plane & Settings */}
+      <MCPSettings />
 
       {/* Section 1.5: Production Database Infrastructure (Supabase) */}
       <div className="p-5 rounded-xl bg-[#161b22] border border-emerald-500/20 space-y-4">
