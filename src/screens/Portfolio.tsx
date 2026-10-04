@@ -16,6 +16,7 @@ import { AgentTask } from '../lib/types';
 import { projectMonthlySpend } from '../lib/cost';
 import { formatCost } from '../lib/format';
 import { FolderGit2, Activity, Play, Plus, RefreshCw, Zap } from 'lucide-react';
+import { NewProjectModal } from '../components/NewProjectModal';
 
 export const PortfolioScreen: React.FC = () => {
   const { navigate } = useNavigation();
@@ -25,6 +26,7 @@ export const PortfolioScreen: React.FC = () => {
   const { qaFindings, refetch: qRefetch } = useQA();
 
   const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
 
   const handleRefreshAll = async () => {
     await Promise.all([pRefetch(), tRefetch(), cRefetch(), qRefetch()]);
@@ -78,6 +80,15 @@ export const PortfolioScreen: React.FC = () => {
           </div>
 
           <button
+            onClick={() => setIsNewProjectModalOpen(true)}
+            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#F0B230] to-[#FFBD59] text-[#0A1420] font-bold text-xs hover:opacity-95 transition-all shadow-sm flex items-center gap-1.5"
+            aria-label="Initialize new project"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New Project</span>
+          </button>
+
+          <button
             onClick={handleRefreshAll}
             className="p-2 rounded-lg bg-[#161b22] hover:bg-[#1c2333] border border-white/5 text-[#8b98a8] hover:text-[#e6edf3] transition-colors"
             title="Refresh portfolio"
@@ -117,9 +128,9 @@ export const PortfolioScreen: React.FC = () => {
           {projects.length === 0 ? (
             <EmptyState
               title="No Projects Registered"
-              description="No managed client projects found. Register a project in Settings."
-              actionLabel="Go to Settings"
-              onAction={() => navigate({ kind: 'settings' })}
+              description="No managed client projects found. Initialize your first project to start autonomous SDLC orchestration."
+              actionLabel="Initialize Project"
+              onAction={() => setIsNewProjectModalOpen(true)}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -160,6 +171,12 @@ export const PortfolioScreen: React.FC = () => {
           const newTask = await retryTask(id);
           setSelectedTask(newTask);
         }}
+      />
+
+      {/* Modal to Initialize New Project */}
+      <NewProjectModal
+        isOpen={isNewProjectModalOpen}
+        onClose={() => setIsNewProjectModalOpen(false)}
       />
     </div>
   );

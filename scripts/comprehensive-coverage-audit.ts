@@ -48,6 +48,7 @@ import {
   exportAsJSONL,
   exportAsSystemPrompt
 } from '../src/lib/llmLearningStore';
+import { pullRepositoryFromGitHub, analyzeRepository } from '../src/lib/repoAnalysis';
 
 let totalAssertions = 0;
 let passedAssertions = 0;
@@ -256,6 +257,21 @@ async function runCoverageAudit() {
   await dataProviderInstance.dismissProposedTask('task-non-existent-safe-test');
   testAssert(true, 'dismissProposedTask on non-existent task executes gracefully without unhandled throw');
 
+  // Test creating a new project
+  const customProject = await dataProviderInstance.createProject({
+    name: 'Apex Automated Scale Calibration',
+    vertical: 'agriculture',
+    monthly_budget_usd: 1500,
+    repo_url: 'https://github.com/ehi-systems/scale-calibration',
+    agent_instructions: 'Operate offline-first and sync RS-232 weighbridge data'
+  });
+  testAssert(customProject.id.startsWith('proj-apex-automated-scale'), 'createProject creates sanitized slug ID');
+  testAssert(customProject.status === 'planning', 'createProject initializes status to planning');
+  testAssert(customProject.monthly_budget_usd === 1500, 'createProject assigns correct monthly budget');
+
+  const allProjects = await dataProviderInstance.getProjects();
+  testAssert(allProjects.some(p => p.id === customProject.id), 'Newly created project is retrievable via getProjects');
+
   // --------------------------------------------------------------------------
   // 6. TOKEN SANITIZATION & SECURITY HEADERS (github.ts)
   // --------------------------------------------------------------------------
@@ -321,6 +337,29 @@ async function runCoverageAudit() {
   // Budget overkill detection
   const overkillSuitability = getModelSuitability('claude-3-7-sonnet', 'BUILD_FEATURE', 'standard');
   testAssert(overkillSuitability.status === 'overkill', 'Costly flagship model flagged as "overkill" for standard task');
+
+  // --------------------------------------------------------------------------
+  // 9. GITHUB REPOSITORY INGESTION & AST AUDIT (repoAnalysis.ts)
+  // --------------------------------------------------------------------------
+  console.log('\n--> AUDIT SECTION 9: GitHub Codebase Ingestion & AST Analysis (repoAnalysis.ts)');
+
+  const cloned = await pullRepositoryFromGitHub('https://github.com/ehi-enterprise/settlement-core', {
+    branch: 'main',
+    vertical: 'fintech'
+  });
+  testAssert(cloned.files.length > 0, 'pullRepositoryFromGitHub successfully retrieves repository files');
+  testAssert(Boolean(cloned.commitSha), 'cloned repository has valid commit SHA');
+
+  const analysis = await analyzeRepository(cloned, 'fintech');
+  testAssert(analysis.totalFiles > 0, 'analyzeRepository calculates total files correctly');
+  testAssert(analysis.totalLines > 0, 'analyzeRepository calculates total lines correctly');
+  testAssert(analysis.languages.length > 0, 'analyzeRepository computes language breakdown');
+  testAssert(analysis.findings.length > 0, 'analyzeRepository identifies actionable findings');
+  testAssert(analysis.healthScore >= 0 && analysis.healthScore <= 100, 'Codebase health score is between 0 and 100');
+
+  // Verify finding has diff snippet
+  const invFinding = analysis.findings.find(f => f.category === 'invariants');
+  testAssert(Boolean(invFinding?.diffSnippet?.before && invFinding?.diffSnippet?.after), 'Finding contains before/after code diff snippet');
 
   console.log('\n================================================================');
   console.log(`  COVERAGE AUDIT SUMMARY: ${passedAssertions} OF ${totalAssertions} ASSERTIONS PASSED`);

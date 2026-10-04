@@ -22,10 +22,12 @@ import { useToast } from '../components/Toast';
 import { triggerServerGitSync } from '../lib/github';
 import { GitHubLogo, VercelLogo } from '../components/ServiceLogos';
 import { DiscoveryScreen } from './DiscoveryScreen';
+import { RepoAnalyzer } from '../components/RepoAnalyzer';
 import {
   ArrowLeft,
   ExternalLink,
   GitBranch,
+  FolderGit2,
   Layers,
   Activity,
   DollarSign,
@@ -223,11 +225,12 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
         </div>
       </div>
 
-      {/* Internal Tabs: overview | discovery | tasks | qa | costs | settings */}
+      {/* Internal Tabs: overview | codebase | discovery | tasks | qa | costs | settings */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/5 pb-2">
         {(
           [
             { id: 'overview', label: 'OVERVIEW', icon: Activity },
+            { id: 'codebase', label: 'GITHUB & CODEBASE', icon: FolderGit2 },
             { id: 'discovery', label: 'SDLC DISCOVERY', icon: Compass },
             { id: 'tasks', label: `TASKS (${sortedTasks.length})`, icon: Layers },
             { id: 'qa', label: `QA RUNS (${qaRuns.length})`, icon: ShieldCheck },
@@ -253,6 +256,14 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
           );
         })}
       </div>
+
+      {/* ── TAB: GITHUB & CODEBASE ANALYSIS ── */}
+      {activeTab === 'codebase' && (
+        <RepoAnalyzer
+          project={project}
+          onTaskDispatched={() => setActiveTab('tasks')}
+        />
+      )}
 
       {/* ── TAB: SDLC DISCOVERY ── */}
       {activeTab === 'discovery' && (

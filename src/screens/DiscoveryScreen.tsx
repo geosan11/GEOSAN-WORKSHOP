@@ -28,8 +28,10 @@ import {
   Send,
   Layers,
   Check,
-  RotateCcw
+  RotateCcw,
+  Plus
 } from 'lucide-react';
+import { NewProjectModal } from '../components/NewProjectModal';
 
 interface DiscoveryScreenProps {
   initialProjectId?: string;
@@ -48,6 +50,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
   const [showSpecModal, setShowSpecModal] = useState<boolean>(false);
   const [specContent, setSpecContent] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
 
   // Sync project selection when projects load
   useEffect(() => {
@@ -153,32 +156,42 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
           </p>
         </div>
 
-        {/* Project Selector Dropdown */}
-        <div className="flex items-center gap-3">
-          <div className="space-y-1">
-            <span className="text-[10px] font-mono uppercase text-[#8b98a8] block">Select Project Scoping:</span>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="bg-[#161b22] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-[#e6edf3] font-mono focus:border-[#F0B230] focus:outline-none"
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.vertical.split(' ')[0]})
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Project Selector Dropdown */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono uppercase text-[#8b98a8] block">Select Project Scoping:</span>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="bg-[#161b22] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-[#e6edf3] font-mono focus:border-[#F0B230] focus:outline-none"
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.vertical.split(' ')[0]})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            className="px-3.5 py-1.5 rounded-lg bg-[#F0B230] text-[#0A1420] text-xs font-bold hover:bg-[#FFBD59] transition-colors flex items-center gap-1.5 self-end shadow-sm"
-          >
-            <Save className="w-3.5 h-3.5" />
-            Save Answers
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => setIsNewProjectModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg bg-[#1c2333] hover:bg-[#252f44] border border-white/10 text-[#FFBD59] text-xs font-semibold flex items-center gap-1.5 self-end transition-colors shadow-sm"
+              title="Initialize new project"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Project</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSave}
+              className="px-3.5 py-1.5 rounded-lg bg-[#F0B230] text-[#0A1420] text-xs font-bold hover:bg-[#FFBD59] transition-colors flex items-center gap-1.5 self-end shadow-sm"
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save Answers
+            </button>
+          </div>
       </div>
 
       {/* READINESS & TIME SAVINGS BANNER */}
@@ -481,6 +494,13 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
           </div>
         </div>
       )}
+
+      {/* Modal to Initialize New Project */}
+      <NewProjectModal
+        isOpen={isNewProjectModalOpen}
+        onClose={() => setIsNewProjectModalOpen(false)}
+        onSuccess={(newId) => setSelectedProjectId(newId)}
+      />
     </div>
   );
 };

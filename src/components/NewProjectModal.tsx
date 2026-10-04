@@ -81,7 +81,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (proceedToDiscovery: boolean) => {
+  const handleSubmit = async (destination: 'codebase' | 'discovery' | 'portfolio') => {
     if (!name.trim()) {
       toast.error('Please enter a project name.');
       return;
@@ -104,7 +104,9 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
         onSuccess(created.id);
       }
 
-      if (proceedToDiscovery) {
+      if (destination === 'codebase') {
+        navigate({ kind: 'project', projectId: created.id, tab: 'codebase' });
+      } else if (destination === 'discovery') {
         navigate({ kind: 'discovery', projectId: created.id });
       } else {
         navigate({ kind: 'portfolio' });
@@ -291,20 +293,32 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({
             <button
               type="button"
               disabled={isSubmitting || !name.trim()}
-              onClick={() => handleSubmit(false)}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-[#1c2333] hover:bg-[#252f44] border border-white/10 text-[#e6edf3] font-semibold transition-colors disabled:opacity-50"
+              onClick={() => handleSubmit('portfolio')}
+              className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-[#1c2333] hover:bg-[#252f44] border border-white/10 text-[#8b98a8] hover:text-[#e6edf3] font-semibold transition-colors disabled:opacity-50"
             >
-              Create Project Only
+              Create Only
             </button>
+
+            {repoUrl.trim() && (
+              <button
+                type="button"
+                disabled={isSubmitting || !name.trim()}
+                onClick={() => handleSubmit('codebase')}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-[#1c2333] hover:bg-[#252f44] border border-[#F0B230]/40 text-[#FFBD59] font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                <FolderGit2 className="w-3.5 h-3.5" />
+                <span>Pull & Analyze Repo</span>
+              </button>
+            )}
 
             <button
               type="button"
               disabled={isSubmitting || !name.trim()}
-              onClick={() => handleSubmit(true)}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-[#F0B230] to-[#FFBD59] text-[#0A1420] font-bold hover:opacity-95 transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+              onClick={() => handleSubmit('discovery')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-[#F0B230] to-[#FFBD59] text-[#0A1420] font-bold hover:opacity-95 transition-all shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
             >
               <Compass className="w-3.5 h-3.5" />
-              <span>Create & Launch SDLC Questions</span>
+              <span>Launch SDLC Questions</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>

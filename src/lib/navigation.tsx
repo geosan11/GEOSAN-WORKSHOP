@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-export type ProjectTab = 'overview' | 'discovery' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings';
+export type ProjectTab = 'overview' | 'codebase' | 'discovery' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings';
 
 export type Screen =
   | { kind: 'portfolio' }
