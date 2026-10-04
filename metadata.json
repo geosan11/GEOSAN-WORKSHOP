@@ -1,6 +1,6 @@
 {
-  "name": "AetherOrch: Multi-Agent Software Command Center",
-  "description": "Enterprise multi-agent software orchestration platform featuring Supabase data architecture, autonomous QA verticals, token cost attribution, and embedded IDE control.",
+  "name": "GEOSAN-WORKSHOP",
+  "description": "GEOSAN-WORKSHOP: Enterprise multi-agent software orchestration platform featuring Supabase data architecture, autonomous QA verticals, token cost attribution, and embedded IDE control.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

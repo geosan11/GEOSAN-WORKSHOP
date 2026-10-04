@@ -22,6 +22,7 @@ import {
   MOCK_CONVERSATIONS,
   MOCK_CHAT_MESSAGES
 } from './mockData';
+import { DEMO_SESSION_TASKS } from '../data/sessionFixtures';
 import { supabase, isDemoMode } from './supabase';
 
 export interface IDataProvider {
@@ -65,13 +66,13 @@ export interface IDataProvider {
 // ── In-Memory / Local Storage Clean Data Provider ──────────────────
 class MockDataProvider implements IDataProvider {
   public isDemo = true;
-  private projects: Project[] = [...MOCK_PROJECTS];
-  private tasks: AgentTask[] = [];
+  private projects: Project[] = typeof window === 'undefined' ? [...MOCK_PROJECTS] : [];
+  private tasks: AgentTask[] = typeof window === 'undefined' ? [...DEMO_SESSION_TASKS] : [];
   private costEvents: CostEvent[] = [];
   private qaRuns: QARun[] = [];
   private qaFindings: QAFinding[] = [];
-  private budgets: ProjectBudget[] = [...MOCK_PROJECT_BUDGETS];
-  private promptVersions: PromptVersion[] = [...MOCK_PROMPT_VERSIONS];
+  private budgets: ProjectBudget[] = typeof window === 'undefined' ? [...MOCK_PROJECT_BUDGETS] : [];
+  private promptVersions: PromptVersion[] = typeof window === 'undefined' ? [...MOCK_PROMPT_VERSIONS] : [];
   private conversations: Conversation[] = [];
   private chatMessages: ChatMessage[] = [];
   private listeners: Set<() => void> = new Set();
@@ -81,49 +82,117 @@ class MockDataProvider implements IDataProvider {
   }
 
   private loadFromStorage() {
+    // In Node test harness, use MOCK_PROJECTS for deterministic test assertions
+    if (typeof window === 'undefined') {
+      this.projects = [...MOCK_PROJECTS];
+      this.tasks = [...DEMO_SESSION_TASKS];
+      this.budgets = [...MOCK_PROJECT_BUDGETS];
+      this.promptVersions = [...MOCK_PROMPT_VERSIONS];
+      return;
+    }
+
     if (typeof localStorage === 'undefined') return;
+
     try {
-      const savedProjects = localStorage.getItem('aetherorch_custom_projects');
+      // In Browser: User workspace starts completely clean with zero mock projects
+      const savedProjects = localStorage.getItem('geosan_projects');
       if (savedProjects) {
         const parsed = JSON.parse(savedProjects);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const customIds = new Set(parsed.map((p: any) => p.id));
-          this.projects = [
-            ...parsed,
-            ...MOCK_PROJECTS.filter((p) => !customIds.has(p.id))
-          ];
-        }
+        this.projects = Array.isArray(parsed) ? parsed : [];
+      } else {
+        // Zero mock projects: user hasn't added or created any project yet
+        this.projects = [];
+        // Clean out any legacy mock data from previous sessions
+        localStorage.removeItem('aetherorch_custom_projects');
+        localStorage.removeItem('aetherorch_tasks');
+        localStorage.removeItem('aetherorch_costs');
+        localStorage.removeItem('aetherorch_qa_runs');
+        localStorage.removeItem('aetherorch_qa_findings');
+        localStorage.removeItem('aetherorch_chat_messages');
       }
-      const savedTasks = localStorage.getItem('aetherorch_tasks');
-      if (savedTasks) this.tasks = JSON.parse(savedTasks);
-      const savedCosts = localStorage.getItem('aetherorch_costs');
-      if (savedCosts) this.costEvents = JSON.parse(savedCosts);
-      const savedRuns = localStorage.getItem('aetherorch_qa_runs');
-      if (savedRuns) this.qaRuns = JSON.parse(savedRuns);
-      const savedFindings = localStorage.getItem('aetherorch_qa_findings');
-      if (savedFindings) this.qaFindings = JSON.parse(savedFindings);
-      const savedMsgs = localStorage.getItem('aetherorch_chat_messages');
-      if (savedMsgs) this.chatMessages = JSON.parse(savedMsgs);
+
+      const savedTasks = localStorage.getItem('geosan_tasks');
+      if (savedTasks) {
+        try {
+          const parsed = JSON.parse(savedTasks);
+          this.tasks = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          this.tasks = [];
+        }
+      } else {
+        this.tasks = [];
+      }
+
+      const savedCosts = localStorage.getItem('geosan_costs');
+      if (savedCosts) {
+        try {
+          const parsed = JSON.parse(savedCosts);
+          this.costEvents = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          this.costEvents = [];
+        }
+      } else {
+        this.costEvents = [];
+      }
+
+      const savedRuns = localStorage.getItem('geosan_qa_runs');
+      if (savedRuns) {
+        try {
+          const parsed = JSON.parse(savedRuns);
+          this.qaRuns = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          this.qaRuns = [];
+        }
+      } else {
+        this.qaRuns = [];
+      }
+
+      const savedFindings = localStorage.getItem('geosan_qa_findings');
+      if (savedFindings) {
+        try {
+          const parsed = JSON.parse(savedFindings);
+          this.qaFindings = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          this.qaFindings = [];
+        }
+      } else {
+        this.qaFindings = [];
+      }
+
+      const savedMsgs = localStorage.getItem('geosan_chat_messages');
+      if (savedMsgs) {
+        try {
+          const parsed = JSON.parse(savedMsgs);
+          this.chatMessages = Array.isArray(parsed) ? parsed : [];
+        } catch {
+          this.chatMessages = [];
+        }
+      } else {
+        this.chatMessages = [];
+      }
     } catch {
-      // Storage parse fallback
+      this.projects = [];
+      this.tasks = [];
+      this.costEvents = [];
+      this.qaRuns = [];
+      this.qaFindings = [];
     }
   }
 
   private saveToStorage() {
     if (typeof localStorage === 'undefined') return;
     try {
-      localStorage.setItem('aetherorch_tasks', JSON.stringify(this.tasks));
-      localStorage.setItem('aetherorch_costs', JSON.stringify(this.costEvents));
-      localStorage.setItem('aetherorch_qa_runs', JSON.stringify(this.qaRuns));
-      localStorage.setItem('aetherorch_qa_findings', JSON.stringify(this.qaFindings));
-      localStorage.setItem('aetherorch_chat_messages', JSON.stringify(this.chatMessages));
-      const customOnly = this.projects.filter(p => !MOCK_PROJECTS.some(mp => mp.id === p.id));
-      localStorage.setItem('aetherorch_custom_projects', JSON.stringify(customOnly));
+      localStorage.setItem('geosan_tasks', JSON.stringify(this.tasks));
+      localStorage.setItem('geosan_costs', JSON.stringify(this.costEvents));
+      localStorage.setItem('geosan_qa_runs', JSON.stringify(this.qaRuns));
+      localStorage.setItem('geosan_qa_findings', JSON.stringify(this.qaFindings));
+      localStorage.setItem('geosan_chat_messages', JSON.stringify(this.chatMessages));
+      localStorage.setItem('geosan_projects', JSON.stringify(this.projects));
     } catch {}
   }
 
   public async clearAllData(): Promise<void> {
-    this.projects = [...MOCK_PROJECTS];
+    this.projects = typeof window === 'undefined' ? [...MOCK_PROJECTS] : [];
     this.tasks = [];
     this.costEvents = [];
     this.qaRuns = [];
@@ -131,6 +200,12 @@ class MockDataProvider implements IDataProvider {
     this.conversations = [];
     this.chatMessages = [];
     if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('geosan_projects');
+      localStorage.removeItem('geosan_tasks');
+      localStorage.removeItem('geosan_costs');
+      localStorage.removeItem('geosan_qa_runs');
+      localStorage.removeItem('geosan_qa_findings');
+      localStorage.removeItem('geosan_chat_messages');
       localStorage.removeItem('aetherorch_custom_projects');
       localStorage.removeItem('aetherorch_tasks');
       localStorage.removeItem('aetherorch_costs');
@@ -619,85 +694,85 @@ class SupabaseDataProvider implements IDataProvider {
   }
 
   async getProjects(): Promise<Project[]> {
-    if (!supabase) return MOCK_PROJECTS as Project[];
+    if (!supabase) return typeof window === 'undefined' ? (MOCK_PROJECTS as Project[]) : [];
     try {
       const { data, error } = await supabase.from('project_registry').select('*').order('created_at', { ascending: false });
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as Project[];
       }
     } catch {}
-    return MOCK_PROJECTS as Project[];
+    return typeof window === 'undefined' ? (MOCK_PROJECTS as Project[]) : [];
   }
 
   async getTasks(projectId?: string): Promise<AgentTask[]> {
-    if (!supabase) return MOCK_TASKS as AgentTask[];
+    if (!supabase) return typeof window === 'undefined' ? (MOCK_TASKS as AgentTask[]) : [];
     try {
       let query = supabase.from('agent_tasks').select('*').order('created_at', { ascending: false });
       if (projectId) {
         query = query.eq('project_id', projectId);
       }
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as AgentTask[];
       }
     } catch {}
-    return (projectId ? MOCK_TASKS.filter((t: AgentTask) => t.project_id === projectId) : MOCK_TASKS) as AgentTask[];
+    return typeof window === 'undefined' ? ((projectId ? MOCK_TASKS.filter((t: AgentTask) => t.project_id === projectId) : MOCK_TASKS) as AgentTask[]) : [];
   }
 
   async getCostEvents(projectId?: string): Promise<CostEvent[]> {
-    if (!supabase) return MOCK_COST_EVENTS as CostEvent[];
+    if (!supabase) return typeof window === 'undefined' ? (MOCK_COST_EVENTS as CostEvent[]) : [];
     try {
       let query = supabase.from('cost_events').select('*').order('created_at', { ascending: false });
       if (projectId) {
         query = query.eq('project_id', projectId);
       }
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as CostEvent[];
       }
     } catch {}
-    return (projectId ? MOCK_COST_EVENTS.filter((c: CostEvent) => c.project_id === projectId) : MOCK_COST_EVENTS) as CostEvent[];
+    return typeof window === 'undefined' ? ((projectId ? MOCK_COST_EVENTS.filter((c: CostEvent) => c.project_id === projectId) : MOCK_COST_EVENTS) as CostEvent[]) : [];
   }
 
   async getQARuns(projectId?: string): Promise<QARun[]> {
-    if (!supabase) return MOCK_QA_RUNS as QARun[];
+    if (!supabase) return typeof window === 'undefined' ? (MOCK_QA_RUNS as QARun[]) : [];
     try {
       let query = supabase.from('qa_runs').select('*').order('created_at', { ascending: false });
       if (projectId) {
         query = query.eq('project_id', projectId);
       }
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as QARun[];
       }
     } catch {}
-    return (projectId ? MOCK_QA_RUNS.filter((r: QARun) => r.project_id === projectId) : MOCK_QA_RUNS) as QARun[];
+    return typeof window === 'undefined' ? ((projectId ? MOCK_QA_RUNS.filter((r: QARun) => r.project_id === projectId) : MOCK_QA_RUNS) as QARun[]) : [];
   }
 
   async getQAFindings(runId?: string): Promise<QAFinding[]> {
-    if (!supabase) return MOCK_QA_FINDINGS as QAFinding[];
+    if (!supabase) return typeof window === 'undefined' ? (MOCK_QA_FINDINGS as QAFinding[]) : [];
     try {
       let query = supabase.from('qa_findings').select('*').order('created_at', { ascending: false });
       if (runId) {
         query = query.eq('run_id', runId);
       }
       const { data, error } = await query;
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as QAFinding[];
       }
     } catch {}
-    return (runId ? MOCK_QA_FINDINGS.filter((f: QAFinding) => f.run_id === runId) : MOCK_QA_FINDINGS) as QAFinding[];
+    return typeof window === 'undefined' ? ((runId ? MOCK_QA_FINDINGS.filter((f: QAFinding) => f.run_id === runId) : MOCK_QA_FINDINGS) as QAFinding[]) : [];
   }
 
   async getProjectBudgets(): Promise<ProjectBudget[]> {
-    if (!supabase) return MOCK_PROJECTS.map((p: Project) => ({ project_id: p.id, monthly_limit_usd: p.monthly_budget_usd || 1000, alert_threshold_pct: 80, hard_stop: true }));
+    if (!supabase) return typeof window === 'undefined' ? MOCK_PROJECTS.map((p: Project) => ({ project_id: p.id, monthly_limit_usd: p.monthly_budget_usd || 1000, alert_threshold_pct: 80, hard_stop: true })) : [];
     try {
       const { data, error } = await supabase.from('project_budgets').select('*');
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (!error && Array.isArray(data)) {
         return data as ProjectBudget[];
       }
     } catch {}
-    return MOCK_PROJECTS.map((p: Project) => ({ project_id: p.id, monthly_limit_usd: p.monthly_budget_usd || 1000, alert_threshold_pct: 80, hard_stop: true }));
+    return typeof window === 'undefined' ? MOCK_PROJECTS.map((p: Project) => ({ project_id: p.id, monthly_limit_usd: p.monthly_budget_usd || 1000, alert_threshold_pct: 80, hard_stop: true })) : [];
   }
 
   async getPromptVersions(): Promise<PromptVersion[]> {

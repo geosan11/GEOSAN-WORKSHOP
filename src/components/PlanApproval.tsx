@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AgentTask } from '../lib/types';
-import { Check, X, ShieldAlert, FileCode2, ArrowRight } from 'lucide-react';
+import { isDesignBriefApproved, getDesignBrief } from '../lib/designBrief';
+import { Check, X, ShieldAlert, FileCode2, ArrowRight, Lock } from 'lucide-react';
 
 interface PlanApprovalProps {
   task: AgentTask;
@@ -15,7 +16,12 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
 
   const planSummary = (task.plan?.summary as string) || (task.result?.summary as string) || 'Plan execution verified by ReviewAgent. Adversarial security invariants passed.';
 
+  const isBriefApproved = isDesignBriefApproved(task.project_id);
+  const isGatedType = task.task_type === 'BUILD_FEATURE' || task.task_type === 'FIX_BUG';
+  const canApprove = !isGatedType || isBriefApproved;
+
   const handleApprove = async () => {
+    if (!canApprove) return;
     try {
       setIsProcessing(true);
       await onApprove(task.id);
@@ -66,14 +72,34 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
           </div>
         )}
 
+        {!canApprove && (
+          <div className="p-2 rounded bg-amber-950/40 border border-amber-500/30 text-amber-300 text-[10px] font-mono flex items-center gap-1.5">
+            <Lock className="w-3 h-3 text-amber-400 shrink-0" />
+            <span>Design gate active: Brief & Golden Fixture must be approved before executing {task.task_type}.</span>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={handleApprove}
-            disabled={isProcessing}
-            className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-[#0A1420] font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+            disabled={isProcessing || !canApprove}
+            className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50 ${
+              canApprove
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-[#0A1420]'
+                : 'bg-white/10 text-[#8b98a8] border border-white/10 cursor-not-allowed'
+            }`}
           >
-            <Check className="w-3.5 h-3.5 stroke-[3]" />
-            Approve & Run
+            {canApprove ? (
+              <>
+                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                Approve & Run
+              </>
+            ) : (
+              <>
+                <Lock className="w-3 h-3" />
+                Approve design first
+              </>
+            )}
           </button>
 
           <button

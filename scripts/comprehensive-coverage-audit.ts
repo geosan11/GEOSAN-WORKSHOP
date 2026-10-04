@@ -49,6 +49,12 @@ import {
   exportAsSystemPrompt
 } from '../src/lib/llmLearningStore';
 import { pullRepositoryFromGitHub, analyzeRepository } from '../src/lib/repoAnalysis';
+import {
+  DEMO_SESSION_TASKS,
+  DEMO_WORKLOG_RUNNING,
+  DEMO_WORKLOG_APPROVAL
+} from '../src/data/sessionFixtures';
+import { getMappedStatusLabel } from '../src/components/session/TaskWorkspace';
 
 let totalAssertions = 0;
 let passedAssertions = 0;
@@ -360,6 +366,50 @@ async function runCoverageAudit() {
   // Verify finding has diff snippet
   const invFinding = analysis.findings.find(f => f.category === 'invariants');
   testAssert(Boolean(invFinding?.diffSnippet?.before && invFinding?.diffSnippet?.after), 'Finding contains before/after code diff snippet');
+
+  // --------------------------------------------------------------------------
+  // 10. DEVIN OPERATOR PATTERNS & SESSION FIXTURES (sessionFixtures.ts)
+  // --------------------------------------------------------------------------
+  console.log('\n--> AUDIT SECTION 10: Devin Operator Patterns & Session Fixtures (sessionFixtures.ts)');
+
+  // 1. One running task and one awaiting-approval task on demo project
+  const runningTask = DEMO_SESSION_TASKS.find(t => t.status === 'running' && t.project_id === 'proj-ehi-001');
+  testAssert(Boolean(runningTask), 'Demo fixtures contain one running task on proj-ehi-001');
+
+  const approvalTask = DEMO_SESSION_TASKS.find(t => t.status === 'awaiting_approval' && t.project_id === 'proj-ehi-001');
+  testAssert(Boolean(approvalTask), 'Demo fixtures contain one awaiting-approval task on proj-ehi-001');
+
+  // 2. Events include a plan, three file edits, two shell commands, one QA finding, one approval wait
+  const planEvents = DEMO_WORKLOG_RUNNING.filter(e => e.type === 'plan');
+  const editEvents = DEMO_WORKLOG_RUNNING.filter(e => e.type === 'edit');
+  const shellEvents = DEMO_WORKLOG_RUNNING.filter(e => e.type === 'shell');
+  const qaEvents = DEMO_WORKLOG_RUNNING.filter(e => e.type === 'qa');
+  const approvalEvents = DEMO_WORKLOG_RUNNING.filter(e => e.type === 'approval');
+
+  testAssert(planEvents.length >= 1, 'Running worklog contains at least one plan event');
+  testAssert(editEvents.length >= 3, 'Running worklog contains three file edits (found ' + editEvents.length + ')');
+  testAssert(shellEvents.length >= 2, 'Running worklog contains two shell commands (found ' + shellEvents.length + ')');
+  testAssert(qaEvents.length >= 1, 'Running worklog contains one QA finding');
+  testAssert(approvalEvents.length >= 1, 'Running worklog contains one approval wait');
+
+  // 3. Shell commands are illustrative strings (e.g. npm run lint, git checkout) without real tokens
+  for (const sh of shellEvents) {
+    testAssert(Boolean(sh.payload?.command && sh.payload?.output), 'Shell event has command and output');
+    testAssert(!sh.payload?.command?.includes('ghp_') && !sh.payload?.output?.includes('ghp_'), 'Shell event does not leak credentials or tokens');
+  }
+
+  // 4. Status mapping adheres to Devin operator pattern specifications
+  const mappedRunning = getMappedStatusLabel('running');
+  testAssert(mappedRunning.label === 'Working', 'running maps to "Working"');
+
+  const mappedApproval = getMappedStatusLabel('awaiting_approval');
+  testAssert(mappedApproval.label === 'Approve plan', 'awaiting_approval maps to "Approve plan"');
+
+  const mappedBlocked = getMappedStatusLabel('blocked');
+  testAssert(mappedBlocked.label === 'Blocked', 'blocked maps to "Blocked"');
+
+  const mappedPr = getMappedStatusLabel('done', 'https://github.com/org/repo/pull/1');
+  testAssert(mappedPr.label === 'PR ready', 'done with pr_url maps to "PR ready"');
 
   console.log('\n================================================================');
   console.log(`  COVERAGE AUDIT SUMMARY: ${passedAssertions} OF ${totalAssertions} ASSERTIONS PASSED`);

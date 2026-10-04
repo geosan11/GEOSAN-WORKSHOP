@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '../components/Toast';
+import { useProjects } from '../hooks/useProjects';
 import {
   LearningRecord,
   IssueCategory,
@@ -35,6 +36,7 @@ export const KnowledgeVaultScreen: React.FC = () => {
   const toast = useToast();
 
   const [records, setRecords] = useState<LearningRecord[]>([]);
+  const { projects } = useProjects();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
   const [copiedFormat, setCopiedFormat] = useState<'jsonl' | 'markdown' | null>(null);
@@ -42,14 +44,14 @@ export const KnowledgeVaultScreen: React.FC = () => {
   // AI Pulling Test State
   const [testModelId, setTestModelId] = useState<string>('deepseek-r1');
   const [testImportance, setTestImportance] = useState<TaskImportance>('critical');
-  const [testPrompt, setTestPrompt] = useState<string>('Verify multi-tenant RLS isolation invariants for EHI Multisystems');
+  const [testPrompt, setTestPrompt] = useState<string>('Verify multi-tenant RLS isolation invariants for project database');
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const [pullResult, setPullResult] = useState<any | null>(null);
 
   // New Record Modal State
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newTitle, setNewTitle] = useState('');
-  const [newProject, setNewProject] = useState('proj-ehi-001');
+  const [newProject, setNewProject] = useState(projects[0]?.id || '');
   const [newCategory, setNewCategory] = useState<IssueCategory>('FINANCIAL_INVARIANT');
   const [newSymptom, setNewSymptom] = useState('');
   const [newRootCause, setNewRootCause] = useState('');
@@ -356,10 +358,9 @@ export const KnowledgeVaultScreen: React.FC = () => {
               className="bg-[#161b22] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-[#e6edf3] focus:outline-none"
             >
               <option value="ALL">All Projects</option>
-              <option value="proj-ehi-001">EHI Multisystems</option>
-              <option value="proj-iyanu-002">Iyanuoluwa AgroSupply</option>
-              <option value="proj-aviation-003">Aviation Log Entry</option>
-              <option value="proj-edgepoint-004">EdgePoint</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -473,10 +474,13 @@ export const KnowledgeVaultScreen: React.FC = () => {
                     onChange={(e) => setNewProject(e.target.value)}
                     className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2 text-xs text-[#e6edf3]"
                   >
-                    <option value="proj-ehi-001">EHI Multisystems</option>
-                    <option value="proj-iyanu-002">Iyanuoluwa AgroSupply</option>
-                    <option value="proj-aviation-003">Aviation Log Entry</option>
-                    <option value="proj-edgepoint-004">EdgePoint</option>
+                    {projects.length === 0 ? (
+                      <option value="">(No Projects Registered)</option>
+                    ) : (
+                      projects.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 

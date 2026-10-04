@@ -15,8 +15,8 @@ import { EmptyState } from '../components/EmptyState';
 import { AgentTask } from '../lib/types';
 import { projectMonthlySpend } from '../lib/cost';
 import { formatCost } from '../lib/format';
-import { FolderGit2, Activity, Play, Plus, RefreshCw, Zap } from 'lucide-react';
-import { NewProjectModal } from '../components/NewProjectModal';
+import { FolderGit2, Activity, Play, Plus, RefreshCw, Zap, Workflow } from 'lucide-react';
+import { ProjectWizardModal } from '../components/ProjectWizardModal';
 
 export const PortfolioScreen: React.FC = () => {
   const { navigate } = useNavigation();
@@ -57,9 +57,11 @@ export const PortfolioScreen: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
         <div>
           <div className="flex items-center gap-2 text-[#8b98a8] text-xs font-mono mb-1">
-            <span>EHI Global Enterprise</span>
+            <span>GEOSAN-WORKSHOP</span>
             <span>·</span>
-            <span className="text-[#F0B230]">4 Managed Verticals</span>
+            <span className="text-[#F0B230]">
+              {projects.length === 0 ? '0 Projects Registered' : `${projects.length} Managed Project${projects.length === 1 ? '' : 's'}`}
+            </span>
           </div>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
             Managed Project Portfolio
@@ -81,11 +83,11 @@ export const PortfolioScreen: React.FC = () => {
 
           <button
             onClick={() => setIsNewProjectModalOpen(true)}
-            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#F0B230] to-[#FFBD59] text-[#0A1420] font-bold text-xs hover:opacity-95 transition-all shadow-sm flex items-center gap-1.5"
-            aria-label="Initialize new project"
+            className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#F0B230] to-[#FFBD59] text-[#0A1420] font-bold text-xs hover:opacity-95 transition-all shadow-sm flex items-center gap-1.5"
+            aria-label="Launch Project Wizard"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New Project</span>
+            <Workflow className="w-3.5 h-3.5" />
+            <span>Project Wizard</span>
           </button>
 
           <button
@@ -173,8 +175,8 @@ export const PortfolioScreen: React.FC = () => {
         }}
       />
 
-      {/* Modal to Initialize New Project */}
-      <NewProjectModal
+      {/* Project Wizard Modal */}
+      <ProjectWizardModal
         isOpen={isNewProjectModalOpen}
         onClose={() => setIsNewProjectModalOpen(false)}
       />

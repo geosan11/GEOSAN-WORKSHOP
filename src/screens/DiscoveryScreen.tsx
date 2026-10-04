@@ -3,7 +3,7 @@ import { useProjects } from '../hooks/useProjects';
 import { useNavigation } from '../lib/navigation';
 import { useToast } from '../components/Toast';
 import {
-  SDLC_PHASES,
+  UI_SDLC_PHASES,
   SDLCPhase,
   ProjectDiscoveryState,
   loadProjectDiscovery,
@@ -32,6 +32,7 @@ import {
   Plus
 } from 'lucide-react';
 import { NewProjectModal } from '../components/NewProjectModal';
+import { EmptyState } from '../components/EmptyState';
 
 interface DiscoveryScreenProps {
   initialProjectId?: string;
@@ -43,7 +44,7 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
   const { projects, loading } = useProjects();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>(
-    initialProjectId || projects[0]?.id || 'proj-ehi-001'
+    initialProjectId || projects[0]?.id || ''
   );
   const [activePhaseIndex, setActivePhaseIndex] = useState<number>(0);
   const [discoveryState, setDiscoveryState] = useState<ProjectDiscoveryState | null>(null);
@@ -67,8 +68,31 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
     }
   }, [selectedProjectId]);
 
+  if (projects.length === 0 && !loading) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto space-y-6">
+        <EmptyState
+          title="No Projects Registered Yet"
+          description="You haven't added or created any projects yet. Initialize your first project to start the 6-phase SDLC architecture discovery and design contract."
+          actionLabel="Initialize Project"
+          onAction={() => setIsNewProjectModalOpen(true)}
+        />
+        {isNewProjectModalOpen && (
+          <NewProjectModal
+            isOpen={isNewProjectModalOpen}
+            onClose={() => setIsNewProjectModalOpen(false)}
+            onSuccess={(newProjId) => {
+              setSelectedProjectId(newProjId);
+              setIsNewProjectModalOpen(false);
+            }}
+          />
+        )}
+      </div>
+    );
+  }
+
   const activeProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
-  const activePhase = SDLC_PHASES[activePhaseIndex] || SDLC_PHASES[0];
+  const activePhase = UI_SDLC_PHASES[activePhaseIndex] || UI_SDLC_PHASES[0];
 
   const handleAnswerChange = (questionId: string, value: string) => {
     if (!discoveryState) return;
@@ -242,9 +266,9 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
         </div>
       </div>
 
-      {/* 6-PHASE TABS STEPPER */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {SDLC_PHASES.map((phase, idx) => {
+      {/* TABS STEPPER (Phase 1, 1b Design Contract, 2-6) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {UI_SDLC_PHASES.map((phase, idx) => {
           const isCurrent = activePhaseIndex === idx;
           // Count answered questions in this phase
           const answeredCount = phase.questions.filter(
@@ -418,8 +442,8 @@ export const DiscoveryScreen: React.FC<DiscoveryScreenProps> = ({ initialProject
 
         <button
           type="button"
-          disabled={activePhaseIndex === SDLC_PHASES.length - 1}
-          onClick={() => setActivePhaseIndex((prev) => Math.min(SDLC_PHASES.length - 1, prev + 1))}
+          disabled={activePhaseIndex === UI_SDLC_PHASES.length - 1}
+          onClick={() => setActivePhaseIndex((prev) => Math.min(UI_SDLC_PHASES.length - 1, prev + 1))}
           className="px-4 py-2 rounded-lg bg-[#161b22] border border-white/5 text-xs font-mono font-bold text-[#8b98a8] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           Next Phase →
