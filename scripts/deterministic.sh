@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
+set -u
+(set -o pipefail 2>/dev/null) && set -o pipefail || true
 
 # Deterministic build, verification, and regression test script.
 # Pure local heuristics: git diff check, TypeScript compile, format validation, and replay.

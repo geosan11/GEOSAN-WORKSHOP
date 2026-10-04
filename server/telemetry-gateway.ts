@@ -8,8 +8,8 @@
  */
 
 import http from 'http';
-import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from './budgetLedger';
-import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore';
+import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from './budgetLedger.ts';
+import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
 
 // In-memory server-side knowledge records
 let serverLearningRecords: LearningRecord[] = [...INITIAL_LEARNING_RECORDS];

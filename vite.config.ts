@@ -2,7 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
-import { handleTelemetryGateway } from './server/telemetry-gateway';
+import { handleTelemetryGateway } from './server/telemetry-gateway.ts';
 
 const telemetryPlugin = (): Plugin => ({
   name: 'telemetry-gateway',
@@ -18,7 +18,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss(), telemetryPlugin()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(process.cwd(), '.'),
       },
     },
     server: {

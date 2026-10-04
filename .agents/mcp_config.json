@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "efecto": {
+      "command": "npx",
+      "args": ["-y", "@efectoapp/mcp"]
+    },
+    "stitch": {
+      "command": "npx",
+      "args": ["-y", "@_davideast/stitch-mcp"]
+    }
+  }
+}
