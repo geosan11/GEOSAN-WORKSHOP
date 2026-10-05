@@ -98,37 +98,41 @@ export const TopBar: React.FC = () => {
     };
   }, [bellOpen]);
 
-  const navTabs = [
-    { kind: 'portfolio', label: 'PORTFOLIO', icon: FolderGit2 },
-    { kind: 'discovery', label: 'SDLC SCOPING', icon: Compass },
-    { kind: 'knowledge', label: 'LLM VAULT', icon: Brain },
-    { kind: 'console', label: 'AGENT CONSOLE', icon: Terminal },
-    { kind: 'costs', label: 'COST CENTER', icon: DollarSign },
-    { kind: 'qa', label: 'QA WORKBENCH', icon: Bug },
-    { kind: 'monitoring', label: 'MONITORING', icon: Activity },
-    { kind: 'settings', label: 'SETTINGS', icon: SettingsIcon }
-  ] as const;
+  // Page Title mapping based on current screen
+  const getPageTitle = () => {
+    switch (screen.kind) {
+      case 'portfolio':
+        return 'Project Portfolio Overview';
+      case 'discovery':
+        return 'SDLC Discovery & Architecture';
+      case 'knowledge':
+        return 'Knowledge Vault';
+      case 'project':
+        return 'Project Detail';
+      case 'console':
+        return 'Agent Dispatch Console';
+      case 'costs':
+        return 'Cost Center & FinOps';
+      case 'qa':
+        return 'QA Workbench';
+      case 'monitoring':
+        return 'Production Probes';
+      case 'settings':
+        return 'Settings & Governance';
+      default:
+        return 'Command Center';
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-[#161b22]/95 border-b border-white/5 backdrop-blur-md px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
-      {/* Brand & Demo Pill & Shared Status Pill */}
+    <header className="sticky top-0 z-30 w-full bg-[#161b22]/95 border-b border-white/10 backdrop-blur-md px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
+      {/* Active Page Breadcrumb Title & Status Badge */}
       <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate({ kind: 'portfolio' })}
-          className="flex items-center gap-2.5 focus:outline-none group cursor-pointer"
-        >
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1c2333] to-[#0d1117] border border-white/10 flex items-center justify-center shadow-sm group-hover:border-[#FFBD59]/40 transition-colors">
-            <AetherOrchLogo className="w-6 h-6" />
-          </div>
-          <div className="text-left hidden sm:block">
-            <span className="font-bold text-sm tracking-tight text-[#e6edf3] font-display block group-hover:text-white">
-              GEOSAN-WORKSHOP
-            </span>
-            <span className="text-[10px] font-mono text-[#8b98a8] block -mt-1">
-              Command Center
-            </span>
-          </div>
-        </button>
+        <div className="flex items-center gap-2 font-mono">
+          <span className="text-xs font-bold text-[#e6edf3] tracking-wide">
+            {getPageTitle()}
+          </span>
+        </div>
 
         {/* Production vs Demo Badge */}
         {!dataProvider.isDemo ? (
@@ -137,14 +141,15 @@ export const TopBar: React.FC = () => {
             title="Production Supabase connected: zxdxsizyvotkcsrtzscw"
           >
             <SupabaseLogo className="w-3 h-3" />
-            <span>PROD: zxdxsizyvotkcsrtzscw</span>
+            <span className="hidden sm:inline">PROD: zxdxsizyvotkcsrtzscw</span>
           </span>
         ) : (
           <span
-            className="px-2 py-0.5 rounded-full border border-[#F0B230] text-[#F0B230] font-mono text-[9px] font-bold tracking-wider animate-pulse ml-1"
-            title="Running in mock memory mode with zero external credentials required"
+            className="px-2.5 py-0.5 rounded-full border border-[#F0B230]/50 bg-[#F0B230]/10 text-[#FFBD59] font-mono text-[9px] font-bold tracking-wider ml-1 flex items-center gap-1 shadow-sm"
+            title="Running in zero-backend Demo Mode"
           >
-            DEMO MODE
+            <span className="w-1.5 h-1.5 rounded-full bg-[#F0B230] animate-ping" />
+            <span>DEMO MODE</span>
           </span>
         )}
 
@@ -153,49 +158,6 @@ export const TopBar: React.FC = () => {
           <HarnessStatus />
         </div>
       </div>
-
-      {/* Desktop Navigation Tabs (>= 768px - Addendum A4) */}
-      <nav className="hidden md:flex items-center gap-1 font-mono text-xs" aria-label="Main Navigation">
-        {navTabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive =
-            screen.kind === tab.kind ||
-            (tab.kind === 'portfolio' && screen.kind === 'project');
-
-          return (
-            <button
-              key={tab.kind}
-              onClick={() => {
-                if (tab.kind === 'portfolio') {
-                  navigate({ kind: 'portfolio' });
-                } else if (tab.kind === 'discovery') {
-                  navigate({ kind: 'discovery' });
-                } else if (tab.kind === 'knowledge') {
-                  navigate({ kind: 'knowledge' });
-                } else if (tab.kind === 'console') {
-                  navigate({ kind: 'console' });
-                } else if (tab.kind === 'costs') {
-                  navigate({ kind: 'costs' });
-                } else if (tab.kind === 'qa') {
-                  navigate({ kind: 'qa' });
-                } else if (tab.kind === 'monitoring') {
-                  navigate({ kind: 'monitoring' });
-                } else if (tab.kind === 'settings') {
-                  navigate({ kind: 'settings' });
-                }
-              }}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
-                isActive
-                  ? 'bg-[#F0B230]/15 text-[#FFBD59] border border-[#F0B230]/40 shadow-sm'
-                  : 'text-[#8b98a8] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </nav>
 
       {/* Right Tools: Cmd-K Search, Density Toggle, Manual Refresh, Notification Bell, Theme Toggle */}
       <div className="flex items-center gap-2">
