@@ -31,10 +31,11 @@ import {
   Check,
   X,
   Code2,
-  Share2
+  Share2,
+  Mail
 } from 'lucide-react';
 
-export type ServiceType = 'vercel' | 'supabase' | 'github' | 'postgres' | 'cloudflare' | 'docker_server';
+export type ServiceType = 'vercel' | 'supabase' | 'github' | 'postgres' | 'cloudflare' | 'docker_server' | 'resend_email';
 
 export interface LinkedComponent {
   id: string;
@@ -218,11 +219,50 @@ const INITIAL_LINKED_COMPONENTS: LinkedComponent[] = [
       { label: 'Cycle Worker Process', actionId: 'restart-worker', description: 'Performs zero-downtime hot reload of frame parser' },
       { label: 'Export Telemetry Core Dump', actionId: 'export-dump', description: 'Captures binary memory snapshot for AST inspection' }
     ]
+  },
+  {
+    id: 'comp-email-01',
+    projectId: 'proj-ehi-001',
+    projectName: 'EHI Multisystems',
+    name: 'Resend Transactional Mail Dispatcher',
+    serviceType: 'resend_email',
+    accountOwner: 'ehi-resend-prod',
+    accountType: 'Pro Team',
+    endpointOrUrl: 'https://api.resend.com/emails',
+    status: 'healthy',
+    latencyMs: 38,
+    lastChecked: '1m ago',
+    metrics: {
+      'Deliverability': '99.8% Inbox',
+      'DKIM & SPF': 'Verified (Strict)',
+      'Daily Quota': '124 / 50,000',
+      'Webhook Ping': 'Healthy (200 OK)'
+    },
+    mcpServerId: 'mcp-email-resend',
+    fixOptions: [
+      { label: 'Re-verify DKIM / SPF Records', actionId: 'verify-dns', description: 'Triggers DNS propagation check for outbound signing' },
+      { label: 'Flush Bounce Retry Queue', actionId: 'flush-bounces', description: 'Clears soft bounce backlog on cargo arrival dispatch' }
+    ]
   }
 ];
 
 const INITIAL_MCP_REGISTRY: McpServerRecord[] = [
   // ── PER-SERVER / PER-PROJECT MCPS ──
+  {
+    id: 'mcp-email-resend',
+    name: 'mcp-server-resend (Transactional Mail)',
+    level: 'per-server',
+    scopeTarget: 'api.resend.com/emails (EHI, Iyanu, Skyfleet, EdgePoint)',
+    transport: 'SSE',
+    status: 'online',
+    toolsCount: 3,
+    description: 'Autonomous transactional email delivery, template rendering, and delivery status verification with DKIM/SPF protection.',
+    tools: [
+      { name: 'send_transactional_email', description: 'Dispatches signed notification with DKIM/SPF protection', params: ['to', 'template', 'data'] },
+      { name: 'verify_domain_dns_health', description: 'Checks DNS MX, SPF, DKIM, and DMARC status across all tenant domains', params: ['domain'] },
+      { name: 'check_delivery_receipts', description: 'Polls delivery logs and bounce webhooks for cargo intake receipts', params: ['message_id'] }
+    ]
+  },
   {
     id: 'mcp-sb-ehi',
     name: 'mcp-server-supabase (EHI Cargo)',
@@ -560,10 +600,11 @@ export const MultiAccountComponentHub: React.FC = () => {
                 onChange={(e) => setSelectedServiceFilter(e.target.value)}
                 className="bg-[#0d1117] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
               >
-                <option value="all">All Services (Vercel, Supabase, GitHub, Docker)</option>
+                <option value="all">All Services (Vercel, Supabase, GitHub, Resend, Docker)</option>
                 <option value="vercel">Vercel Deployments</option>
                 <option value="supabase">Supabase Databases</option>
                 <option value="github">GitHub Monorepos</option>
+                <option value="resend_email">Resend Transactional Mail</option>
                 <option value="docker_server">Docker / Server Nodes</option>
               </select>
 
@@ -631,6 +672,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                           {comp.serviceType === 'supabase' && <SupabaseLogo className="w-4 h-4" />}
                           {comp.serviceType === 'vercel' && <VercelLogo className="w-4 h-4 text-white" />}
                           {comp.serviceType === 'github' && <GitHubLogo className="w-4 h-4 text-white" />}
+                          {comp.serviceType === 'resend_email' && <Mail className="w-4 h-4 text-purple-400" />}
                           {comp.serviceType === 'docker_server' && <Server className="w-4 h-4 text-cyan-400" />}
                         </div>
 

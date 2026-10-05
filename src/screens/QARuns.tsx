@@ -7,6 +7,7 @@ import { QAFindingRow } from '../components/QAFindingRow';
 import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { EmptyState } from '../components/EmptyState';
+import { PageHeader } from '../components/ui';
 import { formatDateTime, formatRelative } from '../lib/format';
 import { ShieldCheck, Filter, Bug, CheckCircle2, AlertTriangle, X, Play, ArrowRight, Layers } from 'lucide-react';
 
@@ -65,28 +66,26 @@ export const QARunsScreen: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-mono text-[#8b98a8] mb-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#F0B230]" />
+      <PageHeader
+        eyebrow={
+          <>
+            <ShieldCheck className="w-3.5 h-3.5 text-gold" />
             <span>Autonomous Testing Vertical</span>
             <span>·</span>
-            <span className="text-[#FFBD59]">agent-qa & mk-qa-master MCP</span>
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-            Autonomous QA Test Runs & Regression Findings
-          </h1>
-        </div>
-
-        <button
-          onClick={() => navigate({ kind: 'console' })}
-          className="px-4 py-2 rounded-lg bg-[#F0B230] text-[#0A1420] text-xs font-bold hover:bg-[#FFBD59] transition-colors flex items-center gap-1.5 self-start shadow-sm"
-        >
-          <Play className="w-3.5 h-3.5 fill-current" />
-          Dispatch QA Run
-        </button>
-      </div>
+            <span className="text-gold">agent-qa & mk-qa-master MCP</span>
+          </>
+        }
+        title="Autonomous QA Test Runs & Regression Findings"
+        actions={
+          <button
+            onClick={() => navigate({ kind: 'console' })}
+            className="px-4 py-2 rounded-lg btn-gold text-xs font-bold transition-colors flex items-center gap-1.5 self-start shadow-sm"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            Dispatch QA Run
+          </button>
+        }
+      />
 
       {/* Filter Chips Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-xl bg-[#161b22] border border-white/5 text-xs font-mono">
@@ -101,11 +100,10 @@ export const QARunsScreen: React.FC = () => {
               <button
                 key={p}
                 onClick={() => setPlatformFilter(p)}
-                className={`px-2 py-0.5 rounded uppercase text-[10px] transition-colors ${
-                  platformFilter === p
-                    ? 'bg-[#F0B230] text-[#0A1420] font-bold'
-                    : 'text-[#8b98a8] hover:text-white'
-                }`}
+                className={`px-2 py-0.5 rounded uppercase text-[10px] transition-colors ${platformFilter === p
+                  ? 'bg-[#F0B230] text-[#0A1420] font-bold'
+                  : 'text-[#8b98a8] hover:text-white'
+                  }`}
               >
                 {p}
               </button>
@@ -118,11 +116,10 @@ export const QARunsScreen: React.FC = () => {
               <button
                 key={t}
                 onClick={() => setRunTypeFilter(t)}
-                className={`px-2 py-0.5 rounded uppercase text-[10px] transition-colors ${
-                  runTypeFilter === t
-                    ? 'bg-[#F0B230] text-[#0A1420] font-bold'
-                    : 'text-[#8b98a8] hover:text-white'
-                }`}
+                className={`px-2 py-0.5 rounded uppercase text-[10px] transition-colors ${runTypeFilter === t
+                  ? 'bg-[#F0B230] text-[#0A1420] font-bold'
+                  : 'text-[#8b98a8] hover:text-white'
+                  }`}
               >
                 {t}
               </button>
@@ -190,22 +187,20 @@ export const QARunsScreen: React.FC = () => {
                       </td>
                       <td className="py-3 px-4">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
-                            run.status === 'completed'
-                              ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/30'
-                              : run.status === 'running'
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${run.status === 'completed'
+                            ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/30'
+                            : run.status === 'running'
                               ? 'bg-[#F0B230]/20 text-[#FFBD59] border border-[#F0B230]/40 animate-pulse'
                               : 'bg-red-950/40 text-red-400 border border-red-500/30'
-                          }`}
+                            }`}
                         >
                           {run.status}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <span
-                          className={`font-bold tabular-nums ${
-                            run.findings_count > 0 ? 'text-red-400' : 'text-emerald-400'
-                          }`}
+                          className={`font-bold tabular-nums ${run.findings_count > 0 ? 'text-red-400' : 'text-emerald-400'
+                            }`}
                         >
                           {run.findings_count} {run.findings_count === 1 ? 'issue' : 'issues'}
                         </span>

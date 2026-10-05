@@ -1,6 +1,6 @@
 # Project Roadmap & Task Matrix - GEOSAN-WORKSHOP
 
-**Total Tasks:** 29 | **Completed:** 23 | **In Progress:** 1 | **Remaining:** 5
+**Total Tasks:** 29 | **Completed:** 21 | **In Progress:** 1 | **Remaining:** 7
 
 ---
 
@@ -46,8 +46,8 @@
 | 4.6 | Build Autonomous QA Workbench with severity filtering | High | [IN_PROGRESS] | `src/screens/QARuns.tsx`, `src/components/QAWorkbench.tsx` | Schemathesis and OWASP audit stream |
 | 4.7 | Build `ProjectOverview` component with Top Shelf metrics & fleet roster | High | [DONE] | `src/components/ProjectOverview.tsx` | Total Agents, Active Tokens, Completion Rate |
 | 4.8 | Build `AgentSwarmWorkbench` with GPU-accelerated SVG packet transit & glitch shake | High | [DONE] | `src/components/AgentSwarmWorkbench.tsx` | 0% CPU strain, instant crash/heal |
-| 4.9 | Build Visual Control Plane 3-pane split-workbench with contract diagnostics | High | [DONE] | `src/components/dashboard/ControlPlaneLayout.tsx` | Swarm, diagnostics, live preview dock |
-| 4.10 | Build Cyber-Industrial Silicon Foundry Motherboard with parametric avatars | High | [DONE] | `src/components/foundry/FoundryChassis.tsx` | Inner Worlds, blown fuse, 150ms clock |
+| 4.9 | Build Visual Control Plane 3-pane split-workbench with contract diagnostics | High | [TODO] | `src/components/dashboard/ControlPlaneLayout.tsx` | Not in tree yet — redesign Phase 4 |
+| 4.10 | Build Cyber-Industrial Silicon Foundry Motherboard with parametric avatars | High | [TODO] | `src/components/foundry/FoundryChassis.tsx` | Not in tree yet — redesign Phase 4 |
 | 4.11 | Implement Comprehensive Clean Light Mode System & Cross-Tab Theme Sync | High | [DONE] | `src/lib/theme.tsx`, `src/index.css` | Persistent theme, WCAG AAA contrast |
 
 ---

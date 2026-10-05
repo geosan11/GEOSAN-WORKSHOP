@@ -1,23 +1,27 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand — aligned to docs/DESIGN.md */
   --color-gold: #F0B230;
   --color-gold-light: #FFBD59;
   --color-gold-deep: #C98E28;
+  --color-gold-ink: #0A1420;
   --color-navy: #084985;
   --color-navy-deep: #052C52;
   --color-ink: #0A1420;
-  --color-surface: #F7FBFE;
-  --color-obsidian: #0d1117;   /* dark mode base */
-  --color-surface-1: #161b22;   /* dark mode card */
-  --color-surface-2: #1c2333;   /* dark mode elevated */
-  --color-border: rgba(255, 255, 255, 0.09);   /* dark mode */
+  --color-surface: #F4F6F9;
+  --color-obsidian: #0d1117;
+  --color-surface-1: #161b22;
+  --color-surface-2: #1c2333;
+  --color-surface-3: #21262d;
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-border-strong: rgba(255, 255, 255, 0.15);
   --color-text: #e6edf3;
   --color-text-sub: #8b98a8;
-  --color-success: #16A34A;
-  --color-error: #DC2626;
+  --color-success: #10B981;
+  --color-error: #EF4444;
   --color-warning: #F59E0B;
-  --color-info: #0873B7;
+  --color-info: #06B6D4;
 
   /* Semantic Theme tokens (Default Dark) */
   --bg-app: var(--color-obsidian);
@@ -28,13 +32,29 @@
   --text-muted: var(--color-text-sub);
 }
 
-.light {
-  --bg-app: #F7FBFE;
+/* Keep .light in sync with html.light (theme.tsx toggles class on <html>) */
+.light,
+html.light {
+  --color-obsidian: #F4F6F9;
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F8FAFC;
+  --color-surface-3: #F1F5F9;
+  --color-border: rgba(15, 23, 42, 0.09);
+  --color-border-strong: rgba(15, 23, 42, 0.18);
+  --color-text: #0A1420;
+  --color-text-sub: #526071;
+  --color-gold: #D97706;
+  --color-gold-light: #B45309;
+  --color-gold-deep: #92400E;
+  --color-gold-ink: #FFFFFF;
+
+  --bg-app: #F4F6F9;
   --bg-card: #FFFFFF;
-  --bg-card-elevated: #EEF4F9;
-  --border-app: rgba(10, 20, 32, 0.12);
+  --bg-card-elevated: #F8FAFC;
+  --border-app: rgba(15, 23, 42, 0.09);
   --text-main: #0A1420;
-  --text-muted: #536476;
+  --text-muted: #526071;
+  color-scheme: light;
 }
 
 @theme {
@@ -61,6 +81,44 @@
   --color-info: var(--color-info);
 }
 
+/*
+ * Semantic surface utilities — prefer these over hardcoded hex in new UI.
+ * Do not redefine .bg-gold / .text-gold / .border-gold: @theme --color-gold
+ * already registers Tailwind color utilities (including opacity modifiers).
+ */
+.bg-app {
+  background-color: var(--bg-app);
+}
+
+.bg-card {
+  background-color: var(--bg-card);
+}
+
+.bg-card-elevated {
+  background-color: var(--bg-card-elevated);
+}
+
+.border-app {
+  border-color: var(--border-app);
+}
+
+.text-main {
+  color: var(--text-main);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.btn-gold {
+  background-color: var(--color-gold);
+  color: var(--color-gold-ink);
+}
+
+.btn-gold:hover {
+  background-color: var(--color-gold-light);
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-app);
@@ -68,11 +126,16 @@ body {
   min-height: 100vh;
 }
 
-h1, h2, h3, .font-display {
+h1,
+h2,
+h3,
+.font-display {
   font-family: var(--font-display);
 }
 
-code, pre, .font-mono {
+code,
+pre,
+.font-mono {
   font-family: var(--font-mono);
 }
 
@@ -81,24 +144,41 @@ code, pre, .font-mono {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--color-obsidian);
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--color-surface-2);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-gold-deep);
 }
 
 /* GPU-Accelerated Zero-CPU Swarm Telemetry & Crash Glitch */
 @keyframes glitch-shake {
-  0% { transform: translate3d(0, 0, 0); }
-  25% { transform: translate3d(-3px, 1px, 0); }
-  50% { transform: translate3d(2px, -1px, 0); }
-  75% { transform: translate3d(-1px, 2px, 0); }
-  100% { transform: translate3d(0, 0, 0); }
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  25% {
+    transform: translate3d(-3px, 1px, 0);
+  }
+
+  50% {
+    transform: translate3d(2px, -1px, 0);
+  }
+
+  75% {
+    transform: translate3d(-1px, 2px, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .crashed {
@@ -110,28 +190,55 @@ code, pre, .font-mono {
 
 /* Cyber-Industrial Foundry PCB Traces & Avatars */
 @keyframes spin-cw {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes spin-ccw {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(-360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(-360deg);
+  }
 }
 
 @keyframes radar-sweep {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes pulse-trace {
-  0% { stroke-dashoffset: 40; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 40;
+  }
+
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes fuse-flicker {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
 }
 
 .trace-active {
@@ -146,29 +253,12 @@ code, pre, .font-mono {
 }
 
 /* ============================================================
-   LIGHT MODE DESIGN SYSTEM
-   High-contrast, clean corporate SaaS aesthetic with AA/AAA compliance
+   LIGHT MODE — legacy hex/slate class remaps
+   Prefer .bg-card / .text-main utilities; these hacks bridge old TSX.
    ============================================================ */
-html.light {
-  --color-obsidian: #F4F6F9;
-  --color-surface-1: #FFFFFF;
-  --color-surface-2: #F8FAFC;
-  --color-border: rgba(15, 23, 42, 0.09);
-  --color-text: #0A1420;
-  --color-text-sub: #526071;
-
-  --bg-app: #F4F6F9;
-  --bg-card: #FFFFFF;
-  --bg-card-elevated: #F8FAFC;
-  --border-app: rgba(15, 23, 42, 0.09);
-  --text-main: #0A1420;
-  --text-muted: #526071;
-  color-scheme: light;
-}
-
 html.light body {
-  background-color: #F4F6F9 !important;
-  color: #0A1420 !important;
+  background-color: var(--bg-app) !important;
+  color: var(--text-main) !important;
 }
 
 /* Structural Shell & Cards in Light Mode */
@@ -338,8 +428,17 @@ html.light ::-webkit-scrollbar-thumb:hover {
 }
 
 @keyframes pulse-subtle {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.05); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
 }
 
 .animate-pulse-subtle {
@@ -347,17 +446,20 @@ html.light ::-webkit-scrollbar-thumb:hover {
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 100%);
   background-size: 200% 100%;
   animation: shimmer 2.5s infinite;
 }
@@ -368,7 +470,13 @@ html.light ::-webkit-scrollbar-thumb:hover {
 }
 
 @keyframes gold-border-pulse {
-  0%, 100% { border-color: rgba(240, 178, 48, 0.4); }
-  50% { border-color: rgba(240, 178, 48, 0.9); }
-}
 
+  0%,
+  100% {
+    border-color: rgba(240, 178, 48, 0.4);
+  }
+
+  50% {
+    border-color: rgba(240, 178, 48, 0.9);
+  }
+}

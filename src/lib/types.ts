@@ -130,6 +130,7 @@ export interface QARun {
 export interface QAFinding {
   id: string;
   run_id: string;
+  project_id?: string;
   severity: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   description: string | null;

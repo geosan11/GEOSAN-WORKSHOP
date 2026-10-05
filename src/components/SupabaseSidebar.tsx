@@ -1,29 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigation, Screen } from '../lib/navigation';
 import { useProjects } from '../hooks/useProjects';
+import { useTasks } from '../hooks/useTasks';
+import { useQA } from '../hooks/useQA';
 import { useAuth } from '../lib/auth';
 import { useTheme } from '../lib/theme';
-import { SupabaseLogo, AetherOrchLogo } from './ServiceLogos';
+import { SupabaseLogo } from './ServiceLogos';
 import {
-  LayoutGrid,
-  Compass,
-  Brain,
+  Inbox,
+  FolderGit2,
   Terminal,
+  Brain,
   DollarSign,
-  Bug,
   Activity,
   Settings,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck,
-  Zap,
-  Layers,
-  Database,
   Sun,
   Moon,
   LogOut,
-  Sparkles
+  Layers
 } from 'lucide-react';
 
 interface SupabaseSidebarProps {
@@ -31,18 +27,13 @@ interface SupabaseSidebarProps {
   onToggleCollapse: () => void;
 }
 
-interface NavItem {
+interface FleetItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   screen: Screen;
-  badge?: string;
-  pulse?: boolean;
-}
-
-interface NavGroup {
-  label: string;
-  items: NavItem[];
+  badge?: number | string;
+  badgeColor?: 'amber' | 'muted';
 }
 
 export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
@@ -51,117 +42,93 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
 }) => {
   const { screen, navigate } = useNavigation();
   const { projects } = useProjects();
-  const { user, orgId, signOut } = useAuth();
+  const { tasks } = useTasks();
+  const { qaFindings } = useQA();
+  const { user, signOut } = useAuth();
   const { isLight, toggleTheme } = useTheme();
 
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  // Calculate waiting count for Inbox (awaiting_approval tasks + open P0 findings)
+  const awaitingTasksCount = tasks.filter((t) => t.status === 'awaiting_approval').length;
+  const p0FindingsCount = qaFindings.filter(
+    (f) => f.status === 'open' && (f.severity === 'critical' || f.severity === 'high')
+  ).length;
+  const waitingCount = awaitingTasksCount + p0FindingsCount;
 
-  // Active project selection helper
-  const activeProjectId = screen.kind === 'project' ? screen.projectId : projects[0]?.id;
-  const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0];
-
-  const handleSelectProject = (projectId: string) => {
-    navigate({ kind: 'project', projectId, tab: 'overview' });
-    setProjectDropdownOpen(false);
-  };
-
-  const navGroups: NavGroup[] = [
+  const fleetItems: FleetItem[] = [
     {
-      label: 'WORKSPACE & PROJECTS',
-      items: [
-        {
-          id: 'portfolio',
-          label: 'Project Portfolio',
-          icon: LayoutGrid,
-          screen: { kind: 'portfolio' } as Screen,
-          badge: `${projects.length}`
-        },
-        {
-          id: 'discovery',
-          label: 'SDLC Discovery',
-          icon: Compass,
-          screen: { kind: 'discovery' } as Screen
-        },
-        {
-          id: 'knowledge',
-          label: 'Knowledge Vault',
-          icon: Brain,
-          screen: { kind: 'knowledge' } as Screen
-        }
-      ]
+      id: 'inbox',
+      label: 'Inbox',
+      icon: Inbox,
+      screen: { kind: 'inbox' },
+      badge: waitingCount > 0 ? waitingCount : undefined,
+      badgeColor: 'amber'
     },
     {
-      label: 'AGENT ORCHESTRATION',
-      items: [
-        {
-          id: 'console',
-          label: 'Agent Dispatch Console',
-          icon: Terminal,
-          screen: { kind: 'console' } as Screen,
-          pulse: true
-        }
-      ]
+      id: 'projects',
+      label: 'Projects',
+      icon: FolderGit2,
+      screen: { kind: 'projects' }
     },
     {
-      label: 'FINOPS & TELEMETRY',
-      items: [
-        {
-          id: 'costs',
-          label: 'Cost Center & Inference',
-          icon: DollarSign,
-          screen: { kind: 'costs' } as Screen
-        }
-      ]
+      id: 'runs',
+      label: 'Runs',
+      icon: Terminal,
+      screen: { kind: 'runs' }
     },
     {
-      label: 'QUALITY & HEALTH',
-      items: [
-        {
-          id: 'qa',
-          label: 'QA Workbench',
-          icon: Bug,
-          screen: { kind: 'qa' } as Screen
-        },
-        {
-          id: 'monitoring',
-          label: 'Production Probes',
-          icon: Activity,
-          screen: { kind: 'monitoring' } as Screen
-        }
-      ]
+      id: 'knowledge',
+      label: 'Knowledge',
+      icon: Brain,
+      screen: { kind: 'knowledge' }
     },
     {
-      label: 'GOVERNANCE & PLATFORM',
-      items: [
-        {
-          id: 'settings',
-          label: 'Settings & MCP Plane',
-          icon: Settings,
-          screen: { kind: 'settings' } as Screen
-        }
-      ]
+      id: 'costs',
+      label: 'Money',
+      icon: DollarSign,
+      screen: { kind: 'costs' }
+    },
+    {
+      id: 'monitoring',
+      label: 'Probes',
+      icon: Activity,
+      screen: { kind: 'monitoring' }
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: Settings,
+      screen: { kind: 'settings' }
     }
   ];
 
-  const isItemActive = (itemScreen: Screen) => {
-    if (screen.kind === itemScreen.kind) {
-      if (screen.kind !== 'project') return true;
-      return screen.projectId === (itemScreen as { projectId: string }).projectId;
+  const isFleetItemActive = (item: FleetItem) => {
+    if (item.id === 'inbox') {
+      return screen.kind === 'inbox' || screen.kind === 'portfolio';
     }
-    return false;
+    if (item.id === 'runs') {
+      return screen.kind === 'runs' || screen.kind === 'console';
+    }
+    if (item.id === 'projects') {
+      return screen.kind === 'projects';
+    }
+    return screen.kind === item.id;
+  };
+
+  const isProjectActive = (projectId: string) => {
+    return screen.kind === 'project' && screen.projectId === projectId;
   };
 
   return (
     <aside
       className={`fixed left-0 top-0 bottom-0 z-40 bg-[#12171f] border-r border-white/10 text-[#e6edf3] flex flex-col transition-all duration-300 font-sans shadow-2xl ${
-        collapsed ? 'w-16' : 'w-64'
+        collapsed ? 'w-16' : 'w-[14rem]'
       }`}
     >
-      {/* Supabase Style Header & Project Selector */}
-      <div className="p-3 border-b border-white/10 relative">
+      {/* Brand Header */}
+      <div className="p-3 border-b border-white/10">
         <div className="flex items-center justify-between">
           <div
-            onClick={() => navigate({ kind: 'portfolio' })}
+            onClick={() => navigate({ kind: 'inbox' })}
             className="flex items-center gap-2.5 cursor-pointer group"
           >
             <div className="w-8 h-8 rounded-lg bg-emerald-950/80 border border-emerald-500/50 flex items-center justify-center text-emerald-400 shadow-md group-hover:border-emerald-400 transition-colors">
@@ -172,11 +139,11 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
                 <span className="font-bold text-xs tracking-tight text-[#e6edf3] font-mono group-hover:text-emerald-400 transition-colors flex items-center gap-1">
                   AetherOrch
                   <span className="text-[9px] px-1 py-0.2 rounded bg-emerald-950 text-emerald-400 font-bold border border-emerald-500/30">
-                    PRO
+                    FLEET
                   </span>
                 </span>
-                <span className="text-[10px] text-slate-400 font-mono truncate max-w-[130px]">
-                  Supabase Infrastructure
+                <span className="text-[10px] text-slate-400 font-mono truncate max-w-[120px]">
+                  Autonomous Ops
                 </span>
               </div>
             )}
@@ -191,101 +158,99 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
             {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
+      </div>
 
-        {/* Project Switcher Dropdown Bar (Supabase Style) */}
-        {!collapsed && activeProject && (
-          <div className="mt-3 relative">
-            <button
-              type="button"
-              onClick={() => setProjectDropdownOpen((prev) => !prev)}
-              className="w-full p-2 rounded-lg bg-[#161b22] hover:bg-[#1c2333] border border-white/10 text-left flex items-center justify-between text-xs font-mono transition-all group"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span className="font-semibold text-slate-200 truncate group-hover:text-white">
-                  {activeProject.name}
-                </span>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </button>
+      {/* Navigation Groups Container */}
+      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-5 scrollbar-none">
+        {/* FLEET SECTION */}
+        <div className="space-y-1">
+          {!collapsed && (
+            <div className="px-2 py-1 text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
+              FLEET
+            </div>
+          )}
 
-            {projectDropdownOpen && (
-              <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#161b22] border border-white/15 rounded-xl shadow-2xl py-1.5 z-50 max-h-56 overflow-y-auto text-xs font-mono">
-                <div className="px-3 py-1 text-[10px] font-bold uppercase text-slate-500 border-b border-white/5">
-                  Select Active Vertical
-                </div>
-                {projects.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelectProject(p.id)}
-                    className={`w-full px-3 py-2 text-left hover:bg-emerald-950/40 hover:text-emerald-300 flex items-center justify-between transition-colors ${
-                      p.id === activeProjectId ? 'bg-emerald-950/60 text-emerald-400 font-bold' : 'text-slate-300'
+          {fleetItems.map((item) => {
+            const Icon = item.icon;
+            const active = isFleetItemActive(item);
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => navigate(item.screen)}
+                title={collapsed ? item.label : undefined}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group relative ${
+                  active
+                    ? 'bg-emerald-950/50 text-emerald-400 font-semibold border-l-2 border-emerald-400 shadow-sm'
+                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Icon
+                  className={`w-4 h-4 shrink-0 transition-colors ${
+                    active ? 'text-emerald-400' : 'text-slate-400 group-hover:text-emerald-300'
+                  }`}
+                />
+
+                {!collapsed && (
+                  <span className="truncate flex-1 text-left font-mono text-[12px]">
+                    {item.label}
+                  </span>
+                )}
+
+                {!collapsed && item.badge !== undefined && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[10px] font-mono font-bold ${
+                      item.badgeColor === 'amber'
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-white/5 text-slate-400'
                     }`}
                   >
-                    <span className="truncate">{p.name}</span>
-                    <span className="text-[10px] text-slate-500 uppercase">{p.vertical}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-      {/* Sidebar Navigation Items */}
-      <div className="flex-1 overflow-y-auto py-3 px-2 space-y-4 scrollbar-none">
-        {navGroups.map((group) => (
-          <div key={group.label} className="space-y-1">
-            {!collapsed && (
-              <div className="px-2 py-1 text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
-                {group.label}
-              </div>
-            )}
+        {/* OPEN VERTICAL SECTION */}
+        <div className="space-y-1 pt-2 border-t border-white/5">
+          {!collapsed && (
+            <div className="px-2 py-1 text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
+              OPEN VERTICAL
+            </div>
+          )}
 
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const active = isItemActive(item.screen);
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.screen)}
-                  title={collapsed ? item.label : undefined}
-                  className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group relative ${
-                    active
-                      ? 'bg-emerald-950/50 text-emerald-400 font-semibold border-l-2 border-emerald-400 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+          {projects.map((p) => {
+            const active = isProjectActive(p.id);
+            return (
+              <button
+                key={p.id}
+                onClick={() => navigate({ kind: 'project', projectId: p.id, tab: 'work' })}
+                title={collapsed ? p.name : undefined}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-medium transition-all text-left group ${
+                  active
+                    ? 'bg-[#161b22] text-[#FFBD59] font-bold border-l-2 border-[#F0B230]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    active ? 'bg-[#F0B230]' : 'bg-emerald-500/60 group-hover:bg-emerald-400'
                   }`}
-                >
-                  <Icon
-                    className={`w-4 h-4 shrink-0 transition-colors ${
-                      active ? 'text-emerald-400' : 'text-slate-400 group-hover:text-emerald-300'
-                    }`}
-                  />
-
-                  {!collapsed && (
-                    <span className="truncate flex-1 text-left font-mono text-[12px]">
-                      {item.label}
-                    </span>
-                  )}
-
-                  {!collapsed && item.badge && (
-                    <span className="px-1.5 py-0.2 rounded bg-white/5 text-[10px] text-slate-400 font-mono font-bold">
-                      {item.badge}
-                    </span>
-                  )}
-
-                  {!collapsed && item.pulse && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+                />
+                {!collapsed && (
+                  <span className="truncate font-mono text-[11px]">
+                    {p.name.split(' (')[0]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Supabase Footer User / System Session */}
+      {/* Footer Operator Identity & Theme Toggle */}
       <div className="p-3 border-t border-white/10 space-y-2 font-mono text-xs">
         {!collapsed && (
           <div className="p-2.5 rounded-lg bg-[#161b22] border border-white/5 flex items-center justify-between">

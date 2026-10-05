@@ -1,184 +1,140 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { useNavigation } from '../lib/navigation';
-import { useDataProvider } from '../lib/dataProvider';
-import { useAuth } from '../lib/auth';
+import { useProjects } from '../hooks/useProjects';
+import { useSharedStatus } from '../lib/sharedStatus';
 import { useDensity } from '../lib/density';
-import { useTheme } from '../lib/theme';
-import { formatRelative } from '../lib/format';
-import { HarnessStatus } from './HarnessStatus';
-import { AetherOrchLogo, SupabaseLogo } from './ServiceLogos';
-import {
-  ShieldCheck,
-  FolderGit2,
-  Terminal,
-  DollarSign,
-  Bug,
-  Settings as SettingsIcon,
-  Bell,
-  RefreshCw,
-  Sun,
-  Moon,
-  AlertTriangle,
-  CheckCircle2,
-  Activity,
-  Layers,
-  Check,
-  Cpu,
-  Compass,
-  Brain,
-  Search
-} from 'lucide-react';
-
-interface NotificationItem {
-  id: string;
-  category: 'approval_needed' | 'qa_finding' | 'budget_alert' | 'health_down' | 'deploy_done';
-  title: string;
-  body: string;
-  created_at: string;
-  read: boolean;
-  targetScreen?: { kind: 'console' } | { kind: 'costs' } | { kind: 'qa' };
-}
-
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
+import { Search, ChevronRight, ShieldAlert } from 'lucide-react';
 
 export const TopBar: React.FC = () => {
-  const { screen, navigate } = useNavigation();
-  const dataProvider = useDataProvider();
-  const { user } = useAuth();
+  const { screen, navigate, back } = useNavigation();
+  const { projects } = useProjects();
+  const { statusData } = useSharedStatus();
   const { density, setDensity } = useDensity();
-  const { theme, isLight, toggleTheme } = useTheme();
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
-  const [bellOpen, setBellOpen] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const budget = statusData.budget;
+  const callsUsed = budget?.usedRequests ?? 24;
+  const callsCap = budget?.totalCapRequests ?? 400;
+  const usdUsed = (budget?.usedUsd ?? 0.18).toFixed(2);
+  const usdCap = (budget?.totalCapUsd ?? 3.0).toFixed(2);
+  
+  // Format week key to short format e.g. W41 from 2026-W41 or W41
+  const rawWeekKey = budget?.weekKey ?? '2026-W41';
+  const weekKey = rawWeekKey.includes('-') ? rawWeekKey.split('-')[1] : rawWeekKey;
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Project Crumb helper
+  const getProjectCrumb = () => {
+    if (screen.kind !== 'project') return null;
+    const project = projects.find((p) => p.id === screen.projectId);
+    const projectName = project ? project.name.split(' (')[0] : screen.projectId;
+    
+    // Group name mapping
+    let groupName = 'Work';
+    if (screen.tab === 'verify' || screen.tab === 'qa') groupName = 'Verify';
+    else if (screen.tab === 'money' || screen.tab === 'costs') groupName = 'Money';
+    else if (screen.tab === 'system' || screen.tab === 'codebase' || screen.tab === 'components') groupName = 'System';
+    else if (screen.tab === 'spec' || screen.tab === 'discovery' || screen.tab === 'design') groupName = 'Spec';
 
-  const handleManualRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await Promise.all([dataProvider.getProjects(), dataProvider.getTasks(), dataProvider.getCostEvents()]);
-    } finally {
-      setTimeout(() => setIsRefreshing(false), 500);
-    }
+    return {
+      projectName,
+      groupName
+    };
   };
 
-  const handleNotificationClick = (item: NotificationItem) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
-    );
-    if (item.targetScreen) {
-      navigate(item.targetScreen);
-    }
-    setBellOpen(false);
-  };
+  const projectCrumb = getProjectCrumb();
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  // Close dropdown on outside click or Escape
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setBellOpen(false);
-    };
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setBellOpen(false);
-      }
-    };
-    if (bellOpen) {
-      window.addEventListener('keydown', handleKey);
-      window.addEventListener('mousedown', handleClick);
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      window.removeEventListener('mousedown', handleClick);
-    };
-  }, [bellOpen]);
-
-  // Page Title mapping based on current screen
-  const getPageTitle = () => {
+  const getScreenTitle = () => {
     switch (screen.kind) {
+      case 'inbox':
       case 'portfolio':
-        return 'Project Portfolio Overview';
-      case 'discovery':
-        return 'SDLC Discovery & Architecture';
-      case 'knowledge':
-        return 'Knowledge Vault';
-      case 'project':
-        return 'Project Detail';
+        return 'Inbox';
+      case 'projects':
+        return 'Projects';
+      case 'runs':
       case 'console':
-        return 'Agent Dispatch Console';
+        return 'Runs';
+      case 'knowledge':
+        return 'Knowledge';
       case 'costs':
-        return 'Cost Center & FinOps';
-      case 'qa':
-        return 'QA Workbench';
+        return 'Fleet Money';
       case 'monitoring':
-        return 'Production Probes';
+        return 'Probes';
       case 'settings':
-        return 'Settings & Governance';
+        return 'Settings';
       default:
         return 'Command Center';
     }
   };
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-[#161b22]/95 border-b border-white/10 backdrop-blur-md px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
-      {/* Active Page Breadcrumb Title & Status Badge */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 font-mono">
-          <span className="text-xs font-bold text-[#e6edf3] tracking-wide">
-            {getPageTitle()}
-          </span>
-        </div>
-
-        {/* Production vs Demo Badge */}
-        {!dataProvider.isDemo ? (
-          <span
-            className="px-2.5 py-0.5 rounded-full border border-emerald-500/50 bg-emerald-950/60 text-emerald-300 font-mono text-[9px] font-bold tracking-wider ml-1 flex items-center gap-1.5 shadow-sm"
-            title="Production Supabase connected: zxdxsizyvotkcsrtzscw"
-          >
-            <SupabaseLogo className="w-3 h-3" />
-            <span className="hidden sm:inline">PROD: zxdxsizyvotkcsrtzscw</span>
-          </span>
+    <header className="sticky top-0 z-30 w-full bg-[#161b22]/95 border-b border-white/10 backdrop-blur-md px-4 md:px-6 h-14 flex items-center justify-between font-sans">
+      {/* Breadcrumb / Title Area */}
+      <div className="flex items-center gap-2 font-mono text-xs truncate">
+        {projectCrumb ? (
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-slate-300 truncate">
+            <button
+              type="button"
+              onClick={() => navigate({ kind: 'projects' })}
+              className="hover:text-emerald-400 font-semibold transition-colors truncate"
+            >
+              Projects
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <button
+              type="button"
+              onClick={back}
+              className="hover:text-emerald-400 transition-colors truncate max-w-[140px] sm:max-w-xs"
+            >
+              {projectCrumb.projectName}
+            </button>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span className="text-emerald-400 font-bold">{projectCrumb.groupName}</span>
+          </nav>
         ) : (
-          <span
-            className="px-2.5 py-0.5 rounded-full border border-[#F0B230]/50 bg-[#F0B230]/10 text-[#FFBD59] font-mono text-[9px] font-bold tracking-wider ml-1 flex items-center gap-1 shadow-sm"
-            title="Running in zero-backend Demo Mode"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#F0B230] animate-ping" />
-            <span>DEMO MODE</span>
+          <span className="text-sm font-bold text-[#e6edf3] tracking-tight">
+            {getScreenTitle()}
           </span>
         )}
-
-        {/* Shared Upstream & Budget Status Pill */}
-        <div className="hidden lg:block ml-2">
-          <HarnessStatus />
-        </div>
       </div>
 
-      {/* Right Tools: Cmd-K Search, Density Toggle, Manual Refresh, Notification Bell, Theme Toggle */}
-      <div className="flex items-center gap-2">
-        {/* Quick Command Palette Button */}
+      {/* Right Controls: Unified Single Ledger Chip, Search, Density */}
+      <div className="flex items-center gap-3">
+        {/* Single Unified Live Ledger Chip */}
+        <div
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0d1117] border border-white/10 text-xs font-mono text-slate-200 select-none shadow-sm cursor-help"
+          title="Tripwire 3 fails. P0 under 5 minutes."
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-semibold text-slate-100 tabular-nums">
+            {callsUsed}/{callsCap}
+          </span>
+          <span className="text-slate-500">·</span>
+          <span className="font-semibold text-emerald-400 tabular-nums">
+            ${usdUsed} / ${usdCap}
+          </span>
+          <span className="text-slate-500">·</span>
+          <span className="text-amber-400 font-bold">{weekKey}</span>
+        </div>
+
+        {/* Jump Button (Cmd-K / Ctrl-K) */}
         <button
           type="button"
           onClick={() => {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
           }}
-          className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] hover:bg-[#1c2333] border border-white/10 text-[#8b98a8] hover:text-[#e6edf3] text-[11px] font-mono transition-colors"
-          title="Jump to screen, project, or task (Cmd-K / Ctrl-K)"
+          className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] hover:bg-[#1c2333] border border-white/10 text-[#8b98a8] hover:text-[#e6edf3] text-[11px] font-mono transition-colors"
+          title="Jump to vertical, run, lesson, or probe (Cmd-K / Ctrl-K)"
           aria-label="Open command palette"
         >
           <Search className="w-3.5 h-3.5 text-[#F0B230]" />
-          <span>Jump to...</span>
-          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-white/10 text-[#8b98a8]">⌘K</kbd>
+          <span>Jump</span>
+          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-white/10 text-[#8b98a8]">
+            ⌘K
+          </kbd>
         </button>
 
-        {/* Density Mode Switch (Compact | Normal | Expanded) */}
+        {/* Density Control */}
         <div
-          className="hidden sm:flex items-center rounded-lg bg-[#0d1117] border border-white/10 p-0.5 font-mono text-[10px]"
+          className="hidden md:flex items-center rounded-lg bg-[#0d1117] border border-white/10 p-0.5 font-mono text-[10px]"
           title="Information Density: Compact | Normal | Expanded"
           role="radiogroup"
           aria-label="Information Density"
@@ -192,120 +148,13 @@ export const TopBar: React.FC = () => {
               onClick={() => setDensity(mode)}
               className={`px-2 py-0.5 rounded capitalize transition-all ${
                 density === mode
-                  ? 'bg-[#F0B230] text-[#0A1420] font-bold shadow-sm'
+                  ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm'
                   : 'text-[#8b98a8] hover:text-white'
               }`}
             >
               {mode}
             </button>
           ))}
-        </div>
-
-        {/* Manual Refresh (Addendum A8) */}
-        <button
-          onClick={handleManualRefresh}
-          disabled={isRefreshing}
-          className="p-2 rounded-lg text-[#8b98a8] hover:text-white hover:bg-white/5 transition-colors focus:outline-none"
-          title="Manual refresh data"
-          aria-label="Manual refresh"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#F0B230]' : ''}`} />
-        </button>
-
-        {/* Light/Dark Mode Toggle with Persistent State */}
-        <button
-          onClick={toggleTheme}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-mono text-xs font-bold transition-all focus:outline-none ${
-            isLight
-              ? 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 shadow-sm'
-              : 'bg-white/5 text-[#8b98a8] border-white/5 hover:text-white hover:bg-white/10'
-          }`}
-          title={isLight ? 'Switch to Obsidian Dark Mode' : 'Switch to Clean Light Mode'}
-          aria-label="Toggle theme mode"
-        >
-          {isLight ? (
-            <>
-              <Sun className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
-              <span className="hidden sm:inline">LIGHT</span>
-            </>
-          ) : (
-            <>
-              <Moon className="w-3.5 h-3.5 text-[#F0B230]" />
-              <span className="hidden sm:inline">DARK</span>
-            </>
-          )}
-        </button>
-
-        {/* Notification Bell with Badge & Dropdown (Addendum A7) */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setBellOpen((prev) => !prev)}
-            className="p-2 rounded-lg text-[#8b98a8] hover:text-white hover:bg-white/5 transition-colors relative focus:outline-none"
-            aria-label="Notifications"
-            aria-expanded={bellOpen}
-          >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-[#F0B230] text-[#0A1420] text-[10px] font-bold flex items-center justify-center font-mono">
-                {unreadCount}
-              </span>
-            )}
-          </button>
-
-          {/* Dropdown Menu */}
-          {bellOpen && (
-            <div
-              className="absolute right-0 mt-2 w-80 sm:w-96 rounded-xl bg-[#161b22] border border-white/10 shadow-2xl overflow-hidden z-50 text-xs animate-in fade-in slide-in-from-top-2"
-              role="region"
-              aria-label="Notifications list"
-            >
-              <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-[#0d1117]">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-[#e6edf3] uppercase font-mono text-[11px]">
-                    NOTIFICATIONS
-                  </span>
-                  {unreadCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded bg-[#F0B230]/20 text-[#FFBD59] font-mono text-[10px] font-bold">
-                      {unreadCount} new
-                    </span>
-                  )}
-                </div>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={markAllRead}
-                    className="text-[10px] font-mono text-[#F0B230] hover:underline flex items-center gap-1"
-                  >
-                    <Check className="w-3 h-3" />
-                    Mark all read
-                  </button>
-                )}
-              </div>
-
-              <div className="max-h-80 overflow-y-auto divide-y divide-white/5">
-                {notifications.map((n) => (
-                  <div
-                    key={n.id}
-                    onClick={() => handleNotificationClick(n)}
-                    className={`p-3.5 hover:bg-[#1c2333] transition-colors cursor-pointer space-y-1 ${
-                      !n.read ? 'border-l-2 border-[#F0B230] bg-[#F0B230]/5' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-[#e6edf3] text-[11px] truncate">
-                        {n.title}
-                      </span>
-                      <span className="text-[10px] font-mono text-[#8b98a8] shrink-0">
-                        {formatRelative(n.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#8b98a8] font-sans line-clamp-2">
-                      {n.body}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </header>

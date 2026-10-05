@@ -4,43 +4,61 @@ import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
 import {
   Search,
-  Layers,
+  Inbox,
   FolderGit2,
   Terminal,
-  Activity,
-  Compass,
-  BookOpen,
+  Brain,
   DollarSign,
-  ShieldCheck,
-  Cpu,
+  Activity,
   Settings,
-  ArrowRight,
-  X,
   FileCode,
-  Workflow
+  ArrowRight,
+  X
 } from 'lucide-react';
 
-interface PaletteItem {
+interface PaletteOption {
   id: string;
-  category: 'Screen' | 'Project' | 'Task' | 'Action';
+  category: 'Screen' | 'Project' | 'Task' | 'Recent';
   title: string;
   subtitle?: string;
+  hint?: string;
   icon: React.ElementType;
   screen: Screen;
-  badge?: string;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export const CommandPalette: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [recentIds, setRecentIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('aether_recent_destinations');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.length > 0) return parsed;
+      }
+      return ['screen-inbox', 'project-proj-ehi-001'];
+    } catch {
+      return ['screen-inbox', 'project-proj-ehi-001'];
+    }
+  });
 
-  const { navigate } = useNavigation();
+  const { screen: currentScreen, navigate } = useNavigation();
   const { projects } = useProjects();
   const { tasks } = useTasks();
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const recordRecent = (id: string) => {
+    const updated = [id, ...recentIds.filter((r) => r !== id)].slice(0, 4);
+    setRecentIds(updated);
+    try {
+      localStorage.setItem('aether_recent_destinations', JSON.stringify(updated));
+    } catch {}
+  };
 
   // Global Keyboard Listener for Cmd-K / Ctrl-K
   useEffect(() => {
@@ -67,47 +85,94 @@ export const CommandPalette: React.FC = () => {
     }
   }, [isOpen]);
 
-  // Build searchable items
-  const items: PaletteItem[] = useMemo(() => {
-    const screens: PaletteItem[] = [
-      { id: 'action-wizard', category: 'Action', title: 'Launch Project Wizard', subtitle: 'Guided repository setup & template configuration', icon: Workflow, screen: { kind: 'portfolio' }, badge: 'Wizard' },
-      { id: 'screen-portfolio', category: 'Screen', title: 'Managed Project Portfolio', subtitle: 'Global enterprise dashboard', icon: Layers, screen: { kind: 'portfolio' } },
-      { id: 'screen-console', category: 'Screen', title: 'Agent Console & Fleet Board', subtitle: 'Kanban dispatches & operator steers', icon: Terminal, screen: { kind: 'console' } },
-      { id: 'screen-discovery', category: 'Screen', title: 'SDLC Architecture Discovery', subtitle: '6-phase scoping questionnaire', icon: Compass, screen: { kind: 'discovery' } },
-      { id: 'screen-knowledge', category: 'Screen', title: 'Knowledge Vault & Retrospectives', subtitle: 'Verified post-mortems and LLM prompt exports', icon: BookOpen, screen: { kind: 'knowledge' } },
-      { id: 'screen-costs', category: 'Screen', title: 'Cost Center & Attribution', subtitle: 'Weekly ledger burn rate', icon: DollarSign, screen: { kind: 'costs' } },
-      { id: 'screen-qa', category: 'Screen', title: 'QA Test Runs & Invariants', subtitle: 'Automated crawler proof surface', icon: ShieldCheck, screen: { kind: 'qa' } },
-      { id: 'screen-monitoring', category: 'Screen', title: 'Production Health Monitoring', subtitle: 'Live telemetry & uptime status', icon: Activity, screen: { kind: 'monitoring' } },
-      { id: 'screen-settings', category: 'Screen', title: 'Platform Settings & Budgets', subtitle: 'Limits, API routing, and cache', icon: Settings, screen: { kind: 'settings' } }
+  // Build searchable items in empty query order:
+  // 1. Recent destinations
+  // 2. Screens
+  // 3. Projects (Click opens Work)
+  // 4. Open tasks (An open project's tasks sort first, click opens that run)
+  const items: PaletteOption[] = useMemo(() => {
+    const screens: PaletteOption[] = [
+      { id: 'screen-inbox', category: 'Screen', title: 'Inbox', subtitle: 'Operator triage & awaiting approvals', icon: Inbox, screen: { kind: 'inbox' } },
+      { id: 'screen-projects', category: 'Screen', title: 'Projects', subtitle: 'Managed client verticals list', icon: FolderGit2, screen: { kind: 'projects' } },
+      { id: 'screen-runs', category: 'Screen', title: 'Runs', subtitle: 'Execution traces and approval gates', icon: Terminal, screen: { kind: 'runs' } },
+      { id: 'screen-knowledge', category: 'Screen', title: 'Knowledge', subtitle: 'Engineering post-mortems and invariant rules', icon: Brain, screen: { kind: 'knowledge' } },
+      { id: 'screen-costs', category: 'Screen', title: 'Fleet Money', subtitle: 'Weekly inference ledger and rate admission', icon: DollarSign, screen: { kind: 'costs' } },
+      { id: 'screen-probes', category: 'Screen', title: 'Probes', subtitle: 'Production synthetic probes and edge telemetry', icon: Activity, screen: { kind: 'monitoring' } },
+      { id: 'screen-settings', category: 'Screen', title: 'Settings', subtitle: 'MCP plane and platform servers', icon: Settings, screen: { kind: 'settings' } }
     ];
 
-    const projectItems: PaletteItem[] = projects.map((p) => ({
+    const projectItems: PaletteOption[] = projects.map((p) => ({
       id: `project-${p.id}`,
       category: 'Project',
-      title: p.name,
-      subtitle: `${p.vertical} · Status: ${p.status}`,
+      title: p.name.split(' (')[0],
+      subtitle: `${p.vertical} · Click opens Work`,
       icon: FolderGit2,
-      badge: p.id,
-      screen: { kind: 'project', projectId: p.id, tab: 'overview' }
+      screen: { kind: 'project', projectId: p.id, tab: 'work' }
     }));
 
-    const taskItems: PaletteItem[] = tasks.slice(0, 15).map((t) => {
+    const activeProjectId = currentScreen.kind === 'project' ? currentScreen.projectId : undefined;
+
+    // Open tasks sorted so active project's tasks sort first
+    const sortedTasks = [...tasks]
+      .filter((t) => t.status !== 'done' && t.status !== 'cancelled')
+      .sort((a, b) => {
+        if (activeProjectId) {
+          if (a.project_id === activeProjectId && b.project_id !== activeProjectId) return -1;
+          if (b.project_id === activeProjectId && a.project_id !== activeProjectId) return 1;
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+    const getStatusHint = (status: string) => {
+      switch (status) {
+        case 'awaiting_approval':
+          return 'Waiting on you';
+        case 'running':
+        case 'building':
+          return 'Working';
+        case 'done':
+        case 'production':
+          return 'Healthy';
+        case 'failed':
+          return 'Failed';
+        default:
+          return 'Queued';
+      }
+    };
+
+    const taskItems: PaletteOption[] = sortedTasks.slice(0, 15).map((t) => {
       const proj = projects.find((p) => p.id === t.project_id);
       return {
         id: `task-${t.id}`,
         category: 'Task',
         title: t.prompt.split('\n')[0] || t.id,
-        subtitle: `${proj?.name || t.project_id} · ${t.status.toUpperCase()}`,
+        subtitle: `${proj?.name.split(' (')[0] || t.project_id} · ${t.task_type}`,
+        hint: getStatusHint(t.status),
         icon: FileCode,
-        badge: t.task_type,
-        screen: { kind: 'project', projectId: t.project_id, tab: 'session', taskId: t.id }
+        screen: { kind: 'runs', runId: t.id }
       };
     });
 
-    return [...screens, ...projectItems, ...taskItems];
-  }, [projects, tasks]);
+    const allBaseItems = [...screens, ...projectItems, ...taskItems];
 
-  // Filter items
+    // Build recent items from recentIds
+    const recentItems: PaletteOption[] = [];
+    for (const rid of recentIds) {
+      const found = allBaseItems.find((b) => b.id === rid);
+      if (found) {
+        recentItems.push({
+          ...found,
+          id: `recent-${found.id}`,
+          category: 'Recent',
+          subtitle: `Recent · ${found.subtitle || found.category}`
+        });
+      }
+    }
+
+    return [...recentItems, ...screens, ...projectItems, ...taskItems];
+  }, [projects, tasks, currentScreen, recentIds]);
+
+  // Local filter
   const filtered = useMemo(() => {
     if (!query.trim()) return items;
     const q = query.toLowerCase().trim();
@@ -115,7 +180,7 @@ export const CommandPalette: React.FC = () => {
       (item) =>
         item.title.toLowerCase().includes(q) ||
         item.subtitle?.toLowerCase().includes(q) ||
-        item.badge?.toLowerCase().includes(q) ||
+        item.category.toLowerCase().includes(q) ||
         item.id.toLowerCase().includes(q)
     );
   }, [items, query]);
@@ -136,7 +201,8 @@ export const CommandPalette: React.FC = () => {
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const selected = filtered[selectedIndex];
-      if (selected) {
+      if (selected && !selected.disabled) {
+        recordRecent(selected.id.replace('recent-', ''));
         navigate(selected.screen);
         setIsOpen(false);
       }
@@ -150,7 +216,7 @@ export const CommandPalette: React.FC = () => {
       className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
-      aria-label="Command Palette"
+      aria-label="Jump to a vertical, run, lesson, or probe"
       onClick={() => setIsOpen(false)}
     >
       <div
@@ -166,28 +232,29 @@ export const CommandPalette: React.FC = () => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Jump to a screen, project, or task by ID/prompt... (Esc to close)"
-            aria-label="Jump to"
-            className="flex-1 bg-transparent text-[#e6edf3] placeholder:text-[#8b98a8]/60 focus:outline-none text-xs font-mono"
+            placeholder="Jump to a vertical, run, lesson, or probe"
+            aria-label="Jump to a vertical, run, lesson, or probe"
+            className="flex-1 bg-transparent text-[#e6edf3] placeholder:text-slate-500 focus:outline-none text-xs font-mono"
           />
           <button
+            type="button"
             onClick={() => setIsOpen(false)}
-            className="p-1 rounded text-[#8b98a8] hover:text-[#e6edf3]"
-            aria-label="Close command palette"
+            className="p-1 rounded text-slate-400 hover:text-white"
+            aria-label="Close jump dialog"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Filtered Results Listbox */}
+        {/* Filtered Options List */}
         <div
           ref={listRef}
           role="listbox"
           className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[500px]"
         >
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-[#8b98a8] font-sans">
-              No results matching "{query}"
+            <div className="p-8 text-center text-slate-400 font-sans">
+              No matches found for "{query}"
             </div>
           ) : (
             filtered.map((item, idx) => {
@@ -200,21 +267,25 @@ export const CommandPalette: React.FC = () => {
                   role="option"
                   aria-selected={isSelected}
                   type="button"
+                  disabled={item.disabled}
                   onClick={() => {
-                    navigate(item.screen);
-                    setIsOpen(false);
+                    if (!item.disabled) {
+                      recordRecent(item.id.replace('recent-', ''));
+                      navigate(item.screen);
+                      setIsOpen(false);
+                    }
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full text-left p-3 rounded-xl flex items-center justify-between gap-3 transition-colors ${
                     isSelected
-                      ? 'bg-[#1c2333] border border-[#F0B230]/40 text-[#e6edf3]'
-                      : 'bg-transparent text-[#8b98a8] hover:text-[#e6edf3]'
-                  }`}
+                      ? 'bg-[#1c2333] border border-emerald-500/40 text-slate-100'
+                      : 'bg-transparent text-slate-400 hover:text-slate-100'
+                  } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center gap-3 truncate">
                     <div
                       className={`p-2 rounded-lg shrink-0 ${
-                        isSelected ? 'bg-[#F0B230]/20 text-[#FFBD59]' : 'bg-white/5 text-[#8b98a8]'
+                        isSelected ? 'bg-emerald-950 text-emerald-300' : 'bg-white/5 text-slate-400'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -222,28 +293,43 @@ export const CommandPalette: React.FC = () => {
 
                     <div className="truncate">
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold truncate ${isSelected ? 'text-[#FFBD59]' : 'text-[#e6edf3]'}`}>
+                        <span className={`font-bold truncate ${isSelected ? 'text-emerald-400' : 'text-slate-200'}`}>
                           {item.title}
                         </span>
-                        {item.badge && (
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-[#8b98a8] border border-white/5">
-                            {item.badge}
+                        {item.hint && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
+                              item.hint === 'Waiting on you'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : item.hint === 'Working'
+                                ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
+                                : item.hint === 'Failed'
+                                ? 'bg-rose-950 text-rose-400 border border-rose-500/30'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {item.hint}
                           </span>
                         )}
                       </div>
                       {item.subtitle && (
-                        <span className="text-[11px] text-[#8b98a8] truncate block font-sans">
+                        <span className="text-[11px] text-slate-400 truncate block font-sans">
                           {item.subtitle}
+                        </span>
+                      )}
+                      {item.disabledReason && (
+                        <span className="text-[10px] text-rose-400 italic block">
+                          {item.disabledReason}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 text-[10px] text-[#8b98a8]">
+                  <div className="flex items-center gap-2 shrink-0 text-[10px] text-slate-400">
                     <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-white/5">
                       {item.category}
                     </span>
-                    {isSelected && <ArrowRight className="w-3.5 h-3.5 text-[#F0B230]" />}
+                    {isSelected && <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />}
                   </div>
                 </button>
               );
@@ -251,14 +337,14 @@ export const CommandPalette: React.FC = () => {
           )}
         </div>
 
-        {/* Footer Shortcut Legend */}
-        <div className="px-4 py-2.5 border-t border-white/5 bg-[#0d1117] flex items-center justify-between text-[10px] text-[#8b98a8]">
+        {/* Footer */}
+        <div className="px-4 py-2.5 border-t border-white/5 bg-[#0d1117] flex items-center justify-between text-[10px] text-slate-400">
           <div className="flex items-center gap-3">
             <span>↑↓ Navigate</span>
             <span>↵ Select</span>
             <span>Esc Close</span>
           </div>
-          <span>Cmd-K / Ctrl-K Quick Access</span>
+          <span>Cmd-K / Ctrl-K Quick Jump</span>
         </div>
       </div>
     </div>

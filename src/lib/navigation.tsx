@@ -1,17 +1,36 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-export type ProjectTab = 'overview' | 'codebase' | 'discovery' | 'design' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings' | 'session' | 'components';
+export type ProjectTab =
+  | 'work'
+  | 'verify'
+  | 'money'
+  | 'system'
+  | 'spec'
+  | 'overview'
+  | 'session'
+  | 'codebase'
+  | 'discovery'
+  | 'design'
+  | 'tasks'
+  | 'qa'
+  | 'costs'
+  | 'chat'
+  | 'settings'
+  | 'components';
 
 export type Screen =
+  | { kind: 'inbox' }
   | { kind: 'portfolio' }
-  | { kind: 'discovery'; projectId?: string }
+  | { kind: 'projects' }
+  | { kind: 'runs'; runId?: string }
+  | { kind: 'console'; runId?: string }
   | { kind: 'knowledge' }
-  | { kind: 'project'; projectId: string; tab: ProjectTab; taskId?: string }
-  | { kind: 'console' }
   | { kind: 'costs' }
-  | { kind: 'qa' }
   | { kind: 'monitoring' }
-  | { kind: 'settings' };
+  | { kind: 'settings' }
+  | { kind: 'project'; projectId: string; tab: ProjectTab; taskId?: string }
+  | { kind: 'discovery'; projectId?: string }
+  | { kind: 'qa' };
 
 interface NavigationContextType {
   screen: Screen;
@@ -23,9 +42,9 @@ interface NavigationContextType {
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
 
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [history, setHistory] = useState<Screen[]>([{ kind: 'portfolio' }]);
+  const [history, setHistory] = useState<Screen[]>([{ kind: 'inbox' }]);
 
-  const currentScreen = history[history.length - 1] || { kind: 'portfolio' };
+  const currentScreen = history[history.length - 1] || { kind: 'inbox' };
 
   const navigate = useCallback((targetScreen: Screen) => {
     setHistory((prev) => {

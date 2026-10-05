@@ -10,27 +10,25 @@ import { TopBar } from './components/TopBar';
 import { MobileNavBar } from './components/MobileNavBar';
 import { LoadingState } from './components/LoadingState';
 import { CommandPalette } from './components/CommandPalette';
+import { SupabaseSidebar } from './components/SupabaseSidebar';
 
 // Screens
 import { LoginScreen } from './screens/LoginScreen';
 import { PortfolioScreen } from './screens/Portfolio';
-import { DiscoveryScreen } from './screens/DiscoveryScreen';
+import { ProjectsScreen } from './screens/ProjectsScreen';
+import { RunsScreen } from './screens/Runs';
 import { KnowledgeVaultScreen } from './screens/KnowledgeVault';
-import { ProjectDetailScreen } from './screens/ProjectDetail';
-import { AgentConsoleScreen } from './screens/AgentConsole';
 import { CostCenterScreen } from './screens/CostCenter';
-import { QARunsScreen } from './screens/QARuns';
 import { MonitoringScreen } from './screens/Monitoring';
 import { SettingsScreen } from './screens/Settings';
-
-import { SupabaseSidebar } from './components/SupabaseSidebar';
+import { ProjectDetailScreen } from './screens/ProjectDetail';
 
 const AppContent: React.FC = () => {
   const { session, loading } = useAuth();
   const { screen } = useNavigation();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
 
-  // Addendum A1: While auth.loading is true, show minimal checking session splash (do NOT flash login screen)
+  // While auth.loading is true, show minimal checking session splash
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center gap-3">
@@ -39,14 +37,14 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Not authenticated -> show LoginScreen (Addendum A1)
+  // Not authenticated -> show LoginScreen
   if (!session) {
     return <LoginScreen />;
   }
 
   return (
     <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-main)] flex">
-      {/* Supabase Left Sidebar Navigation (Desktop) */}
+      {/* Fleet Sidebar Navigation (Desktop) */}
       <div className="hidden md:block">
         <SupabaseSidebar
           collapsed={sidebarCollapsed}
@@ -54,20 +52,26 @@ const AppContent: React.FC = () => {
         />
       </div>
 
-      {/* Main Right Area */}
+      {/* Main Content View */}
       <div
         className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? 'md:pl-16' : 'md:pl-64'
+          sidebarCollapsed ? 'md:pl-16' : 'md:pl-[14rem]'
         }`}
       >
-        {/* Top Header Navigation */}
+        {/* Fixed Header */}
         <TopBar />
 
-        {/* Main Content Area */}
-        <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8">
-          {screen.kind === 'portfolio' && <PortfolioScreen />}
-          {screen.kind === 'discovery' && <DiscoveryScreen initialProjectId={screen.projectId} />}
+        {/* Scrollable Content Area */}
+        <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8 overflow-y-auto">
+          {(screen.kind === 'inbox' || screen.kind === 'portfolio') && <PortfolioScreen />}
+          {screen.kind === 'projects' && <ProjectsScreen />}
+          {(screen.kind === 'runs' || screen.kind === 'console') && (
+            <RunsScreen initialRunId={(screen as { runId?: string }).runId} />
+          )}
           {screen.kind === 'knowledge' && <KnowledgeVaultScreen />}
+          {screen.kind === 'costs' && <CostCenterScreen />}
+          {screen.kind === 'monitoring' && <MonitoringScreen />}
+          {screen.kind === 'settings' && <SettingsScreen />}
           {screen.kind === 'project' && (
             <ProjectDetailScreen
               projectId={screen.projectId}
@@ -75,11 +79,18 @@ const AppContent: React.FC = () => {
               initialTaskId={(screen as { taskId?: string }).taskId}
             />
           )}
-          {screen.kind === 'console' && <AgentConsoleScreen />}
-          {screen.kind === 'costs' && <CostCenterScreen />}
-          {screen.kind === 'qa' && <QARunsScreen />}
-          {screen.kind === 'monitoring' && <MonitoringScreen />}
-          {screen.kind === 'settings' && <SettingsScreen />}
+          {screen.kind === 'discovery' && (
+            <ProjectDetailScreen
+              projectId={(screen as { projectId?: string }).projectId || 'proj-ehi-001'}
+              initialTab="spec"
+            />
+          )}
+          {screen.kind === 'qa' && (
+            <ProjectDetailScreen
+              projectId="proj-ehi-001"
+              initialTab="verify"
+            />
+          )}
         </main>
 
         {/* Global Command Palette (Cmd-K / Ctrl-K) */}
