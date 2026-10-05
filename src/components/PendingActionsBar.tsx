@@ -35,6 +35,9 @@ export const PendingActionsBar: React.FC<PendingActionsBarProps> = ({
     return false; // we can highlight budget monitoring status
   });
 
+  // If no projects registered, don't show pending actions
+  if (projects.length === 0) return null;
+
   // If nothing is pending, don't show clutter or show a calm all-systems-go bar
   const totalPending = pendingApprovals.length + criticalFindings.length;
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSharedStatus } from '../lib/sharedStatus';
 import { useToast } from '../components/Toast';
 import { SupabaseLogo, GitHubLogo, VercelLogo, PostgresLogo } from '../components/ServiceLogos';
+import { MultiAccountComponentHub } from '../components/MultiAccountComponentHub';
 import {
   Activity,
   AlertTriangle,
@@ -23,7 +24,8 @@ import {
   Server,
   Layers,
   Database,
-  ArrowUpRight
+  ArrowUpRight,
+  Share2
 } from 'lucide-react';
 
 export type UrgencyLevel = 'all' | 'P0' | 'P1' | 'P2' | 'P3';
@@ -61,98 +63,8 @@ export interface IncidentAlert {
 
 const INITIAL_HEALTH_CHECKS: HealthCheckItem[] = [
   {
-    id: 'hc-ehi-01',
-    name: 'EHI Cargo Hubs (Waybill Intake & Sorting API)',
-    vertical: 'logistics',
-    url: 'https://ehi-cargo-hub.vercel.app/api/health',
-    expectedStatus: 200,
-    lastStatus: 200,
-    lastLatencyMs: 142,
-    dnsMs: 18,
-    tlsMs: 34,
-    ttfbMs: 82,
-    consecutiveFailures: 0,
-    status: 'healthy',
-    urgency: 'P1',
-    enabled: true,
-    lastCheckedAt: new Date(Date.now() - 4 * 60 * 1000).toISOString(),
-    deepVerified: true,
-  },
-  {
-    id: 'hc-iya-02',
-    name: 'Iyanuoluwa AgroSupply (Silo Moisture Telemetry Ingest)',
-    vertical: 'agriculture',
-    url: 'https://iyanu-agro.vercel.app/healthz',
-    expectedStatus: 200,
-    lastStatus: 200,
-    lastLatencyMs: 88,
-    dnsMs: 12,
-    tlsMs: 24,
-    ttfbMs: 48,
-    consecutiveFailures: 0,
-    status: 'healthy',
-    urgency: 'P2',
-    enabled: true,
-    lastCheckedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    deepVerified: true,
-  },
-  {
-    id: 'hc-aero-03',
-    name: 'AeroOps Turnaround (Flight Logbook & Ramp Telemetry)',
-    vertical: 'aviation',
-    url: 'https://aeroops-dispatch.vercel.app/api/ping',
-    expectedStatus: 200,
-    lastStatus: 200,
-    lastLatencyMs: 210,
-    dnsMs: 22,
-    tlsMs: 46,
-    ttfbMs: 135,
-    consecutiveFailures: 0,
-    status: 'healthy',
-    urgency: 'P0',
-    enabled: true,
-    lastCheckedAt: new Date(Date.now() - 6 * 60 * 1000).toISOString(),
-    deepVerified: true,
-  },
-  {
-    id: 'hc-edge-04',
-    name: 'EdgePoint Cross-Border Settlement (FX Corridor Ledger)',
-    vertical: 'fintech',
-    url: 'https://edgepoint-treasury.vercel.app/status',
-    expectedStatus: 200,
-    lastStatus: 200,
-    lastLatencyMs: 95,
-    dnsMs: 14,
-    tlsMs: 28,
-    ttfbMs: 50,
-    consecutiveFailures: 0,
-    status: 'healthy',
-    urgency: 'P0',
-    enabled: true,
-    lastCheckedAt: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
-    deepVerified: true,
-  },
-  {
-    id: 'hc-supa-05',
-    name: 'Production Supabase Backend (GoTrue Auth & PostgreSQL)',
-    vertical: 'infrastructure',
-    url: 'https://zxdxsizyvotkcsrtzscw.supabase.co/auth/v1/health',
-    expectedStatus: 200,
-    lastStatus: 200,
-    lastLatencyMs: 118,
-    dnsMs: 16,
-    tlsMs: 32,
-    ttfbMs: 64,
-    consecutiveFailures: 0,
-    status: 'healthy',
-    urgency: 'P0',
-    enabled: true,
-    lastCheckedAt: new Date(Date.now() - 30 * 1000).toISOString(),
-    deepVerified: true,
-  },
-  {
-    id: 'hc-gate-06',
-    name: 'Telemetry Gateway & Budget Ledger (/status/stream)',
+    id: 'hc-gate-01',
+    name: 'GEOSAN-WORKSHOP Telemetry Gateway & Budget Ledger (/status/stream)',
     vertical: 'infrastructure',
     url: '/api/status',
     expectedStatus: 200,
@@ -170,28 +82,7 @@ const INITIAL_HEALTH_CHECKS: HealthCheckItem[] = [
   },
 ];
 
-const INITIAL_INCIDENTS: IncidentAlert[] = [
-  {
-    id: 'inc-01',
-    urgency: 'P1',
-    title: 'Cargo Hub Edge Node Intermittent Latency',
-    service: 'EHI Multisystems',
-    message: 'Tripwire detected 2 latency spikes (>280ms) on Kano North transit gateway. Verified zero packet drop.',
-    consecutiveTripwire: 2,
-    createdAt: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
-    resolved: false,
-  },
-  {
-    id: 'inc-02',
-    urgency: 'P2',
-    title: 'AgroSupply Silo Sensor Firmware Drift',
-    service: 'Iyanuoluwa AgroSupply',
-    message: 'Sensor cluster #4 reported firmware revision mismatch. Auto-reconciled with production baseline.',
-    consecutiveTripwire: 1,
-    createdAt: new Date(Date.now() - 42 * 60 * 1000).toISOString(),
-    resolved: true,
-  },
-];
+const INITIAL_INCIDENTS: IncidentAlert[] = [];
 
 export const MonitoringScreen: React.FC = () => {
   const toast = useToast();
@@ -202,7 +93,7 @@ export const MonitoringScreen: React.FC = () => {
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyLevel>('all');
   const [verificationMode, setVerificationMode] = useState<VerificationMode>('deep');
   const [isProbingAll, setIsProbingAll] = useState(false);
-  const [activeTab, setActiveTab] = useState<'endpoints' | 'incidents' | 'upstream'>('endpoints');
+  const [activeTab, setActiveTab] = useState<'endpoints' | 'multi-account' | 'incidents' | 'upstream'>('endpoints');
 
   const healthyEndpointsCount = healthChecks.filter((h) => h.status === 'healthy').length;
   const totalEndpointsCount = healthChecks.length;
@@ -461,6 +352,18 @@ export const MonitoringScreen: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('multi-account')}
+            className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+              activeTab === 'multi-account'
+                ? 'bg-[#F0B230] text-[#0A1420] font-bold shadow-sm'
+                : 'text-[#8b98a8] hover:text-[#e6edf3]'
+            }`}
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Multi-Account & MCP Hub</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('upstream')}
             className={`px-3 py-1.5 rounded-lg transition-colors ${
               activeTab === 'upstream'
@@ -711,6 +614,11 @@ export const MonitoringScreen: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── TAB: MULTI-ACCOUNT & MCP HUB ── */}
+      {activeTab === 'multi-account' && (
+        <MultiAccountComponentHub />
       )}
     </div>
   );

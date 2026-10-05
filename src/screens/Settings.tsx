@@ -124,13 +124,13 @@ export const SettingsScreen: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono text-xs">
           <div className="p-3 rounded-lg bg-[#0d1117] border border-white/5">
             <span className="text-[#8b98a8] text-[10px] block uppercase">ORGANIZATION</span>
-            <span className="text-[#e6edf3] font-bold">EHI Global Enterprise</span>
+            <span className="text-[#e6edf3] font-bold">GEOSAN-WORKSHOP Enterprise</span>
             <span className="text-[10px] text-[#8b98a8] block truncate">{orgId}</span>
           </div>
 
           <div className="p-3 rounded-lg bg-[#0d1117] border border-white/5">
             <span className="text-[#8b98a8] text-[10px] block uppercase">OPERATOR SESSION</span>
-            <span className="text-[#e6edf3] font-bold truncate block">{user?.email || 'operator@ehi.internal'}</span>
+            <span className="text-[#e6edf3] font-bold truncate block">{user?.email || 'operator@geosan.internal'}</span>
             <span className="text-[10px] text-emerald-400 block font-semibold">
               Role: {user?.user_metadata?.org_role || 'owner'}
             </span>

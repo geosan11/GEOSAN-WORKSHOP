@@ -316,6 +316,76 @@ export const SDLC_PHASES: SDLCPhase[] = [
   }
 ];
 
+export const DESIGN_CONTRACT_PHASE: SDLCPhase = {
+  id: 'phase-1b-design-contract',
+  number: 1.5,
+  title: 'Phase 1b: Design Contract & Signature Object',
+  shortTitle: '1b. Design Contract',
+  tagline: 'Bind physical signature object, 3 pinned references, and zero-slop grammar',
+  description:
+    'Prevents generic SaaS card grids. Requires signature object, physical setting, 3 references, and forbidden anti-patterns.',
+  timeSavingsBenefit: 'Eliminates 100% of generic dashboard churn before code generation',
+  iconName: 'Compass',
+  questions: [
+    {
+      id: 'q1b-1-signature-object',
+      phaseId: 'phase-1b-design-contract',
+      category: 'Signature Object',
+      title: 'Signature Object (The Thing Operator Holds)',
+      question: 'What is the signature physical or logical object the operator interacts with (Ticket, debt line, log entry, sensor node — never "dashboard")?',
+      whyItMatters: 'Prevents building a generic card-grid SaaS layout that confuses operational workers.',
+      hint: 'e.g., Weighbridge ticket tape WB-YYYY-XXXXX, payor debt line with audit stamp, flight logbook leg.',
+      criticality: 'blocker'
+    },
+    {
+      id: 'q1b-2-setting-context',
+      phaseId: 'phase-1b-design-contract',
+      category: 'Operational Setting',
+      title: 'Physical Setting & Operating Context',
+      question: 'What is the operational environment (yard, ward, cockpit, tower), lighting, distance from screen, gloves, or one-handed use?',
+      whyItMatters: 'Determines touch target size, contrast ratios, and density delta.',
+      hint: 'e.g., Weighbridge scale shack, direct sunlight, diesel dust, single-hand touch.',
+      criticality: 'blocker'
+    },
+    {
+      id: 'q1b-3-three-references',
+      phaseId: 'phase-1b-design-contract',
+      category: 'Design References',
+      title: 'Three Pinned Domain References (Steal & Leave)',
+      question: 'What are the exactly three physical or terminal references, with explicit "what to steal" and "what to leave"?',
+      whyItMatters: 'Forces grounded structural grammar from real industrial artifacts instead of dribbble slop.',
+      hint: 'e.g., Siemens SCADA terminal: steal high-contrast status beacons, leave gamified progress bars.',
+      criticality: 'blocker'
+    },
+    {
+      id: 'q1b-4-forbidden-list',
+      phaseId: 'phase-1b-design-contract',
+      category: 'Forbidden Anti-Patterns',
+      title: 'Forbidden Anti-Patterns (Minimum 5)',
+      question: 'What are the forbidden anti-patterns (e.g. 3 stat cards, gradients, buzzwords, generic sidebar)?',
+      whyItMatters: 'Formally gates ReviewAgent from accepting generic templates.',
+      hint: 'e.g., Hero banner, pastel gradient, "Welcome back", 3 stat cards in a row.',
+      criticality: 'blocker'
+    },
+    {
+      id: 'q1b-5-sample-copy-voice',
+      phaseId: 'phase-1b-design-contract',
+      category: 'Domain Copy Deck',
+      title: 'Ten Contract Nouns & Voice Strings',
+      question: 'What are the ten contract nouns and sample copy strings that chat and plan prompts must strictly use?',
+      whyItMatters: 'Prevents prompts saying "user" and "item" instead of truck_plate and product_code.',
+      hint: 'e.g., truck_plate, gross_weight_kg, tare_weight_kg, product_code, ticket_number.',
+      criticality: 'high'
+    }
+  ]
+};
+
+export const UI_SDLC_PHASES: SDLCPhase[] = [
+  SDLC_PHASES[0],
+  DESIGN_CONTRACT_PHASE,
+  ...SDLC_PHASES.slice(1)
+];
+
 /**
  * Pre-populated High-Fidelity Domain Specifications for the 4 Core Projects
  */

@@ -60,7 +60,7 @@ export const LoginScreen: React.FC = () => {
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight text-[#e6edf3]">
-              AetherOrch Command Center
+              GEOSAN-WORKSHOP Command Center
             </h1>
             <p className="text-xs text-[#8b98a8] mt-1">
               Multi-Agent Orchestrator & Governance Engine

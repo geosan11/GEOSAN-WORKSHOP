@@ -9,6 +9,7 @@ import { ThemeProvider } from './lib/theme';
 import { TopBar } from './components/TopBar';
 import { MobileNavBar } from './components/MobileNavBar';
 import { LoadingState } from './components/LoadingState';
+import { CommandPalette } from './components/CommandPalette';
 
 // Screens
 import { LoginScreen } from './screens/LoginScreen';
@@ -68,7 +69,11 @@ const AppContent: React.FC = () => {
           {screen.kind === 'discovery' && <DiscoveryScreen initialProjectId={screen.projectId} />}
           {screen.kind === 'knowledge' && <KnowledgeVaultScreen />}
           {screen.kind === 'project' && (
-            <ProjectDetailScreen projectId={screen.projectId} initialTab={screen.tab} />
+            <ProjectDetailScreen
+              projectId={screen.projectId}
+              initialTab={screen.tab}
+              initialTaskId={(screen as { taskId?: string }).taskId}
+            />
           )}
           {screen.kind === 'console' && <AgentConsoleScreen />}
           {screen.kind === 'costs' && <CostCenterScreen />}
@@ -76,6 +81,9 @@ const AppContent: React.FC = () => {
           {screen.kind === 'monitoring' && <MonitoringScreen />}
           {screen.kind === 'settings' && <SettingsScreen />}
         </main>
+
+        {/* Global Command Palette (Cmd-K / Ctrl-K) */}
+        <CommandPalette />
 
         {/* Mobile Fixed Bottom Tab Bar */}
         <MobileNavBar />

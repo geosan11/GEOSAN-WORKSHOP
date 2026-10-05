@@ -26,6 +26,9 @@ import {
 } from 'lucide-react';
 import { TaskImportance, getRecommendedModel } from '../lib/modelRouter';
 import { ModelRouterIntelligence } from '../components/ModelRouterIntelligence';
+import { FleetBoard } from '../components/FleetBoard';
+import { useNavigation } from '../lib/navigation';
+import { LayoutGrid, List } from 'lucide-react';
 
 const TASK_TYPES: { value: TaskType; label: string; agent: string; desc: string }[] = [
   { value: 'BUILD_FEATURE', label: 'BUILD FEATURE', agent: 'CodingAgent + Reviewer', desc: 'Create code, tests, and open PR' },
@@ -45,6 +48,7 @@ const PRESET_PROMPTS = [
 
 export const AgentConsoleScreen: React.FC = () => {
   const toast = useToast();
+  const { navigate } = useNavigation();
   const { projects, loading: pLoading } = useProjects();
   const { tasks, loading: tLoading, error: tError, refetch: tRefetch, createTask, approveTask, rejectTask, cancelTask, retryTask } = useTasks();
 
@@ -56,6 +60,7 @@ export const AgentConsoleScreen: React.FC = () => {
   const [promptText, setPromptText] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
 
   const handleTaskTypeChange = (newType: TaskType) => {
     setTaskType(newType);
@@ -306,68 +311,113 @@ export const AgentConsoleScreen: React.FC = () => {
       {/* Hardware-Accelerated Swarm Telemetry & Packet Transit */}
       <AgentSwarmWorkbench />
 
-      {/* Recent Dispatched Tasks Stream */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[#8b98a8] font-mono flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-[#F0B230]" />
-            Recent Operator Tasks (Last 10 Dispatches)
-          </h2>
-          <span className="text-[10px] font-mono text-[#8b98a8]">
-            Click any row to inspect execution pipeline
-          </span>
+      {/* ── FLEET SESSIONS & TASKS STREAM (BOARD | LIST TOGGLE) ── */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#8b98a8] font-mono flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 text-[#F0B230]" />
+              Fleet Tasks & Sessions
+            </h2>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-[#FFBD59]">
+              {tasks.length} tasks
+            </span>
+          </div>
+
+          {/* Board | List Toggle */}
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-[#161b22] border border-white/10 font-mono text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('board')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === 'board'
+                  ? 'bg-[#1c2333] text-[#FFBD59] border border-[#F0B230]/40 shadow-sm'
+                  : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Board</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
+                viewMode === 'list'
+                  ? 'bg-[#1c2333] text-[#FFBD59] border border-[#F0B230]/40 shadow-sm'
+                  : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+          </div>
         </div>
 
-        {recentTasks.length === 0 ? (
-          <div className="p-8 rounded-xl bg-[#161b22] border border-white/5 text-center text-xs text-[#8b98a8]">
-            No instructions dispatched yet. Send your first instruction above.
-          </div>
+        {viewMode === 'board' ? (
+          <FleetBoard
+            tasks={tasks}
+            projects={projects}
+            onSelectTask={(task) => {
+              navigate({ kind: 'project', projectId: task.project_id, tab: 'session', taskId: task.id });
+            }}
+            onRefresh={tRefetch}
+            isRefreshing={tLoading}
+          />
         ) : (
           <div className="space-y-3">
-            {recentTasks.map((t) => (
-              <div
-                key={t.id}
-                className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3 hover:border-white/10 transition-all cursor-pointer text-xs shadow-sm"
-                onClick={() => setSelectedTask(t)}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-[#8b98a8]">{t.id}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/5 border border-white/5 text-[#e6edf3]">
-                      {t.task_type}
-                    </span>
-                  </div>
-                  <StatusPill status={t.status} />
-                </div>
-
-                <p className="text-[#e6edf3] font-mono line-clamp-2 text-xs">{t.prompt}</p>
-
-                {/* Plan Approval Widget directly in feed if awaiting approval */}
-                {t.status === 'awaiting_approval' && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <PlanApproval task={t} onApprove={approveTask} onReject={rejectTask} />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-[11px] font-mono text-[#8b98a8] pt-1 border-t border-white/5">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1">
-                      <User className="w-3 h-3" />
-                      {t.assigned_agent || 'Coordinator'}
-                    </span>
-                    <span>·</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatRelative(t.created_at)}
-                    </span>
-                  </div>
-
-                  <span className="text-[#F0B230] hover:text-[#FFBD59] flex items-center gap-1 font-bold">
-                    View Pipeline <ArrowRight className="w-3 h-3" />
-                  </span>
-                </div>
+            {recentTasks.length === 0 ? (
+              <div className="p-8 rounded-xl bg-[#161b22] border border-white/5 text-center text-xs text-[#8b98a8]">
+                No instructions dispatched yet. Send your first instruction above.
               </div>
-            ))}
+            ) : (
+              recentTasks.map((t) => (
+                <div
+                  key={t.id}
+                  className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3 hover:border-white/10 transition-all cursor-pointer text-xs shadow-sm"
+                  onClick={() => {
+                    navigate({ kind: 'project', projectId: t.project_id, tab: 'session', taskId: t.id });
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-[#8b98a8]">{t.id}</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/5 border border-white/5 text-[#e6edf3]">
+                        {t.task_type}
+                      </span>
+                    </div>
+                    <StatusPill status={t.status} />
+                  </div>
+
+                  <p className="text-[#e6edf3] font-mono line-clamp-2 text-xs">{t.prompt}</p>
+
+                  {/* Plan Approval Widget directly in feed if awaiting approval */}
+                  {t.status === 'awaiting_approval' && (
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <PlanApproval task={t} onApprove={approveTask} onReject={rejectTask} />
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-[11px] font-mono text-[#8b98a8] pt-1 border-t border-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3" />
+                        {t.assigned_agent || 'Coordinator'}
+                      </span>
+                      <span>·</span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatRelative(t.created_at)}
+                      </span>
+                    </div>
+
+                    <span className="text-[#F0B230] hover:text-[#FFBD59] flex items-center gap-1 font-bold">
+                      Open Session Workspace <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>

@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 
-export type ProjectTab = 'overview' | 'codebase' | 'discovery' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings';
+export type ProjectTab = 'overview' | 'codebase' | 'discovery' | 'design' | 'tasks' | 'qa' | 'costs' | 'chat' | 'settings' | 'session' | 'components';
 
 export type Screen =
   | { kind: 'portfolio' }
   | { kind: 'discovery'; projectId?: string }
   | { kind: 'knowledge' }
-  | { kind: 'project'; projectId: string; tab: ProjectTab }
+  | { kind: 'project'; projectId: string; tab: ProjectTab; taskId?: string }
   | { kind: 'console' }
   | { kind: 'costs' }
   | { kind: 'qa' }
@@ -36,7 +36,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         top.kind === targetScreen.kind &&
         (top.kind !== 'project' ||
           (top.projectId === (targetScreen as { projectId: string }).projectId &&
-            top.tab === (targetScreen as { tab: ProjectTab }).tab))
+            top.tab === (targetScreen as { tab: ProjectTab }).tab &&
+            (top as any).taskId === (targetScreen as any).taskId))
       ) {
         return prev;
       }

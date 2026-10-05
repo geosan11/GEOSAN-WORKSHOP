@@ -101,6 +101,11 @@ run_coverage_audit() {
   npx tsx scripts/comprehensive-coverage-audit.ts
 }
 
+run_design_lint() {
+  echo "--> Running deterministic Slop Critic & Design Contract lint..."
+  npx tsx scripts/design-lint.ts
+}
+
 case "${COMMAND}" in
   git)
     run_git
@@ -123,6 +128,9 @@ case "${COMMAND}" in
   audit)
     run_coverage_audit
     ;;
+  design-lint)
+    run_design_lint
+    ;;
   all)
     run_git
     run_lint
@@ -131,12 +139,13 @@ case "${COMMAND}" in
     run_full_system_test
     run_user_interactions_test
     run_coverage_audit
+    run_design_lint
     echo "=========================================="
     echo "All deterministic, system, user-simulation, and coverage audit tests PASSED successfully."
     echo "=========================================="
     ;;
   *)
-    echo "Unknown command: ${COMMAND}. Valid options: git, lint, format-check, replay, system, user-test, audit, all"
+    echo "Unknown command: ${COMMAND}. Valid options: git, lint, format-check, replay, system, user-test, audit, design-lint, all"
     exit 1
     ;;
 esac

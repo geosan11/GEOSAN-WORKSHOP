@@ -25,7 +25,8 @@ import {
   Check,
   Cpu,
   Compass,
-  Brain
+  Brain,
+  Search
 } from 'lucide-react';
 
 interface NotificationItem {
@@ -38,43 +39,7 @@ interface NotificationItem {
   targetScreen?: { kind: 'console' } | { kind: 'costs' } | { kind: 'qa' };
 }
 
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 'notif-1',
-    category: 'approval_needed',
-    title: 'Plan Awaiting Approval',
-    body: 'CodingAgent prepared PR #284 for EHI Multisystems (Debt clearance badge).',
-    created_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    read: false,
-    targetScreen: { kind: 'console' }
-  },
-  {
-    id: 'notif-2',
-    category: 'qa_finding',
-    title: 'Critical Regression Found',
-    body: 'Missing mandatory captain license in Aviation Log Entry API manifest.',
-    created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    read: false,
-    targetScreen: { kind: 'qa' }
-  },
-  {
-    id: 'notif-3',
-    category: 'budget_alert',
-    title: 'Budget Alert Threshold',
-    body: 'Aviation Log Entry is at 82% of monthly budget limit.',
-    created_at: new Date(Date.now() - 3 * 3600 * 1000).toISOString(),
-    read: true,
-    targetScreen: { kind: 'costs' }
-  },
-  {
-    id: 'notif-4',
-    category: 'deploy_done',
-    title: 'Deployment Ready',
-    body: 'EdgePoint sensor daemon v1.8 promoted to production after 100% health check.',
-    created_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString(),
-    read: true
-  }
-];
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 
 export const TopBar: React.FC = () => {
   const { screen, navigate } = useNavigation();
@@ -157,7 +122,7 @@ export const TopBar: React.FC = () => {
           </div>
           <div className="text-left hidden sm:block">
             <span className="font-bold text-sm tracking-tight text-[#e6edf3] font-display block group-hover:text-white">
-              AetherOrch
+              GEOSAN-WORKSHOP
             </span>
             <span className="text-[10px] font-mono text-[#8b98a8] block -mt-1">
               Command Center
@@ -232,8 +197,23 @@ export const TopBar: React.FC = () => {
         })}
       </nav>
 
-      {/* Right Tools: Density Toggle, Manual Refresh, Notification Bell, Theme Toggle */}
+      {/* Right Tools: Cmd-K Search, Density Toggle, Manual Refresh, Notification Bell, Theme Toggle */}
       <div className="flex items-center gap-2">
+        {/* Quick Command Palette Button */}
+        <button
+          type="button"
+          onClick={() => {
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+          }}
+          className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] hover:bg-[#1c2333] border border-white/10 text-[#8b98a8] hover:text-[#e6edf3] text-[11px] font-mono transition-colors"
+          title="Jump to screen, project, or task (Cmd-K / Ctrl-K)"
+          aria-label="Open command palette"
+        >
+          <Search className="w-3.5 h-3.5 text-[#F0B230]" />
+          <span>Jump to...</span>
+          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-white/10 text-[#8b98a8]">⌘K</kbd>
+        </button>
+
         {/* Density Mode Switch (Compact | Normal | Expanded) */}
         <div
           className="hidden sm:flex items-center rounded-lg bg-[#0d1117] border border-white/10 p-0.5 font-mono text-[10px]"

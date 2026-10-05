@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => onTabChange('portfolio')}
           className="text-lg font-semibold tracking-tight text-white hover:text-cyan-400 transition-colors text-left"
         >
-          AetherOrch
+          GEOSAN-WORKSHOP
         </button>
         <span className="hidden sm:inline-block text-xs font-mono text-slate-500 border-l border-slate-800 pl-3">
           Command Center

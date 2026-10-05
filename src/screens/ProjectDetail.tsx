@@ -23,11 +23,15 @@ import { triggerServerGitSync } from '../lib/github';
 import { GitHubLogo, VercelLogo } from '../components/ServiceLogos';
 import { DiscoveryScreen } from './DiscoveryScreen';
 import { RepoAnalyzer } from '../components/RepoAnalyzer';
+import { TaskWorkspace } from '../components/session/TaskWorkspace';
+import { MultiAccountComponentHub } from '../components/MultiAccountComponentHub';
+import { ReferenceBoard } from '../components/ReferenceBoard';
 import {
   ArrowLeft,
   ExternalLink,
   GitBranch,
   FolderGit2,
+  Terminal,
   Layers,
   Activity,
   DollarSign,
@@ -43,17 +47,21 @@ import {
   Plus,
   RefreshCw,
   ArrowUpDown,
-  Compass
+  Compass,
+  Share2,
+  Pin
 } from 'lucide-react';
 
 interface ProjectDetailProps {
   projectId: string;
   initialTab?: ProjectTab;
+  initialTaskId?: string;
 }
 
 export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
   projectId,
-  initialTab = 'overview'
+  initialTab = 'overview',
+  initialTaskId
 }) => {
   const toast = useToast();
   const { navigate, back } = useNavigation();
@@ -63,6 +71,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
   const { qaRuns } = useQA(projectId);
 
   const [activeTab, setActiveTab] = useState<ProjectTab>(initialTab);
+  const [activeTaskId, setActiveTaskId] = useState<string | undefined>(initialTaskId);
   const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
 
   // Git Sync state
@@ -225,16 +234,20 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
         </div>
       </div>
 
-      {/* Internal Tabs: overview | codebase | discovery | tasks | qa | costs | settings */}
+      {/* Internal Tabs: overview | session | codebase | discovery | tasks | qa | costs | chat | settings */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/5 pb-2">
         {(
           [
             { id: 'overview', label: 'OVERVIEW', icon: Activity },
+            { id: 'session', label: 'TASK WORKSPACE', icon: Terminal },
             { id: 'codebase', label: 'GITHUB & CODEBASE', icon: FolderGit2 },
             { id: 'discovery', label: 'SDLC DISCOVERY', icon: Compass },
+            { id: 'design', label: 'DESIGN BRIEF', icon: Pin },
             { id: 'tasks', label: `TASKS (${sortedTasks.length})`, icon: Layers },
             { id: 'qa', label: `QA RUNS (${qaRuns.length})`, icon: ShieldCheck },
             { id: 'costs', label: 'COSTS & BURN', icon: DollarSign },
+            { id: 'components', label: 'COMPONENTS & MCP', icon: Share2 },
+            { id: 'chat', label: 'AGENT CHAT', icon: MessageSquare },
             { id: 'settings', label: 'SETTINGS & BUDGET', icon: SettingsIcon }
           ] as const
         ).map((tab) => {
@@ -257,6 +270,15 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
         })}
       </div>
 
+      {/* ── TAB: TASK WORKSPACE (Devin increment 1) ── */}
+      {activeTab === 'session' && (
+        <TaskWorkspace
+          taskId={activeTaskId || selectedTask?.id}
+          project={project}
+          onBack={() => setActiveTab('tasks')}
+        />
+      )}
+
       {/* ── TAB: GITHUB & CODEBASE ANALYSIS ── */}
       {activeTab === 'codebase' && (
         <RepoAnalyzer
@@ -268,6 +290,19 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
       {/* ── TAB: SDLC DISCOVERY ── */}
       {activeTab === 'discovery' && (
         <DiscoveryScreen initialProjectId={projectId} />
+      )}
+
+      {/* ── TAB: DESIGN BRIEF & REFERENCE BOARD ── */}
+      {activeTab === 'design' && (
+        <ReferenceBoard
+          project={project}
+          onDesignApproved={() => tRefetch()}
+        />
+      )}
+
+      {/* ── TAB: AGENT CHAT (Devin increment 2) ── */}
+      {activeTab === 'chat' && (
+        <ProjectChatTab project={project} />
       )}
 
       {/* ── TAB 1: OVERVIEW ── */}
@@ -334,7 +369,10 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                 <TaskDisclosureRow
                   key={task.id}
                   task={task}
-                  onOpenDrawer={setSelectedTask}
+                  onOpenDrawer={(t) => {
+                    setActiveTaskId(t.id);
+                    setActiveTab('session');
+                  }}
                   onApprove={approveTask}
                   onReject={rejectTask}
                   onCancel={cancelTask}
@@ -460,6 +498,11 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── TAB: MULTI-ACCOUNT COMPONENTS & PER-SERVER MCP ── */}
+      {activeTab === 'components' && (
+        <MultiAccountComponentHub />
       )}
 
       {/* Sliding Task Drawer */}
