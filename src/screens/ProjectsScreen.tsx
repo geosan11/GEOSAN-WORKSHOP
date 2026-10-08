@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
 import { useCosts } from '../hooks/useCosts';
@@ -9,13 +9,15 @@ import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { StatusPill } from '../components/StatusPill';
 import { VercelLogo, GitHubLogo } from '../components/ServiceLogos';
-import { FolderGit2, ChevronRight, Activity, ArrowRight } from 'lucide-react';
+import { FolderGit2, ChevronRight, Activity, ArrowRight, Plus } from 'lucide-react';
+import { ProjectWizardModal } from '../components/ProjectWizardModal';
 
 export const ProjectsScreen: React.FC = () => {
   const { navigate } = useNavigation();
   const { projects, loading: pLoading, error: pError, refetch } = useProjects();
   const { tasks } = useTasks();
   const { costEvents } = useCosts();
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
 
   if (pLoading && projects.length === 0) {
     return (
@@ -35,19 +37,48 @@ export const ProjectsScreen: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Header: One H1 & Lede */}
-      <div className="pb-2 border-b border-white/5">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-          Projects
-        </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Four client verticals running isolated git worktrees and continuous verification.
-        </p>
+      {/* Header: One H1 & Lede + Action */}
+      <div className="pb-2 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
+            Projects
+          </h1>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Client verticals running isolated git worktrees and continuous verification.
+          </p>
+        </div>
+        <button
+          onClick={() => setIsWizardOpen(true)}
+          className="px-3.5 py-2 rounded-lg bg-[#F0B230] hover:bg-[#FFBD59] text-black font-bold text-xs flex items-center gap-1.5 transition-all shadow-md self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          <span>New Project</span>
+        </button>
       </div>
 
       {/* Projects List as Rows (Not cards) */}
       <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden shadow-lg">
-        <div className="overflow-x-auto">
+        {projects.length === 0 ? (
+          <div className="p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400">
+              <FolderGit2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-200">No active projects linked yet</h3>
+              <p className="text-xs text-slate-400 max-w-sm mt-1">
+                Connect your Vercel deployment or GitHub repository to start monitoring edge health and agent pipelines.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsWizardOpen(true)}
+              className="px-4 py-2 rounded-lg bg-[#F0B230] hover:bg-[#FFBD59] text-black font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
+            >
+              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <span>Connect Project</span>
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#0d1117] border-b border-white/10 text-slate-400 text-[10px] uppercase tracking-wider">
               <tr>
@@ -66,7 +97,7 @@ export const ProjectsScreen: React.FC = () => {
                   (t) => t.project_id === project.id && t.status !== 'done' && t.status !== 'cancelled'
                 );
                 const spend = projectMonthlySpend(costEvents, project.id);
-                const probeMs = project.id === 'proj-ehi-001' ? 12 : project.id === 'proj-iya-002' ? 18 : project.id === 'proj-aero-003' ? 24 : 15;
+                const probeMs = 12 + ((project.name.length % 5) * 3);
 
                 return (
                   <tr
@@ -132,7 +163,13 @@ export const ProjectsScreen: React.FC = () => {
             </tbody>
           </table>
         </div>
+        )}
       </div>
+
+      <ProjectWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+      />
     </div>
   );
 };

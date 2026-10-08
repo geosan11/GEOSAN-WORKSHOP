@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useDataProvider } from '../lib/dataProvider';
 import { useTasks } from '../hooks/useTasks';
-import { Conversation, ChatMessage, AgentTask, Project } from '../lib/types';
+import { useChat } from '../hooks/useChat';
+import { AgentTask, Project } from '../lib/types';
 import { ChatMessageItem } from './ChatMessageItem';
 import { ChatComposer } from './ChatComposer';
 import { LoadingState } from './LoadingState';
@@ -24,13 +24,10 @@ interface ProjectChatTabProps {
 }
 
 export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
-  const dataProvider = useDataProvider();
-  const { tasks, approveTask, rejectTask, refetch: refetchTasks } = useTasks(project.id);
+  const { tasks, createTask, refetch: refetchTasks, approveTask, rejectTask } = useTasks(project.id);
+  const { conversation, messages, loading, sendMessage } = useChat(project.id);
 
   const [mode, setMode] = useState<'ask' | 'agent'>('ask');
-  const [conversation, setConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -41,30 +38,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
       (t.status === 'queued' || t.status === 'running' || t.status === 'done')
   );
   const agentDisabled = !approvedTask;
-
-  const loadData = async () => {
-    try {
-      const convs = await dataProvider.getConversations(project.id);
-      const activeConv = convs[0];
-      setConversation(activeConv || null);
-
-      if (activeConv) {
-        const msgs = await dataProvider.getChatMessages(activeConv.id);
-        setMessages(msgs);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-    const unsubscribe = dataProvider.subscribeChange(() => {
-      loadData();
-      refetchTasks();
-    });
-    return unsubscribe;
-  }, [project.id, dataProvider, refetchTasks]);
 
   // Auto-scroll on new message in Ask mode
   useEffect(() => {
@@ -80,22 +53,18 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
     try {
       if (sendMode === 'ask') {
         // "Ask creates or updates a PLAN task with status proposed. It does not enqueue a build."
-        const proposedTask = await dataProvider.createTask({
+        await createTask({
           org_id: project.org_id,
           project_id: project.id,
           task_type: 'PLAN',
           prompt: text,
-          parent_task_id: null
         });
 
-        // Send user message and link to proposed task
-        await dataProvider.sendMessage(conversation.id, text, project.id);
-        await loadData();
-        await refetchTasks();
+        // Send user message
+        await sendMessage(text);
       } else {
         // Agent steer message
-        await dataProvider.sendMessage(conversation.id, `[Agent Directive]: ${text}`, project.id);
-        await loadData();
+        await sendMessage(`[Agent Directive]: ${text}`);
       }
     } finally {
       setSending(false);
@@ -105,7 +74,6 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
   const handleApprovePlan = async (taskId: string) => {
     await approveTask(taskId);
     await refetchTasks();
-    await loadData();
     // Auto-switch to Agent mode once a plan is approved
     setMode('agent');
   };
@@ -231,7 +199,7 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
                     <ChatMessageItem
                       message={msg}
                       proposedTask={proposedTask}
-                      onProposedTaskResolved={loadData}
+                      onProposedTaskResolved={() => {}}
                     />
 
                     {/* If message has an awaiting_approval task, show PlanApproval directly */}

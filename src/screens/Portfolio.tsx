@@ -272,8 +272,8 @@ export const PortfolioScreen: React.FC = () => {
         onReject={rejectTask}
         onCancel={cancelTask}
         onRetry={async (id) => {
-          const newTask = await retryTask(id);
-          setSelectedTask(newTask);
+          await retryTask(id);
+          setSelectedTask(null);
         }}
       />
     </div>

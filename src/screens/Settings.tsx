@@ -153,13 +153,47 @@ export const SettingsScreen: React.FC = () => {
           </span>
         </div>
 
-        <button
-          onClick={signOut}
-          className="px-4 py-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 font-bold text-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Sign Out
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className={`px-3 py-2 rounded-lg border font-bold flex items-center gap-2 transition-all ${
+              isLight
+                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                : 'bg-white/5 text-slate-400 border-white/5 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            {isLight ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                <span>Light</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Dark</span>
+              </>
+            )}
+          </button>
+
+          {/* Density Toggle */}
+          <button
+            onClick={() => setDensity(density === 'compact' ? 'normal' : 'compact')}
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/5 text-slate-300 hover:text-white hover:bg-white/10 font-bold flex items-center gap-2 transition-colors"
+          >
+            <Server className="w-3.5 h-3.5" />
+            <span>Density: {density === 'compact' ? 'Compact' : 'Normal'}</span>
+          </button>
+
+          {/* Sign Out */}
+          <button
+            onClick={signOut}
+            className="px-4 py-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 font-bold transition-colors flex items-center gap-1.5"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign Out
+          </button>
+        </div>
       </div>
     </div>
   );

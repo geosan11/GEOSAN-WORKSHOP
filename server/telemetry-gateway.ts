@@ -252,6 +252,52 @@ export function handleTelemetryGateway(
     return true;
   }
 
+  // 5b. GitHub API Proxy: POST /api/github/proxy
+  if (pathname === '/api/github/proxy' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', async () => {
+      try {
+        const parsed = body ? JSON.parse(body) : {};
+        const { endpoint, options } = parsed;
+        if (!endpoint) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing endpoint' }));
+          return;
+        }
+
+        const serverToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
+        const url = `https://api.github.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+        const headers: Record<string, string> = {
+          'User-Agent': 'AetherOrch-Proxy/1.0',
+          Accept: 'application/vnd.github.v3+json',
+          ...(options?.headers || {}),
+        };
+        if (serverToken) {
+          headers['Authorization'] = `token ${serverToken}`;
+        }
+
+        const ghRes = await fetch(url, {
+          method: options?.method || 'GET',
+          headers,
+          body: options?.body ? JSON.stringify(options.body) : undefined,
+        });
+
+        const text = await ghRes.text();
+        res.writeHead(ghRes.status, {
+          'Content-Type': ghRes.headers.get('content-type') || 'application/json',
+        });
+        res.end(text);
+      } catch (err: any) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'GitHub Proxy Error', details: err.message }));
+      }
+    });
+    return true;
+  }
+
   // 6. Test AI Model API Pulling Gateway: POST /api/ai/pull or POST /api/ai/test
   if ((pathname === '/api/ai/pull' || pathname === '/api/ai/test') && req.method === 'POST') {
     let body = '';

@@ -39,7 +39,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>(initialRunId);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [taskType, setTaskType] = useState<TaskType>('BUILD_FEATURE');
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || 'proj-ehi-001');
+  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
   const [promptText, setPromptText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -56,7 +56,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
 
   const handleRejectGate = async (taskId: string) => {
     try {
-      await rejectTask(taskId, 'Operator rejected write plan');
+      await rejectTask(taskId);
       toast.info('Plan rejected. No branch was opened.');
       setSelectedRunId(undefined);
     } catch {

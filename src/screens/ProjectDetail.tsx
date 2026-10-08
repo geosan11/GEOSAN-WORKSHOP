@@ -696,8 +696,8 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
         onReject={rejectTask}
         onCancel={cancelTask}
         onRetry={async (id) => {
-          const newTask = await retryTask(id);
-          setSelectedTask(newTask);
+          await retryTask(id);
+          setSelectedTask(null);
         }}
       />
 

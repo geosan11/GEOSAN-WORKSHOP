@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useProjects } from '../hooks/useProjects';
 import { useNavigation } from '../lib/navigation';
 import { useToast } from './Toast';
+import { VercelLogo } from './ServiceLogos';
 import {
   FolderGit2,
   X,
@@ -167,6 +168,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
   const [projectName, setProjectName] = useState<string>(selectedTemplate.name);
   const [repoSlug, setRepoSlug] = useState<string>('settlement-core');
   const [repoUrl, setRepoUrl] = useState<string>(`https://github.com/ehi-enterprise/${selectedTemplate.id}`);
+  const [vercelUrl, setVercelUrl] = useState<string>('');
   const [defaultBranch, setDefaultBranch] = useState<string>('main');
   const [monthlyBudget, setMonthlyBudget] = useState<number>(selectedTemplate.defaultBudget);
   const [alertThresholdPct, setAlertThresholdPct] = useState<number>(80);
@@ -225,6 +227,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
         vertical: selectedTemplate.vertical,
         monthly_budget_usd: Number(monthlyBudget) || 1000,
         repo_url: repoUrl.trim() || null,
+        vercel_deployment_url: vercelUrl.trim() || null,
         agent_instructions: instructions.trim() || undefined
       });
 
@@ -457,6 +460,24 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                     value={repoUrl}
                     onChange={(e) => setRepoUrl(e.target.value)}
                     placeholder="https://github.com/org/repo"
+                    className="w-full bg-[#161b22] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  />
+                </div>
+
+                {/* Vercel Deployment URL */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-[#e6edf3] flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <VercelLogo className="w-3.5 h-3.5 text-white" />
+                      Vercel Deployment URL
+                    </span>
+                    <span className="text-[10px] text-emerald-400">Live edge health</span>
+                  </label>
+                  <input
+                    type="url"
+                    value={vercelUrl}
+                    onChange={(e) => setVercelUrl(e.target.value)}
+                    placeholder="https://your-project.vercel.app"
                     className="w-full bg-[#161b22] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
                   />
                 </div>

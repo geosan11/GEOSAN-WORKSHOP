@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AgentTask } from '../lib/types';
-import { useDataProvider } from '../lib/dataProvider';
+import { useTasks } from '../hooks/useTasks';
 import { useToast } from './Toast';
 import { Check, X, Sparkles, ArrowRight, Layers } from 'lucide-react';
 
@@ -10,14 +10,14 @@ interface ProposedTaskCardProps {
 }
 
 export const ProposedTaskCard: React.FC<ProposedTaskCardProps> = ({ task, onResolved }) => {
-  const dataProvider = useDataProvider();
+  const { confirmProposedTask, dismissProposedTask } = useTasks(task.project_id);
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
   const confirm = async () => {
     try {
       setLoading(true);
-      await dataProvider.confirmProposedTask(task.id);
+      await confirmProposedTask(task.id);
       toast.success('Task confirmed and dispatched to Coordinator');
       onResolved?.();
     } catch {
@@ -30,7 +30,7 @@ export const ProposedTaskCard: React.FC<ProposedTaskCardProps> = ({ task, onReso
   const dismiss = async () => {
     try {
       setLoading(true);
-      await dataProvider.dismissProposedTask(task.id);
+      await dismissProposedTask(task.id);
       toast.info('Proposed task dismissed');
       onResolved?.();
     } catch {

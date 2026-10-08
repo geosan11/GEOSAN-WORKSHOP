@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { AgentTask } from '../lib/types';
-import { isDesignBriefApproved, getDesignBrief } from '../lib/designBrief';
-import { Check, X, ShieldAlert, FileCode2, ArrowRight, Lock } from 'lucide-react';
+import { AgentTask, RunPacket } from '../lib/types';
+import { isDesignBriefApproved } from '../lib/designBrief';
+import { Check, X, ShieldAlert, FileCode2, Lock } from 'lucide-react';
+import { useToast } from './Toast';
+import { appendApprovalLine, getApprovalLines } from '../lib/approvalLog';
 
 interface PlanApprovalProps {
   task: AgentTask;
@@ -13,18 +15,79 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const toast = useToast();
 
   const planSummary = (task.plan?.summary as string) || (task.result?.summary as string) || 'Plan execution verified by ReviewAgent. Adversarial security invariants passed.';
 
   const isBriefApproved = isDesignBriefApproved(task.project_id);
   const isGatedType = task.task_type === 'BUILD_FEATURE' || task.task_type === 'FIX_BUG';
   const canApprove = !isGatedType || isBriefApproved;
+  
+  const existingLines = getApprovalLines(task.id);
+  const alreadyApproved = existingLines.some(l => l.action === 'approved');
 
   const handleApprove = async () => {
     if (!canApprove) return;
+    if (alreadyApproved) return;
+
+    let runPacket: RunPacket | null = null;
+
+    if (isGatedType) {
+      if (!task.done_when || task.done_when.length === 0) {
+        toast.error('Plan has no done_when. Not approved.');
+        return;
+      }
+      if (!task.goal || !task.constraints) {
+        toast.error('Plan has missing goal or constraints. Not approved.');
+        return;
+      }
+
+      runPacket = {
+        packet_id: `pkt-${Date.now()}`,
+        task_id: task.id,
+        project_id: task.project_id,
+        goal: task.goal,
+        constraints: task.constraints,
+        done_when: task.done_when,
+        fixture_hash: null,
+        worktree: 'not_opened',
+        branch_name: task.branch_name || 'no branch',
+        pr_url: task.pr_url || null,
+        deploy: 'not_requested',
+        approved_by: 'operator@demo.internal', // demo fallback
+        approved_at: new Date().toISOString()
+      };
+
+      // Persist the packet in the existing demo store
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('geosan_tasks');
+        if (saved) {
+          try {
+            const allTasks = JSON.parse(saved);
+            const idx = allTasks.findIndex((t: any) => t.id === task.id);
+            if (idx >= 0) {
+              allTasks[idx].run_packet = runPacket;
+              localStorage.setItem('geosan_tasks', JSON.stringify(allTasks));
+            }
+          } catch (e) {}
+        }
+      }
+      task.run_packet = runPacket; // local update
+    }
+
     try {
       setIsProcessing(true);
+      // Append approval line
+      appendApprovalLine({
+        actor: 'operator@demo.internal',
+        action: 'approved',
+        task_id: task.id,
+        packet_id: runPacket?.packet_id || null,
+        reason: null
+      });
+
       await onApprove(task.id);
+      toast.success('Plan approved. Worktree not opened. Deploy still asks.');
     } finally {
       setIsProcessing(false);
     }
@@ -34,12 +97,22 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
     if (!rejectReason.trim()) return;
     try {
       setIsProcessing(true);
+      appendApprovalLine({
+        actor: 'operator@demo.internal',
+        action: 'rejected',
+        task_id: task.id,
+        packet_id: null,
+        reason: rejectReason.trim()
+      });
       await onReject(task.id, rejectReason.trim());
+      toast.error('Plan rejected. No branch was opened.');
       setRejectModalOpen(false);
     } finally {
       setIsProcessing(false);
     }
   };
+
+  const linesToRender = existingLines.slice(-3);
 
   return (
     <>
@@ -57,6 +130,20 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
         <p className="text-[#e6edf3] font-sans leading-relaxed whitespace-pre-line bg-[#161b22]/70 p-3 rounded-lg border border-white/5 font-mono text-[11px]">
           {planSummary}
         </p>
+
+        {task.run_packet && (
+          <div className="p-3 bg-[#0d1117] border border-white/10 rounded-lg font-mono text-[11px] text-[#8b98a8] space-y-1">
+            <div><span className="text-white">Goal:</span> {task.run_packet.goal}</div>
+            <div><span className="text-white">done_when:</span> {task.run_packet.done_when.length} condition(s)</div>
+            <div><span className="text-white">Worktree:</span> {task.run_packet.worktree}</div>
+            <div><span className="text-white">Branch:</span> {task.run_packet.branch_name || 'no branch'}</div>
+            <div>Deploy not requested.</div>
+          </div>
+        )}
+
+        <div className="text-[#8b98a8] font-mono text-[10px] bg-[#0d1117]/50 p-2 rounded">
+          Writes admit only when a model is called. git, lint, format, and replay are not admitted.
+        </div>
 
         {task.pr_url && (
           <div className="flex items-center gap-2 text-[11px] text-[#0873B7]">
@@ -79,10 +166,24 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
           </div>
         )}
 
+        {linesToRender.length > 0 && (
+          <div className="pt-2 border-t border-white/10 space-y-1">
+            <div className="text-[10px] text-[#8b98a8] font-mono uppercase tracking-wider mb-1">Approval line</div>
+            {linesToRender.map(line => (
+              <div key={line.line_id} className="text-[10px] font-mono flex items-start gap-2">
+                <span className="text-[#8b98a8]">{new Date(line.at).toLocaleTimeString()}</span>
+                <span className={line.action === 'approved' ? 'text-emerald-400' : 'text-red-400'}>[{line.action.toUpperCase()}]</span>
+                <span className="text-white">{line.actor}</span>
+                {line.reason && <span className="text-[#8b98a8] italic truncate">- {line.reason}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-1">
           <button
             onClick={handleApprove}
-            disabled={isProcessing || !canApprove}
+            disabled={isProcessing || !canApprove || alreadyApproved}
             className={`px-3.5 py-1.5 rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50 ${
               canApprove
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-[#0A1420]'

@@ -15,6 +15,7 @@ import {
   X,
   ChevronRight
 } from 'lucide-react';
+import { useTheme } from '../lib/theme';
 
 interface FleetNavItem {
   id: string;
@@ -30,6 +31,7 @@ export const MobileNavBar: React.FC = () => {
   const { tasks } = useTasks();
   const { qaFindings } = useQA();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { toggleTheme } = useTheme();
 
   // Waiting count
   const awaitingTasksCount = tasks.filter((t) => t.status === 'awaiting_approval').length;
@@ -162,6 +164,20 @@ export const MobileNavBar: React.FC = () => {
                 })}
               </div>
             </div>
+          </div>
+
+          {/* Drawer Footer Actions (Theme Toggle) */}
+          <div className="mt-auto p-4 border-t border-white/5 space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                toggleTheme();
+                setDrawerOpen(false);
+              }}
+              className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border bg-white/5 border-white/10 text-slate-300 hover:text-white transition-colors"
+            >
+              <span className="text-xs font-mono font-bold">Toggle Theme</span>
+            </button>
           </div>
         </div>
       )}

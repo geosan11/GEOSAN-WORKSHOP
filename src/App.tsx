@@ -1,7 +1,9 @@
 import React from 'react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './lib/auth';
-import { DataProvider } from './lib/dataProvider';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+const queryClient = new QueryClient();
 import { ToastProvider } from './components/Toast';
 import { NavigationProvider, useNavigation } from './lib/navigation';
 import { DensityProvider } from './lib/density';
@@ -81,13 +83,13 @@ const AppContent: React.FC = () => {
           )}
           {screen.kind === 'discovery' && (
             <ProjectDetailScreen
-              projectId={(screen as { projectId?: string }).projectId || 'proj-ehi-001'}
+              projectId={(screen as { projectId?: string }).projectId || ''}
               initialTab="spec"
             />
           )}
           {screen.kind === 'qa' && (
             <ProjectDetailScreen
-              projectId="proj-ehi-001"
+              projectId={(screen as { projectId?: string }).projectId || ''}
               initialTab="verify"
             />
           )}
@@ -108,7 +110,7 @@ export default function App() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <DataProvider>
+          <QueryClientProvider client={queryClient}>
             <ToastProvider>
               <NavigationProvider>
                 <DensityProvider>
@@ -116,7 +118,7 @@ export default function App() {
                 </DensityProvider>
               </NavigationProvider>
             </ToastProvider>
-          </DataProvider>
+          </QueryClientProvider>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

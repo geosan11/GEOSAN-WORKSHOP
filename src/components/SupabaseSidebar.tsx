@@ -19,8 +19,10 @@ import {
   Sun,
   Moon,
   LogOut,
-  Layers
+  Layers,
+  Plus
 } from 'lucide-react';
+import { ProjectWizardModal } from './ProjectWizardModal';
 
 interface SupabaseSidebarProps {
   collapsed: boolean;
@@ -46,6 +48,7 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
   const { qaFindings } = useQA();
   const { user, signOut } = useAuth();
   const { isLight, toggleTheme } = useTheme();
+  const [isWizardOpen, setIsWizardOpen] = React.useState(false);
 
   // Calculate waiting count for Inbox (awaiting_approval tasks + open P0 findings)
   const awaitingTasksCount = tasks.filter((t) => t.status === 'awaiting_approval').length;
@@ -216,8 +219,16 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
         {/* OPEN VERTICAL SECTION */}
         <div className="space-y-1 pt-2 border-t border-white/5">
           {!collapsed && (
-            <div className="px-2 py-1 text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase">
-              OPEN VERTICAL
+            <div className="px-2 py-1 text-[10px] font-mono font-bold tracking-wider text-slate-500 uppercase flex items-center justify-between">
+              <span>OPEN VERTICAL</span>
+              <button
+                type="button"
+                onClick={() => setIsWizardOpen(true)}
+                title="Add New Vertical / Project"
+                className="p-0.5 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
             </div>
           )}
 
@@ -297,6 +308,11 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
           )}
         </button>
       </div>
+
+      <ProjectWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+      />
     </aside>
   );
 };

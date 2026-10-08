@@ -40,8 +40,8 @@ interface RepoAnalyzerProps {
 }
 
 export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispatched }) => {
+  const { createTask, tasks } = useTasks(project.id);
   const toast = useToast();
-  const { tasks } = useTasks();
 
   const [repoUrl, setRepoUrl] = useState<string>(
     project.repo_url || `https://github.com/ehi-enterprise/${project.slug || 'logistics-engine'}`
@@ -140,13 +140,11 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
     toast.info(`Dispatching ${finding.recommendedAgent} to implement fix for ${finding.file}...`);
 
     try {
-      const { dataProviderInstance } = await import('../lib/dataProvider');
-      const newTask = await dataProviderInstance.createTask({
+      const newTask = await createTask({
         org_id: project.org_id,
         project_id: project.id,
         task_type: finding.category === 'security' ? 'QA_SECURITY' : 'FIX_BUG',
         prompt: `[${finding.title}] Implement proposed architectural fix for ${finding.file} (${finding.lineRange}):\n\nProblem:\n${finding.description}\n\nProposed Fix:\n${finding.proposedFix}\n\nApply patch snippet:\n${finding.diffSnippet.after}`,
-        parent_task_id: null
       });
 
       toast.success(`Task #${newTask.id.slice(0, 8)} queued for ${finding.recommendedAgent}!`);

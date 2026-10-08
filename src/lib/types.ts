@@ -18,6 +18,22 @@ export type TaskType =
   | 'REPORT'
   | 'PLAN';
 
+export interface RunPacket {
+  packet_id: string;
+  task_id: string;
+  project_id: string;
+  goal: string;
+  constraints: string[];
+  done_when: string[];
+  fixture_hash: string | null;
+  worktree: 'not_opened' | 'opened' | 'failed';
+  branch_name: string | null;
+  pr_url: string | null;
+  deploy: 'not_requested';
+  approved_by: string;
+  approved_at: string;
+}
+
 export type TaskStatus =
   | 'proposed'
   | 'queued'
@@ -65,6 +81,10 @@ export interface AgentTask {
   started_at: string | null;
   completed_at: string | null;
   proposed_by_message_id?: string | null;
+  goal?: string;
+  constraints?: string[];
+  done_when?: string[];
+  run_packet?: RunPacket | null;
 }
 
 export interface Conversation {

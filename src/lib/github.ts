@@ -227,11 +227,8 @@ export class GitHubClient {
     this.baseUrl = (options.baseUrl || 'https://api.github.com').replace(/\/$/, '');
   }
 
-  /**
-   * Internal authenticated fetch with comprehensive error wrapping and token sanitization.
-   */
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+    const url = '/api/github/proxy';
 
     const headers: Record<string, string> = {
       Accept: 'application/vnd.github.v3+json',
@@ -239,17 +236,22 @@ export class GitHubClient {
       ...(options.headers as Record<string, string>),
     };
 
-    if (this.token) {
-      headers.Authorization = `token ${this.token}`;
-    }
-
     let response: Response;
     try {
-      response = await fetch(url, { ...options, headers });
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint,
+          options: {
+            ...options,
+            headers
+          }
+        })
+      });
     } catch (err: any) {
-      throw new GitHubError(`Network failure while calling GitHub API: ${err?.message || 'unknown error'}`, {
+      throw new GitHubError(`Network failure while calling proxy: ${err?.message || 'unknown error'}`, {
         endpoint,
-        token: this.token,
       });
     }
 

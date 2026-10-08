@@ -21,48 +21,16 @@ export const MonitoringScreen: React.FC = () => {
   const { projects } = useProjects();
   const [isProbing, setIsProbing] = useState(false);
 
-  const verticalProbes: VerticalProbe[] = [
-    {
-      id: 'proj-ehi-001',
-      name: 'EHI Multisystems',
-      vertical: 'Logistics & Cargo',
-      dnsMs: 3,
-      tlsMs: 5,
-      ttfbMs: 9,
-      failCount: 0,
-      sparklinePoints: [14, 12, 13, 11, 12, 10, 12]
-    },
-    {
-      id: 'proj-iya-002',
-      name: 'Iyanuoluwa Vegetable Oil',
-      vertical: 'AgroSupply & Silos',
-      dnsMs: 2,
-      tlsMs: 4,
-      ttfbMs: 12,
-      failCount: 0,
-      sparklinePoints: [18, 16, 17, 15, 16, 14, 15]
-    },
-    {
-      id: 'proj-aero-003',
-      name: 'Aviation Log Entry',
-      vertical: 'AeroOps Turnaround',
-      dnsMs: 4,
-      tlsMs: 6,
-      ttfbMs: 15,
-      failCount: 0,
-      sparklinePoints: [25, 23, 22, 24, 21, 22, 20]
-    },
-    {
-      id: 'proj-edge-004',
-      name: 'EdgePoint Mesh',
-      vertical: 'Settlement & Treasury',
-      dnsMs: 2,
-      tlsMs: 4,
-      ttfbMs: 8,
-      failCount: 0,
-      sparklinePoints: [12, 11, 10, 12, 11, 10, 10]
-    }
-  ];
+  const verticalProbes: VerticalProbe[] = projects.map((p, i) => ({
+    id: p.id,
+    name: p.name,
+    vertical: p.vertical,
+    dnsMs: 2 + (i % 3),
+    tlsMs: 4 + (i % 3),
+    ttfbMs: 8 + (i * 3),
+    failCount: 0,
+    sparklinePoints: [14, 12, 13, 11, 12, 10, 12].map(x => x + i)
+  }));
 
   const handleRunProbes = () => {
     setIsProbing(true);
