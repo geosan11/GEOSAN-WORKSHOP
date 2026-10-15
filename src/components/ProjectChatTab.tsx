@@ -7,74 +7,180 @@ import { ChatComposer } from './ChatComposer';
 import { LoadingState } from './LoadingState';
 import { TaskWorkspace } from './session/TaskWorkspace';
 import { PlanApproval } from './PlanApproval';
+import { AgentWorkingStream, WorkingStep } from './AgentWorkingStream';
+import { AgentCompletionCard } from './AgentCompletionCard';
+import { requestBudgetAdmit } from '../lib/budget';
+import { useToast } from './Toast';
 import {
   Bot,
-  Sparkles,
   MessageSquare,
   HelpCircle,
   ShieldCheck,
   ShieldAlert,
   ArrowRight,
-  CheckCircle2,
-  Lock
+  Lock,
 } from 'lucide-react';
 
 interface ProjectChatTabProps {
   project: Project;
 }
 
+interface CompletionState {
+  prompt: string;
+  task: AgentTask;
+}
+
+const ASK_STEPS: Array<Omit<WorkingStep, 'status'>> = [
+  { id: 'admit', label: 'Checking weekly budget admission' },
+  { id: 'context', label: 'Loading project invariants and open findings' },
+  { id: 'plan', label: 'Drafting numbered plan with done_when gates' },
+  { id: 'gate', label: 'Parking proposal for operator approval' },
+];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
   const { tasks, createTask, refetch: refetchTasks, approveTask, rejectTask } = useTasks(project.id);
   const { conversation, messages, loading, sendMessage } = useChat(project.id);
+  const toast = useToast();
 
   const [mode, setMode] = useState<'ask' | 'agent'>('ask');
   const [sending, setSending] = useState(false);
+  const [workingSteps, setWorkingSteps] = useState<WorkingStep[]>([]);
+  const [completion, setCompletion] = useState<CompletionState | null>(null);
+  const [budgetRevision, setBudgetRevision] = useState(0);
+  const [activeAgentTaskId, setActiveAgentTaskId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Check if any plan has been approved for this project
-  const approvedTask = tasks.find(
+  const executableTasks = tasks.filter(
     (t) =>
       t.project_id === project.id &&
       (t.status === 'queued' || t.status === 'running' || t.status === 'done')
   );
+  const approvedTask =
+    executableTasks.find((t) => t.id === activeAgentTaskId) ||
+    executableTasks.find((t) => t.task_type === 'PLAN') ||
+    executableTasks[0];
   const agentDisabled = !approvedTask;
 
-  // Auto-scroll on new message in Ask mode
+  const awaitingPlans = tasks.filter(
+    (t) => t.project_id === project.id && t.status === 'awaiting_approval' && t.task_type === 'PLAN'
+  );
+
   useEffect(() => {
     if (scrollRef.current && mode === 'ask') {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, sending, mode]);
+  }, [messages.length, sending, mode, workingSteps, completion]);
 
-  const handleSendMessage = async (text: string, sendMode: 'ask' | 'agent', waitForApproval: boolean) => {
-    if (!conversation) return;
+  const runAskWorkingStream = async (holdForApproval: boolean): Promise<void> => {
+    const labels = ASK_STEPS.map((step, index) =>
+      index === ASK_STEPS.length - 1 && !holdForApproval
+        ? { ...step, label: 'Auto-proceeding plan into the execution queue' }
+        : step
+    );
+
+    setWorkingSteps(
+      labels.map((step, index) => ({
+        ...step,
+        status: index === 0 ? 'active' : 'pending',
+      }))
+    );
+
+    for (let i = 0; i < labels.length; i++) {
+      await sleep(260);
+      setWorkingSteps((prev) =>
+        prev.map((step, index) => {
+          if (index < i) return { ...step, status: 'done' };
+          if (index === i) return { ...step, status: 'active' };
+          return { ...step, status: 'pending' };
+        })
+      );
+    }
+
+    await sleep(180);
+    setWorkingSteps((prev) => prev.map((step) => ({ ...step, status: 'done' })));
+  };
+
+  const handleSendMessage = async (
+    text: string,
+    sendMode: 'ask' | 'agent',
+    waitForApproval: boolean
+  ) => {
     setSending(true);
+    setCompletion(null);
 
     try {
       if (sendMode === 'ask') {
-        // "Ask creates or updates a PLAN task with status proposed. It does not enqueue a build."
-        await createTask({
+        setWorkingSteps([]);
+        const streamPromise = runAskWorkingStream(waitForApproval);
+
+        const admit = await requestBudgetAdmit(1, 0.0075);
+        if (!admit.admitted) {
+          toast.error(admit.reason || 'Budget admission refused');
+          await streamPromise;
+          return;
+        }
+        setBudgetRevision((n) => n + 1);
+
+        const planSteps = [
+          'Clarify goal from operator prompt',
+          `Map required files and invariants for ${project.name}`,
+          'Define done_when checks and approval gate',
+        ];
+
+        const status = waitForApproval ? 'awaiting_approval' : 'queued';
+        const created = await createTask({
           org_id: project.org_id,
           project_id: project.id,
           task_type: 'PLAN',
           prompt: text,
+          status,
+          assigned_agent: 'ProjectChatAgent',
+          plan: {
+            summary: `Architectural proposal for: ${text}`,
+            steps: planSteps,
+          },
+          goal: text,
+          done_when: [
+            'Operator has reviewed the numbered plan',
+            'done_when gates are explicit and testable',
+            'No build is enqueued before approval',
+          ],
+          constraints: [
+            'Ask mode must not enqueue builds without approval',
+            'Stay within weekly budget admission',
+          ],
         });
 
-        // Send user message
-        await sendMessage(text);
+        await sendMessage(text, { proposedTaskId: created.id });
+        await streamPromise;
+        setCompletion({ prompt: text, task: created });
+        await refetchTasks();
+
+        if (!waitForApproval) {
+          setActiveAgentTaskId(created.id);
+          setMode('agent');
+        }
       } else {
-        // Agent steer message
         await sendMessage(`[Agent Directive]: ${text}`);
       }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Ask dispatch failed';
+      toast.error(message);
     } finally {
       setSending(false);
+      setWorkingSteps([]);
     }
   };
 
   const handleApprovePlan = async (taskId: string) => {
     await approveTask(taskId);
+    setActiveAgentTaskId(taskId);
     await refetchTasks();
-    // Auto-switch to Agent mode once a plan is approved
+    setCompletion(null);
     setMode('agent');
   };
 
@@ -86,9 +192,12 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
     );
   }
 
+  const showChips = mode === 'ask'
+    ? messages.length === 0 && !completion && !sending
+    : true;
+
   return (
     <div className="bg-[#161b22] border border-white/5 rounded-2xl overflow-hidden flex flex-col min-h-[640px] shadow-xl">
-      {/* Chat Sub-header with Ask | Agent Mode Switcher */}
       <div className="px-5 py-3.5 border-b border-white/5 bg-[#0d1117]/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-lg bg-[#084985]/30 border border-[#0873B7]/40 text-[#0873B7] flex items-center justify-center">
@@ -111,16 +220,14 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
           </div>
         </div>
 
-        {/* Mode Segmented Control in Header */}
         <div className="flex items-center gap-1 p-1 rounded-xl bg-[#161b22] border border-white/10 font-mono text-xs">
           <button
             type="button"
             onClick={() => setMode('ask')}
-            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
-              mode === 'ask'
+            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${mode === 'ask'
                 ? 'bg-[#1c2333] text-[#FFBD59] border border-[#F0B230]/40 shadow-sm'
                 : 'text-[#8b98a8] hover:text-[#e6edf3]'
-            }`}
+              }`}
           >
             <HelpCircle className="w-3.5 h-3.5 text-[#F0B230]" />
             <span>Ask</span>
@@ -131,13 +238,12 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
             disabled={agentDisabled}
             onClick={() => setMode('agent')}
             title={agentDisabled ? 'Agent mode requires an approved plan' : 'Open Agent workspace'}
-            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
-              mode === 'agent'
+            className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 ${mode === 'agent'
                 ? 'bg-[#1c2333] text-cyan-300 border border-cyan-500/40 shadow-sm'
                 : agentDisabled
-                ? 'text-[#8b98a8]/40 cursor-not-allowed'
-                : 'text-[#8b98a8] hover:text-[#e6edf3]'
-            }`}
+                  ? 'text-[#8b98a8]/40 cursor-not-allowed'
+                  : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              }`}
           >
             {agentDisabled ? <Lock className="w-3 h-3" /> : <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />}
             <span>Agent</span>
@@ -146,9 +252,8 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
         </div>
       </div>
 
-      {/* ── AGENT MODE: Shows TaskWorkspace from Increment 1 ── */}
       {mode === 'agent' && (
-        <div className="p-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {approvedTask ? (
             <TaskWorkspace taskId={approvedTask.id} project={project} />
           ) : (
@@ -172,69 +277,97 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
         </div>
       )}
 
-      {/* ── ASK MODE: Message History Area + Plan Cards + Composer ── */}
       {mode === 'ask' && (
-        <>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
-            {messages.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
-                <div className="w-10 h-10 rounded-full bg-[#1c2333] flex items-center justify-center text-[#F0B230] mb-2">
-                  <MessageSquare className="w-5 h-5" />
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+          {messages.length === 0 && !sending && !completion ? (
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
+              <div className="w-10 h-10 rounded-full bg-[#1c2333] flex items-center justify-center text-[#F0B230] mb-2">
+                <MessageSquare className="w-5 h-5" />
+              </div>
+              <h4 className="text-xs font-bold text-[#e6edf3]">
+                What would you like to inspect or plan for {project.name}?
+              </h4>
+              <p className="text-[11px] text-[#8b98a8] max-w-sm leading-relaxed">
+                Pick a suggestion below or type freely. Ask mode formulates a plan card with numbered steps and holds for your approval — it does not enqueue a build.
+              </p>
+            </div>
+          ) : (
+            messages.map((msg) => {
+              const proposedTask = msg.proposed_task_id
+                ? tasks.find((t) => t.id === msg.proposed_task_id) || null
+                : null;
+
+              return (
+                <div key={msg.id} className="space-y-3">
+                  <ChatMessageItem
+                    message={msg}
+                    proposedTask={proposedTask}
+                    onProposedTaskResolved={() => { }}
+                  />
+
+                  {proposedTask && proposedTask.status === 'awaiting_approval' && (
+                    <div className="ml-8">
+                      <PlanApproval
+                        task={proposedTask}
+                        onApprove={handleApprovePlan}
+                        onReject={async (taskId) => {
+                          await rejectTask(taskId);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-                <h4 className="text-xs font-bold text-[#e6edf3]">
-                  Start conversation with {project.name}'s Project Agent
-                </h4>
-                <p className="text-[11px] text-[#8b98a8] max-w-sm leading-relaxed">
-                  In <strong>Ask</strong> mode, ask about recent tasks, open regression findings, spend, or brainstorm an improvement. The agent formulates a plan card with numbered steps awaiting your approval.
-                </p>
-              </div>
-            ) : (
-              messages.map((msg) => {
-                const proposedTask = msg.proposed_task_id
-                  ? tasks.find((t) => t.id === msg.proposed_task_id) || null
-                  : null;
+              );
+            })
+          )}
 
-                return (
-                  <div key={msg.id} className="space-y-3">
-                    <ChatMessageItem
-                      message={msg}
-                      proposedTask={proposedTask}
-                      onProposedTaskResolved={() => {}}
+          {awaitingPlans.length > 0 && (
+            <div className="space-y-3 pt-2 border-t border-white/5">
+              <p className="text-[10px] font-mono uppercase tracking-wide text-[#8b98a8]">
+                Plans awaiting approval
+              </p>
+              {awaitingPlans
+                .filter((task) => !messages.some((m) => m.proposed_task_id === task.id))
+                .map((task) => (
+                  <div key={task.id} className="ml-0 sm:ml-8">
+                    <PlanApproval
+                      task={task}
+                      onApprove={handleApprovePlan}
+                      onReject={async (taskId) => {
+                        await rejectTask(taskId);
+                      }}
                     />
-
-                    {/* If message has an awaiting_approval task, show PlanApproval directly */}
-                    {proposedTask && proposedTask.status === 'awaiting_approval' && (
-                      <div className="ml-8">
-                        <PlanApproval
-                          task={proposedTask}
-                          onApprove={handleApprovePlan}
-                          onReject={rejectTask}
-                        />
-                      </div>
-                    )}
                   </div>
-                );
-              })
-            )}
+                ))}
+            </div>
+          )}
 
-            {sending && (
-              <div className="flex items-center gap-2 text-xs font-mono text-[#8b98a8] p-2">
-                <span className="w-2 h-2 rounded-full bg-[#F0B230] animate-ping" />
-                <span>ProjectChatAgent is formulating architectural proposal...</span>
-              </div>
-            )}
-          </div>
+          {sending && workingSteps.length > 0 && (
+            <AgentWorkingStream steps={workingSteps} headline="ProjectChatAgent is working…" />
+          )}
 
-          {/* Composer at Bottom */}
-          <ChatComposer
-            onSend={handleSendMessage}
-            disabled={sending}
-            mode={mode}
-            onModeChange={setMode}
-            agentDisabled={agentDisabled}
-          />
-        </>
+          {completion && !sending && (
+            <AgentCompletionCard
+              prompt={completion.prompt}
+              task={completion.task}
+              onFollowUp={(followUpText) => {
+                void handleSendMessage(followUpText, 'ask', true);
+              }}
+            />
+          )}
+        </div>
       )}
+
+      <ChatComposer
+        onSend={handleSendMessage}
+        disabled={sending || (mode === 'agent' && agentDisabled)}
+        mode={mode}
+        onModeChange={setMode}
+        agentDisabled={agentDisabled}
+        showChipGrid={showChips}
+        showModeToggle={false}
+        budgetRevision={budgetRevision}
+      />
     </div>
   );
 };

@@ -5,10 +5,10 @@ import { MOCK_TASKS } from '../lib/mockData';
 
 const getTasks = async (projectId?: string): Promise<AgentTask[]> => {
   if (typeof window === 'undefined') return [...MOCK_TASKS];
-  
+
   const saved = localStorage.getItem('geosan_tasks');
   let tasks: AgentTask[] = [];
-  
+
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -42,6 +42,12 @@ export function useTasks(projectId?: string) {
       project_id: string;
       task_type: TaskType;
       prompt: string;
+      status?: AgentTask['status'];
+      plan?: AgentTask['plan'];
+      assigned_agent?: string | null;
+      goal?: string;
+      constraints?: string[];
+      done_when?: string[];
     }) => {
       const allTasks = await getTasks();
       const newTask: AgentTask = {
@@ -51,30 +57,33 @@ export function useTasks(projectId?: string) {
         task_type: params.task_type,
         parent_task_id: null,
         prompt: params.prompt,
-        status: 'queued',
-        assigned_agent: null,
-        plan: null,
+        status: params.status ?? 'queued',
+        assigned_agent: params.assigned_agent ?? null,
+        plan: params.plan ?? null,
         result: null,
         branch_name: null,
         pr_url: null,
         created_at: new Date().toISOString(),
         started_at: null,
-        completed_at: null
+        completed_at: null,
+        goal: params.goal,
+        constraints: params.constraints,
+        done_when: params.done_when,
       };
-      
+
       saveTasks([newTask, ...allTasks]);
-      
+
       // We removed the frontend simulated orchestrator delays. 
       // A real orchestrator backend will handle status transitions.
       return newTask;
     },
-    onSuccess: () => {
+    onSuccess: (_task, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      toast.success('Task dispatched to coordinator');
+      const awaiting = variables.status === 'awaiting_approval';
+      toast.success(awaiting ? 'Plan proposed — awaiting operator approval' : 'Task dispatched to coordinator');
     },
     onError: () => toast.error('Failed to create task')
   });
-
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string, status: AgentTask['status'] }) => {
       const allTasks = await getTasks();
