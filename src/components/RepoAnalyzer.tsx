@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Project, AgentTask } from '../lib/types';
 import { useTasks } from '../hooks/useTasks';
 import { useToast } from '../components/Toast';
+import { GitHubRepoPicker } from './GitHubRepoPicker';
+import { catalogUrl, GitHubCatalogRepo } from '../data/githubRepos';
 import {
   pullRepositoryFromGitHub,
   analyzeRepository,
@@ -194,13 +196,42 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
 
   const filteredFindings = report
     ? report.findings.filter((f) => {
-        if (selectedCategory === 'all') return true;
-        return f.category === selectedCategory;
-      })
+      if (selectedCategory === 'all') return true;
+      return f.category === selectedCategory;
+    })
     : [];
+
+  const handleEnabledReposChange = (
+    enabled: GitHubCatalogRepo[],
+    toggled: GitHubCatalogRepo,
+    enabledNow: boolean
+  ) => {
+    if (enabledNow) {
+      setRepoUrl(catalogUrl(toggled.fullName));
+      setBranch(toggled.defaultBranch || 'main');
+      return;
+    }
+    // If the analyzer was pointed at a repo that was just disabled, fall back.
+    const toggledUrl = catalogUrl(toggled.fullName);
+    if (repoUrl.replace(/\.git$/, '') !== toggledUrl) return;
+    if (enabled.length > 0) {
+      const next = enabled[enabled.length - 1];
+      setRepoUrl(catalogUrl(next.fullName));
+      setBranch(next.defaultBranch || 'main');
+      return;
+    }
+    setRepoUrl(project.repo_url || `https://github.com/ehi-enterprise/${project.slug || 'logistics-engine'}`);
+    setBranch(project.git_branch || 'main');
+  };
 
   return (
     <div className="space-y-6">
+      <GitHubRepoPicker
+        productName={project.name}
+        preferredFullName={project.repo_url}
+        onEnabledChange={handleEnabledReposChange}
+      />
+
       {/* ── TOP CONTROL BAR: GITHUB REPO CONNECTOR ── */}
       <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 shadow-md space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -312,13 +343,12 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
               <div className="flex items-center justify-between">
                 <span className="text-xs font-mono uppercase text-[#8b98a8]">Codebase Health Score</span>
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                    report.healthScore >= 80
-                      ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40'
-                      : report.healthScore >= 60
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${report.healthScore >= 80
+                    ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40'
+                    : report.healthScore >= 60
                       ? 'bg-amber-950/60 text-amber-400 border border-amber-500/40'
                       : 'bg-red-950/60 text-red-400 border border-red-500/40'
-                  }`}
+                    }`}
                 >
                   {report.healthScore >= 80 ? 'HEALTHY' : report.healthScore >= 60 ? 'NEEDS ATTENTION' : 'CRITICAL GAPS'}
                 </span>
@@ -334,13 +364,12 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
               {/* Progress bar */}
               <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
                 <div
-                  className={`h-full transition-all duration-500 ${
-                    report.healthScore >= 80
-                      ? 'bg-emerald-400'
-                      : report.healthScore >= 60
+                  className={`h-full transition-all duration-500 ${report.healthScore >= 80
+                    ? 'bg-emerald-400'
+                    : report.healthScore >= 60
                       ? 'bg-amber-400'
                       : 'bg-red-500'
-                  }`}
+                    }`}
                   style={{ width: `${report.healthScore}%` }}
                 />
               </div>
@@ -409,11 +438,10 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                   <button
                     key={cat.id}
                     onClick={() => setSelectedCategory(cat.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-colors ${
-                      selectedCategory === cat.id
-                        ? 'bg-[#F0B230]/20 text-[#FFBD59] border border-[#F0B230]/40 font-bold'
-                        : 'bg-white/5 text-[#8b98a8] hover:text-[#e6edf3]'
-                    }`}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-colors ${selectedCategory === cat.id
+                      ? 'bg-[#F0B230]/20 text-[#FFBD59] border border-[#F0B230]/40 font-bold'
+                      : 'bg-white/5 text-[#8b98a8] hover:text-[#e6edf3]'
+                      }`}
                   >
                     {cat.label}
                   </button>
@@ -430,11 +458,10 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                 return (
                   <div
                     key={finding.id}
-                    className={`rounded-2xl border transition-all ${
-                      isExpanded
-                        ? 'bg-[#161b22] border-[#F0B230]/40 shadow-lg'
-                        : 'bg-[#161b22]/70 border-white/5 hover:border-white/15'
-                    }`}
+                    className={`rounded-2xl border transition-all ${isExpanded
+                      ? 'bg-[#161b22] border-[#F0B230]/40 shadow-lg'
+                      : 'bg-[#161b22]/70 border-white/5 hover:border-white/15'
+                      }`}
                   >
                     {/* Header Row */}
                     <div
@@ -443,11 +470,10 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className={`mt-0.5 p-1.5 rounded-lg ${
-                            isCritical
-                              ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                              : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}
+                          className={`mt-0.5 p-1.5 rounded-lg ${isCritical
+                            ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            }`}
                         >
                           {isCritical ? <ShieldAlert className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                         </div>
@@ -455,11 +481,10 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                         <div>
                           <div className="flex items-center gap-2 flex-wrap mb-1">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${
-                                isCritical
-                                  ? 'bg-red-950/60 text-red-400 border border-red-500/40'
-                                  : 'bg-amber-950/60 text-amber-400 border border-amber-500/40'
-                              }`}
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-bold ${isCritical
+                                ? 'bg-red-950/60 text-red-400 border border-red-500/40'
+                                : 'bg-amber-950/60 text-amber-400 border border-amber-500/40'
+                                }`}
                             >
                               {finding.severity}
                             </span>
@@ -596,11 +621,10 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                 <div
                   key={file.path}
                   onClick={() => setSelectedFileForPreview(file.path === selectedFileForPreview ? null : file.path)}
-                  className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    selectedFileForPreview === file.path
-                      ? 'bg-[#1c2333] border-[#F0B230] text-[#e6edf3]'
-                      : 'bg-[#0d1117] border-white/5 text-[#8b98a8] hover:border-white/15'
-                  }`}
+                  className={`p-2.5 rounded-xl border cursor-pointer transition-all ${selectedFileForPreview === file.path
+                    ? 'bg-[#1c2333] border-[#F0B230] text-[#e6edf3]'
+                    : 'bg-[#0d1117] border-white/5 text-[#8b98a8] hover:border-white/15'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-semibold text-[11px] truncate text-[#e6edf3]">{file.path}</span>
