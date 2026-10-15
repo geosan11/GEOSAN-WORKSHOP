@@ -82,7 +82,7 @@ export const MonitoringScreen: React.FC = () => {
             type="button"
             onClick={handleRunProbes}
             disabled={isProbing}
-            className="px-3.5 py-1.5 rounded-lg btn-gold text-xs font-mono font-bold flex items-center gap-1.5 disabled:opacity-50"
+            className="btn btn-primary disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isProbing ? 'animate-spin' : ''}`} />
             <span>{isProbing ? 'Probing…' : 'Probe Now'}</span>

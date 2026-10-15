@@ -79,7 +79,7 @@ export const QARunsScreen: React.FC = () => {
         actions={
           <button
             onClick={() => navigate({ kind: 'console' })}
-            className="px-4 py-2 rounded-lg btn-gold text-xs font-bold transition-colors flex items-center gap-1.5 self-start shadow-sm"
+            className="btn btn-primary self-start"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
             Dispatch QA Run

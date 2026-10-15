@@ -217,7 +217,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             <button
               type="button"
               onClick={() => setIsDispatchModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg btn-gold text-xs font-mono font-bold flex items-center gap-1.5"
+              className="btn btn-primary"
             >
               <Plus className="w-3.5 h-3.5" />
               Dispatch
@@ -319,7 +319,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                             setActiveTaskId(nextActionTask.id);
                             setOpenWorkspace(true);
                           }}
-                          className="px-3 py-1.5 rounded-lg btn-gold text-xs font-mono font-bold flex items-center gap-1.5"
+                          className="btn btn-primary"
                         >
                           Open <ArrowRight className="w-3.5 h-3.5" />
                         </button>

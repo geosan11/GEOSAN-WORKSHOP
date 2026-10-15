@@ -46,7 +46,7 @@ export const TopBar: React.FC = () => {
   const getScreenTitle = () => screenTitle(screen);
 
   return (
-    <header className="sticky top-0 z-30 w-full bg-[#161b22]/95 border-b border-white/10 backdrop-blur-md px-4 md:px-6 h-14 flex items-center justify-between font-sans">
+    <header className="sticky top-0 z-30 w-full bg-card/95 border-b border-app backdrop-blur-md px-4 md:px-6 h-14 flex items-center justify-between font-sans">
       {/* Breadcrumb / Title Area */}
       <div className="flex items-center gap-2 font-mono text-xs truncate">
         {projectCrumb ? (
@@ -70,7 +70,7 @@ export const TopBar: React.FC = () => {
             <span className="text-emerald-400 font-bold">{projectCrumb.groupName}</span>
           </nav>
         ) : (
-          <span className="text-sm font-bold text-[#e6edf3] tracking-tight">
+          <span className="font-display text-sm font-extrabold text-main tracking-[-0.03em] uppercase">
             {getScreenTitle()}
           </span>
         )}
@@ -80,19 +80,19 @@ export const TopBar: React.FC = () => {
       <div className="flex items-center gap-3">
         {/* Single Unified Live Ledger Chip */}
         <div
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0d1117] border border-white/10 text-xs font-mono text-slate-200 select-none shadow-sm cursor-help"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-app border border-app text-[0.6875rem] font-mono text-main select-none cursor-help"
           title="Tripwire 3 fails. P0 under 5 minutes."
         >
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-semibold text-slate-100 tabular-nums">
+          <span className="w-1.5 h-1.5 rounded-[1px] bg-emerald-400 animate-pulse" />
+          <span className="font-bold tabular-nums">
             {callsUsed}/{callsCap}
           </span>
-          <span className="text-slate-500">·</span>
-          <span className="font-semibold text-emerald-400 tabular-nums">
+          <span className="text-muted">·</span>
+          <span className="font-bold text-primary tabular-nums">
             ${usdUsed} / ${usdCap}
           </span>
-          <span className="text-slate-500">·</span>
-          <span className="text-amber-400 font-bold">{weekKey}</span>
+          <span className="text-muted">·</span>
+          <span className="stamp stamp-primary !py-0">{weekKey}</span>
         </div>
 
         {/* Jump Button (Cmd-K / Ctrl-K) */}
@@ -101,16 +101,16 @@ export const TopBar: React.FC = () => {
           onClick={() => {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
           }}
-          className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] hover:bg-[#1c2333] border border-white/10 text-[#8b98a8] hover:text-[#e6edf3] text-[11px] font-mono transition-colors"
+          className="btn btn-ghost hidden sm:inline-flex"
           title="Jump to vertical, run, lesson, or probe (Cmd-K / Ctrl-K or /)"
           aria-label="Open command palette"
         >
           <Search className="w-3.5 h-3.5 text-primary" />
           <span>Jump</span>
-          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-app text-muted">
+          <kbd className="text-[9px] px-1 py-0.2 rounded-[var(--radius-stamp)] bg-app border border-app text-muted normal-case tracking-normal">
             ⌘K
           </kbd>
-          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-app text-muted">
+          <kbd className="text-[9px] px-1 py-0.2 rounded-[var(--radius-stamp)] bg-app border border-app text-muted normal-case tracking-normal">
             /
           </kbd>
         </button>

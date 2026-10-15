@@ -10,8 +10,8 @@ interface PageHeaderProps {
 }
 
 /**
- * Shared screen chrome: optional eyebrow → title → lede → actions.
- * Prefer this over bespoke H1 blocks so every page orients the same way.
+ * Shared screen chrome: eyebrow stamp → display title → lede → actions.
+ * Type hierarchy follows Futur craft: weight contrast + hairline rule.
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({
     eyebrow,
@@ -21,21 +21,24 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     className = '',
 }) => {
     return (
-        <div
-            className={`flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-4 border-b border-app ${className}`}
-        >
-            <div className="min-w-0 space-y-1">
-                {eyebrow ? (
-                    <div className="flex items-center gap-2 text-meta flex-wrap">{eyebrow}</div>
-                ) : null}
-                <h1 className="text-page-title truncate">{title}</h1>
-                {lede ? <p className="text-xs text-muted max-w-2xl leading-relaxed">{lede}</p> : null}
-            </div>
-            {actions ? (
-                <div className="flex items-center gap-2 font-mono text-xs shrink-0 flex-wrap sm:pt-0.5">
-                    {actions}
+        <div className={`space-y-3 ${className}`}>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="min-w-0 space-y-2">
+                    {eyebrow ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="stamp stamp-primary">{eyebrow}</span>
+                        </div>
+                    ) : null}
+                    <h1 className="text-page-title truncate">{title}</h1>
+                    {lede ? <p className="text-lede">{lede}</p> : null}
                 </div>
-            ) : null}
+                {actions ? (
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:pb-1">
+                        {actions}
+                    </div>
+                ) : null}
+            </div>
+            <div className="rule-gold" aria-hidden="true" />
         </div>
     );
 };

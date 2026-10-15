@@ -11,7 +11,7 @@ interface SectionCardProps {
 }
 
 /**
- * Contained panel for related content — progressive disclosure Level 1/2 wrapper.
+ * Contained panel — flat geometric card with optional gold hairline accent.
  */
 export const SectionCard: React.FC<SectionCardProps> = ({
     title,
@@ -24,12 +24,12 @@ export const SectionCard: React.FC<SectionCardProps> = ({
     const hasHeader = Boolean(title || description || actions);
 
     return (
-        <section className={`section-card overflow-hidden shadow-lg ${className}`}>
+        <section className={`section-card section-card-accent overflow-hidden ${className}`}>
             {hasHeader ? (
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 px-4 md:px-5 py-3.5 border-b border-app">
-                    <div className="min-w-0 space-y-0.5">
+                    <div className="min-w-0 space-y-1">
                         {title ? <h2 className="text-section-title">{title}</h2> : null}
-                        {description ? <p className="text-xs text-muted leading-relaxed">{description}</p> : null}
+                        {description ? <p className="text-lede text-[0.75rem] max-w-3xl">{description}</p> : null}
                     </div>
                     {actions ? <div className="flex items-center gap-2 shrink-0">{actions}</div> : null}
                 </div>

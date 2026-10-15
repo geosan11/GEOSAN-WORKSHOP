@@ -169,7 +169,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
                   setTaskType('BUILD_FEATURE');
                   setIsCreatingTask(true);
                 }}
-                className="px-3 py-1.5 rounded-lg btn-gold font-mono text-xs font-bold flex items-center gap-1.5"
+                className="btn btn-primary"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Build feature
@@ -180,7 +180,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
                   setTaskType('FIX_BUG');
                   setIsCreatingTask(true);
                 }}
-                className="px-3 py-1.5 rounded-lg bg-card border border-app text-muted font-mono text-xs font-bold hover:text-main hover:bg-white/5 transition-colors flex items-center gap-1.5"
+                className="btn btn-ghost"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Fix bug

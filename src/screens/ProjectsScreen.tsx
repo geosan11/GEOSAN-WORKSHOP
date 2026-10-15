@@ -72,7 +72,7 @@ export const ProjectsScreen: React.FC = () => {
           <button
             type="button"
             onClick={() => openWizard('ai')}
-            className="px-3.5 py-2 rounded-lg btn-gold font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
+            className="btn btn-primary"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>New Project</span>

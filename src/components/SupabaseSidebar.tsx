@@ -64,20 +64,15 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
             onClick={() => navigate({ kind: 'inbox' })}
             className="flex items-center gap-2.5 cursor-pointer group text-left"
           >
-            <div className="w-8 h-8 rounded-lg bg-primary-container border border-[color:var(--color-primary)]/40 flex items-center justify-center text-primary shadow-md group-hover:border-[color:var(--color-primary)] transition-colors">
+            <div className="w-8 h-8 rounded-[var(--radius-control)] bg-primary text-[color:var(--color-on-primary)] flex items-center justify-center transition-colors group-hover:brightness-110">
               <SupabaseLogo className="w-4 h-4" />
             </div>
             {!collapsed && (
-              <div className="flex flex-col">
-                <span className="font-bold text-xs tracking-tight text-main font-mono group-hover:text-primary transition-colors flex items-center gap-1">
-                  GEOSAN
-                  <span className="text-[9px] px-1 py-0.2 rounded bg-primary-container text-primary font-bold border border-[color:var(--color-primary)]/30">
-                    OPS
-                  </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="font-display font-extrabold text-[0.8125rem] tracking-[-0.03em] text-main uppercase group-hover:text-primary transition-colors">
+                  Geosan
                 </span>
-                <span className="text-[10px] text-muted font-mono truncate max-w-[120px]">
-                  Command Center
-                </span>
+                <span className="stamp stamp-primary !px-1 !py-0 w-fit">Ops</span>
               </div>
             )}
           </button>
@@ -112,26 +107,24 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
                   onClick={() => navigate(leaf.screen)}
                   title={collapsed ? leaf.label : undefined}
                   aria-label={badge !== undefined ? `${leaf.label}, ${badge} waiting` : leaf.label}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-all group relative ${active
-                    ? 'bg-primary-container text-primary font-semibold border-l-2 border-[color:var(--color-primary)] shadow-sm'
-                    : 'text-slate-300 hover:text-white hover:bg-white/5'
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[var(--radius-control)] text-xs font-medium transition-colors group relative border-l-2 ${active
+                    ? 'nav-item-active'
+                    : 'border-transparent text-slate-300 hover:text-main hover:bg-white/[0.04]'
                     }`}
                 >
                   <Icon
-                    className={`w-4 h-4 shrink-0 transition-colors ${active ? 'text-primary' : 'text-muted group-hover:text-primary'
+                    className={`w-3.5 h-3.5 shrink-0 transition-colors ${active ? 'text-primary' : 'text-muted group-hover:text-primary'
                       }`}
                   />
 
                   {!collapsed && (
-                    <span className="truncate flex-1 text-left font-mono text-[12px]">
+                    <span className={`truncate flex-1 text-left font-mono text-[11px] tracking-wide ${active ? 'font-bold' : ''}`}>
                       {leaf.label}
                     </span>
                   )}
 
                   {!collapsed && badge !== undefined && (
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                      {badge}
-                    </span>
+                    <span className="stamp stamp-warn">{badge}</span>
                   )}
                 </button>
               );
