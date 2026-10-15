@@ -13,7 +13,7 @@
     "clean": "rimraf dist server.js",
     "lint": "tsc --noEmit",
     "verify": "npm run lint && npm run build",
-    "harness": "bash scripts/deterministic.sh all"
+    "harness": "npm run lint && node scripts/check-deps.mjs && npx tsx scripts/replay-budget.ts && npx tsx scripts/full-system-test.ts && npx tsx scripts/design-lint.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

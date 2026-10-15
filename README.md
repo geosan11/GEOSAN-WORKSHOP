@@ -62,13 +62,12 @@ npm run verify
 npm run harness
 
 # Windows PowerShell deterministic test harness
-powershell scripts/verify.ps1
+pwsh -ExecutionPolicy Bypass -File scripts/verify.ps1
 ```
 
 ### CI / CD
-GitHub Actions runs on every pull request and on pushes to `main`:
+GitHub Actions runs a single `CI` job on every pull request and on pushes to `main`:
 
-1. **Typecheck & Build** — `npm ci` → `npm run lint` → `npm run build`
-2. **Deterministic Harness** — dependency weight check, budget/telemetry replay, system invariants, design lint
+`npm ci` → typecheck → dependency weight check → budget/telemetry replay → system invariants → design lint → production build
 
-Vercel should use `npm ci` + `npm run build` (see `vercel.json`). Protect `main` so merges require both CI jobs to pass, and keep production deploys tied to green `main` only.
+Vercel uses `npm ci` + `npm run build` (see `vercel.json`). Protect `main` so merges require the `CI` check to pass, and keep production deploys tied to green `main` only.

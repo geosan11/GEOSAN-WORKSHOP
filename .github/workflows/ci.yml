@@ -7,17 +7,17 @@ on:
       - main
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  verify:
-    name: Typecheck & Build
+  ci:
+    name: CI
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.nvmrc'
+          node-version-file: ".nvmrc"
           cache: npm
 
       - name: Install dependencies
@@ -34,34 +34,17 @@ jobs:
       - name: Typecheck
         run: npm run lint
 
-      - name: Production build
-        run: npm run build
-
-  harness:
-    name: Deterministic Harness
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Dependency weight + package check
-        run: bash scripts/deterministic.sh format-check
+      - name: Dependency weight check
+        run: node scripts/check-deps.mjs
 
       - name: Budget & telemetry replay
-        run: bash scripts/deterministic.sh replay
+        run: npx tsx scripts/replay-budget.ts
 
       - name: Full system invariants
-        run: bash scripts/deterministic.sh system
+        run: npx tsx scripts/full-system-test.ts
 
       - name: Design / slop critic lint
-        run: bash scripts/deterministic.sh design-lint
+        run: npx tsx scripts/design-lint.ts
+
+      - name: Production build
+        run: npm run build
