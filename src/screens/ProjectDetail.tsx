@@ -40,6 +40,7 @@ import {
   Save,
   MessageSquare
 } from 'lucide-react';
+import { PageHeader, SectionCard } from '../components/ui';
 
 interface ProjectDetailProps {
   projectId: string;
@@ -108,6 +109,16 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
   }, [qaRuns, projectId]);
 
   const monthSpend = projectMonthlySpend(costEvents, projectId);
+
+  const nextActionTask = useMemo(() => {
+    const open = projectTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+    return (
+      open.find((t) => t.status === 'awaiting_approval' || t.status === 'proposed') ||
+      open.find((t) => t.status === 'running') ||
+      open[0] ||
+      null
+    );
+  }, [projectTasks]);
 
   const handleDispatchTaskFromModal = async (params: {
     projectId: string;
@@ -180,30 +191,60 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
   const groups = [
     { id: 'work', label: 'Work', icon: Layers, count: projectTasks.length },
     { id: 'verify', label: 'Verify', icon: ShieldCheck, count: projectFindings.length },
-    { id: 'money', label: 'Money', icon: DollarSign },
+    { id: 'money', label: 'Spend', icon: DollarSign },
     { id: 'system', label: 'System', icon: Cpu },
     { id: 'spec', label: 'Spec', icon: FileText }
   ] as const;
 
+  const selectGroup = (id: (typeof groups)[number]['id']) => {
+    setActiveGroup(id);
+    setOpenWorkspace(false);
+    navigate({ kind: 'project', projectId, tab: id });
+  };
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* 5 Project Navigation Groups Bar */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3 font-mono text-xs overflow-x-auto">
+      <PageHeader
+        eyebrow="Build · Project"
+        title={project.name.split(' (')[0]}
+        lede={
+          nextActionTask
+            ? `Next: ${nextActionTask.status.replace(/_/g, ' ')} · ${nextActionTask.prompt.slice(0, 80)}${nextActionTask.prompt.length > 80 ? '…' : ''}`
+            : `${project.vertical} · Open Work to dispatch the first agent action.`
+        }
+        actions={
+          activeGroup === 'work' && !openWorkspace ? (
+            <button
+              type="button"
+              onClick={() => setIsDispatchModalOpen(true)}
+              className="px-3 py-1.5 rounded-lg btn-gold text-xs font-mono font-bold flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Dispatch
+            </button>
+          ) : null
+        }
+      />
+
+      <div
+        className="flex items-center gap-1.5 border-b border-app pb-3 font-mono text-xs overflow-x-auto"
+        role="tablist"
+        aria-label="Project workspace groups"
+      >
         {groups.map((g) => {
           const Icon = g.icon;
           const isActive = activeGroup === g.id;
           return (
             <button
               key={g.id}
-              onClick={() => {
-                setActiveGroup(g.id);
-                setOpenWorkspace(false);
-              }}
-              className={`px-3.5 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${
-                isActive
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => selectGroup(g.id)}
+              className={`px-3.5 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${isActive
+                ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40 shadow-sm'
+                : 'text-muted hover:text-main hover:bg-white/5'
+                }`}
             >
               <Icon className="w-3.5 h-3.5" />
               <span>{g.label}</span>
@@ -236,47 +277,71 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setWorkView('tasks')}
-                    className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      workView === 'tasks'
-                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <Layers className="w-3.5 h-3.5" />
-                    Tasks & Worktrees ({projectTasks.length})
-                  </button>
-                  <button
-                    onClick={() => setWorkView('chat')}
-                    className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      workView === 'chat'
-                        ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    Agent Chat
-                  </button>
-                </div>
-
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsDispatchModalOpen(true)}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5 self-start sm:self-auto shadow-sm"
+                  type="button"
+                  onClick={() => setWorkView('tasks')}
+                  className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${workView === 'tasks'
+                    ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40 shadow-sm'
+                    : 'text-muted hover:text-main hover:bg-white/5'
+                    }`}
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  Dispatch Action
+                  <Layers className="w-3.5 h-3.5" />
+                  Tasks ({projectTasks.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWorkView('chat')}
+                  className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${workView === 'chat'
+                    ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40 shadow-sm'
+                    : 'text-muted hover:text-main hover:bg-white/5'
+                    }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Agent Chat
                 </button>
               </div>
 
               {workView === 'chat' ? (
-                <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden p-2 shadow-lg">
+                <div className="section-card overflow-hidden p-2 shadow-lg">
                   <ProjectChatTab project={project} />
                 </div>
               ) : (
                 <>
+                  {nextActionTask && (
+                    <SectionCard
+                      title="Next action"
+                      description="Highest-priority open task for this vertical."
+                      actions={
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTaskId(nextActionTask.id);
+                            setOpenWorkspace(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg btn-gold text-xs font-mono font-bold flex items-center gap-1.5"
+                        >
+                          Open <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      }
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 text-muted">
+                            <User className="w-3.5 h-3.5 text-primary" />
+                            <span>{nextActionTask.assigned_agent || 'CoordinatorAgent'}</span>
+                            <span>·</span>
+                            <span>{nextActionTask.id}</span>
+                          </div>
+                          <p className="text-main font-sans font-medium line-clamp-2">
+                            {nextActionTask.prompt}
+                          </p>
+                        </div>
+                        <StatusPill status={nextActionTask.status} />
+                      </div>
+                    </SectionCard>
+                  )}
+
                   {projectTasks.length === 0 ? (
                     <EmptyState
                       title="No Tasks for this Project"
@@ -285,40 +350,43 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                       onAction={() => setIsDispatchModalOpen(true)}
                     />
                   ) : (
-                    <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5">
-                      {projectTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          onClick={() => {
-                            setActiveTaskId(task.id);
-                            setOpenWorkspace(true);
-                          }}
-                          className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#1c2333] transition-colors cursor-pointer text-xs font-mono group"
-                        >
-                          <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="flex items-center gap-1 text-slate-400">
-                                <User className="w-3.5 h-3.5 text-emerald-400" />
-                                {task.assigned_agent || 'CoordinatorAgent'}
-                              </span>
-                              <span className="text-slate-600">·</span>
-                              <span className="text-slate-400">{task.id}</span>
+                    <SectionCard flush title="All tasks" description="Open a row for the session workspace.">
+                      <div className="divide-y divide-white/5">
+                        {projectTasks.map((task) => (
+                          <button
+                            key={task.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveTaskId(task.id);
+                              setOpenWorkspace(true);
+                            }}
+                            className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/5 transition-colors text-xs font-mono group"
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-1 text-muted">
+                                  <User className="w-3.5 h-3.5 text-primary" />
+                                  {task.assigned_agent || 'CoordinatorAgent'}
+                                </span>
+                                <span className="text-slate-600">·</span>
+                                <span className="text-muted">{task.id}</span>
+                              </div>
+                              <p className="text-main font-sans font-medium line-clamp-1">
+                                {task.prompt}
+                              </p>
                             </div>
-                            <p className="text-slate-200 font-sans font-medium line-clamp-1">
-                              {task.prompt}
-                            </p>
-                          </div>
 
-                          <div className="flex items-center gap-3 shrink-0">
-                            <StatusPill status={task.status} />
-                            <span className="text-slate-500 text-[10px] hidden md:inline">
-                              {formatRelative(task.created_at)}
-                            </span>
-                            <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-400 transition-colors" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <StatusPill status={task.status} />
+                              <span className="text-muted text-[10px] hidden md:inline">
+                                {formatRelative(task.created_at)}
+                              </span>
+                              <ArrowRight className="w-3.5 h-3.5 text-muted group-hover:text-primary transition-colors" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </SectionCard>
                   )}
                 </>
               )}
@@ -343,22 +411,20 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setVerifyView('findings')}
-                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  verifyView === 'findings'
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${verifyView === 'findings'
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
               >
                 <ShieldCheck className="w-3.5 h-3.5" />
                 Findings ({projectFindings.length})
               </button>
               <button
                 onClick={() => setVerifyView('runs')}
-                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  verifyView === 'runs'
-                    ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${verifyView === 'runs'
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`}
               >
                 <Play className="w-3.5 h-3.5" />
                 QA Runs ({projectRuns.length})
@@ -402,13 +468,12 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
 
                     <div className="flex items-center gap-3 shrink-0">
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                          run.status === 'completed'
-                            ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
-                            : run.status === 'failed'
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${run.status === 'completed'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
+                          : run.status === 'failed'
                             ? 'bg-rose-950 text-rose-400 border border-rose-500/30'
                             : 'bg-amber-950 text-amber-400 border border-amber-500/30'
-                        }`}
+                          }`}
                       >
                         {run.status}
                       </span>
@@ -438,11 +503,10 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                       <div className="space-y-1.5 flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${
-                              finding.severity === 'critical'
-                                ? 'bg-rose-950 text-rose-400 border border-rose-500/40'
-                                : 'bg-amber-950 text-amber-400 border border-amber-500/40'
-                            }`}
+                            className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${finding.severity === 'critical'
+                              ? 'bg-rose-950 text-rose-400 border border-rose-500/40'
+                              : 'bg-amber-950 text-amber-400 border border-amber-500/40'
+                              }`}
                           >
                             {finding.severity}
                           </span>
@@ -582,11 +646,10 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                       setHardStopEnabled(!hardStopEnabled);
                       toast.info(`Hard-stop ${!hardStopEnabled ? 'enabled' : 'disabled'} for ${project.id}`);
                     }}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${
-                      hardStopEnabled
-                        ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${hardStopEnabled
+                      ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
                   >
                     {hardStopEnabled ? 'Armed' : 'Toggle'}
                   </button>
@@ -639,22 +702,20 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
               return (
                 <div
                   key={q.id}
-                  className={`p-4 rounded-xl bg-[#161b22] border transition-all space-y-2 text-xs font-mono ${
-                    isUnanswered
-                      ? 'border-amber-500/50 bg-amber-500/5'
-                      : 'border-white/10'
-                  }`}
+                  className={`p-4 rounded-xl bg-[#161b22] border transition-all space-y-2 text-xs font-mono ${isUnanswered
+                    ? 'border-amber-500/50 bg-amber-500/5'
+                    : 'border-white/10'
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-100 font-sans text-sm">
                       {q.title}
                     </span>
                     <span
-                      className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${
-                        isUnanswered
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                      }`}
+                      className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${isUnanswered
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                        : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                        }`}
                     >
                       {isUnanswered ? 'Unanswered' : 'Answered'}
                     </span>
@@ -667,11 +728,10 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                     value={currentVal}
                     onChange={(e) => handleDiscoveryChange(q.id, e.target.value)}
                     placeholder={`Document specification decision for ${q.title}...`}
-                    className={`w-full rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${
-                      isUnanswered
-                        ? 'bg-[#0d1117] border border-amber-500/40 focus:border-amber-400 placeholder:text-amber-500/40'
-                        : 'bg-[#0d1117] border border-white/10 focus:border-emerald-400'
-                    }`}
+                    className={`w-full rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${isUnanswered
+                      ? 'bg-[#0d1117] border border-amber-500/40 focus:border-amber-400 placeholder:text-amber-500/40'
+                      : 'bg-[#0d1117] border border-white/10 focus:border-emerald-400'
+                      }`}
                   />
                 </div>
               );

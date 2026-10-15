@@ -202,9 +202,16 @@ export const ProjectsScreen: React.FC = () => {
                           {formatCost(spend)}
                         </td>
                         <td className="py-3.5 px-4 text-right">
-                          <span className="inline-flex items-center gap-1 text-primary group-hover:brightness-110 font-bold">
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 text-primary group-hover:brightness-110 font-bold"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate({ kind: 'project', projectId: project.id, tab: 'work' });
+                            }}
+                          >
                             Open Work <ArrowRight className="w-3.5 h-3.5" />
-                          </span>
+                          </button>
                         </td>
                       </tr>
                     );

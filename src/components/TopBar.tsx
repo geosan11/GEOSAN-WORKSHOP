@@ -31,7 +31,7 @@ export const TopBar: React.FC = () => {
     // Group name mapping
     let groupName = 'Work';
     if (screen.tab === 'verify' || screen.tab === 'qa') groupName = 'Verify';
-    else if (screen.tab === 'money' || screen.tab === 'costs') groupName = 'Money';
+    else if (screen.tab === 'money' || screen.tab === 'costs') groupName = 'Spend';
     else if (screen.tab === 'system' || screen.tab === 'codebase' || screen.tab === 'components') groupName = 'System';
     else if (screen.tab === 'spec' || screen.tab === 'discovery' || screen.tab === 'design') groupName = 'Spec';
 
