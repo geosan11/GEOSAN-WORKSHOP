@@ -3,7 +3,7 @@ import { useSharedStatus } from '../lib/sharedStatus';
 import { useProjects } from '../hooks/useProjects';
 import { useToast } from '../components/Toast';
 import { RefreshCw, Activity, CheckCircle2, ShieldCheck, Radio } from 'lucide-react';
-import { PageHeader } from '../components/ui';
+import { PageHeader, SectionCard } from '../components/ui';
 
 interface VerticalProbe {
   id: string;
@@ -79,9 +79,10 @@ export const MonitoringScreen: React.FC = () => {
         lede="Production synthetic probes, latency breakdown, and edge telemetry."
         actions={
           <button
+            type="button"
             onClick={handleRunProbes}
             disabled={isProbing}
-            className="px-3.5 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3.5 py-1.5 rounded-lg btn-gold text-xs font-mono font-bold flex items-center gap-1.5 disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isProbing ? 'animate-spin' : ''}`} />
             <span>{isProbing ? 'Probing…' : 'Probe Now'}</span>
@@ -89,11 +90,12 @@ export const MonitoringScreen: React.FC = () => {
         }
       />
 
-      {/* FOUR FIGURES (Uptime, Edge p95, Upstream 1/hr, Incidents) with 1-hour series */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
-        {/* Figure 1: Uptime */}
-        <div className="p-4 rounded-xl bg-[#161b22] border border-white/10 space-y-2">
-          <span className="text-[10px] text-slate-400 uppercase block">Uptime</span>
+      <div
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono"
+        aria-label="Health KPI strip"
+      >
+        <div className="p-4 rounded-xl section-card space-y-2">
+          <span className="text-meta">Uptime</span>
           <div className="flex items-baseline justify-between">
             <span className="text-2xl font-bold text-emerald-400 tabular-nums">100%</span>
             <span className="text-[10px] text-emerald-400 font-bold">1h series</span>
@@ -105,12 +107,11 @@ export const MonitoringScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Figure 2: Edge p95 */}
-        <div className="p-4 rounded-xl bg-[#161b22] border border-white/10 space-y-2">
-          <span className="text-[10px] text-slate-400 uppercase block">Edge p95</span>
+        <div className="p-4 rounded-xl section-card space-y-2">
+          <span className="text-meta">Edge p95</span>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-slate-100 tabular-nums">18 ms</span>
-            <span className="text-[10px] text-slate-400">1h series</span>
+            <span className="text-2xl font-bold text-main tabular-nums">18 ms</span>
+            <span className="text-[10px] text-muted">1h series</span>
           </div>
           <div className="flex items-center gap-1 h-3 pt-1">
             {[16, 18, 19, 17, 18, 20, 18, 17, 19, 18, 17, 18].map((val, idx) => (
@@ -124,29 +125,27 @@ export const MonitoringScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Figure 3: Upstream 1/hr */}
-        <div className="p-4 rounded-xl bg-[#161b22] border border-white/10 space-y-2">
-          <span className="text-[10px] text-slate-400 uppercase block">Upstream</span>
+        <div className="p-4 rounded-xl section-card space-y-2">
+          <span className="text-meta">Upstream</span>
           <div className="flex items-baseline justify-between">
-            <span className="text-2xl font-bold text-slate-100 tabular-nums">
+            <span className="text-2xl font-bold text-main tabular-nums">
               {statusData.upstream_pulls_this_process || 1}/hr
             </span>
-            <span className="text-[10px] text-slate-400">TTL 1h</span>
+            <span className="text-[10px] text-muted">TTL 1h</span>
           </div>
           <div className="flex items-center gap-1 h-3 pt-1">
             {[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1].map((val, idx) => (
-              <span key={idx} className="flex-1 h-2 bg-[#F0B230]/80 rounded-sm" title="1 pull / hr" />
+              <span key={idx} className="flex-1 h-2 bg-[color:var(--color-primary)]/80 rounded-sm" title="1 pull / hr" />
             ))}
           </div>
         </div>
 
-        {/* Figure 4: Incidents */}
-        <div className="p-4 rounded-xl bg-[#161b22] border border-white/10 space-y-2">
-          <span className="text-[10px] text-slate-400 uppercase block">Incidents</span>
+        <div className="p-4 rounded-xl section-card space-y-2">
+          <span className="text-meta">Incidents</span>
           <div className="flex items-baseline justify-between">
             <span className="text-2xl font-bold text-emerald-400 tabular-nums">0</span>
             <span
-              className="text-[10px] text-slate-400 cursor-help"
+              className="text-[10px] text-muted cursor-help"
               title="Tripwire 3 fails. P0 under 5 minutes."
             >
               Tripwire: 3 fails
@@ -160,11 +159,14 @@ export const MonitoringScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* ONE ROW PER VERTICAL TABLE */}
-      <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden shadow-lg">
+      <SectionCard
+        flush
+        title="Vertical probes"
+        description="One row per vertical — DNS, TLS, TTFB, and fail count."
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
-            <thead className="bg-[#0d1117] border-b border-white/10 text-slate-400 text-[10px] uppercase tracking-wider">
+            <thead className="bg-app border-b border-app text-muted text-[10px] uppercase tracking-wider">
               <tr>
                 <th className="py-3 px-4">Vertical</th>
                 <th className="py-3 px-4">DNS</th>
@@ -176,15 +178,15 @@ export const MonitoringScreen: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-white/5">
               {verticalProbes.map((probe) => (
-                <tr key={probe.id} className="hover:bg-[#1c2333] transition-colors">
-                  <td className="py-3.5 px-4 font-bold text-slate-100">
+                <tr key={probe.id} className="hover:bg-white/5 transition-colors">
+                  <td className="py-3.5 px-4 font-bold text-main">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-emerald-400" />
                       <span>{probe.name}</span>
                     </div>
                   </td>
-                  <td className="py-3.5 px-4 text-slate-300">{probe.dnsMs} ms</td>
-                  <td className="py-3.5 px-4 text-slate-300">{probe.tlsMs} ms</td>
+                  <td className="py-3.5 px-4 text-muted">{probe.dnsMs} ms</td>
+                  <td className="py-3.5 px-4 text-muted">{probe.tlsMs} ms</td>
                   <td className="py-3.5 px-4 text-emerald-400 font-bold">{probe.ttfbMs} ms</td>
                   <td className="py-3.5 px-4 text-center">
                     <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
@@ -201,7 +203,7 @@ export const MonitoringScreen: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 };
