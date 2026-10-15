@@ -102,13 +102,16 @@ export const TopBar: React.FC = () => {
             window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
           }}
           className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0d1117] hover:bg-[#1c2333] border border-white/10 text-[#8b98a8] hover:text-[#e6edf3] text-[11px] font-mono transition-colors"
-          title="Jump to vertical, run, lesson, or probe (Cmd-K / Ctrl-K)"
+          title="Jump to vertical, run, lesson, or probe (Cmd-K / Ctrl-K or /)"
           aria-label="Open command palette"
         >
-          <Search className="w-3.5 h-3.5 text-[#F0B230]" />
+          <Search className="w-3.5 h-3.5 text-primary" />
           <span>Jump</span>
-          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-white/10 text-[#8b98a8]">
+          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-app text-muted">
             ⌘K
+          </kbd>
+          <kbd className="text-[9px] px-1 py-0.2 rounded bg-white/5 border border-app text-muted">
+            /
           </kbd>
         </button>
 

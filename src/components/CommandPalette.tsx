@@ -62,7 +62,29 @@ export const CommandPalette: React.FC = () => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsOpen((prev) => !prev);
-      } else if (e.key === 'Escape' && isOpen) {
+        return;
+      }
+      // Cloud-console style: "/" opens jump when not typing in a field
+      if (
+        e.key === '/' &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !isOpen
+      ) {
+        const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+        const editable =
+          tag === 'input' ||
+          tag === 'textarea' ||
+          tag === 'select' ||
+          (e.target as HTMLElement | null)?.isContentEditable;
+        if (!editable) {
+          e.preventDefault();
+          setIsOpen(true);
+        }
+        return;
+      }
+      if (e.key === 'Escape' && isOpen) {
         e.preventDefault();
         setIsOpen(false);
       }

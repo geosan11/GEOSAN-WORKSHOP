@@ -75,8 +75,8 @@ export const MobileNavBar: React.FC = () => {
                         type="button"
                         onClick={() => go(leaf.screen)}
                         className={`flex items-center gap-2.5 p-3 rounded-xl border text-left min-h-[44px] transition-colors ${active
-                            ? 'bg-primary-container border-[color:var(--color-primary)]/50 text-primary'
-                            : 'bg-app border-app text-slate-300 hover:text-white hover:border-white/20'
+                          ? 'bg-primary-container border-[color:var(--color-primary)]/50 text-primary'
+                          : 'bg-app border-app text-slate-300 hover:text-white hover:border-white/20'
                           }`}
                       >
                         <Icon className="w-4 h-4 shrink-0 text-primary" />
@@ -106,8 +106,8 @@ export const MobileNavBar: React.FC = () => {
                       type="button"
                       onClick={() => go({ kind: 'project', projectId: p.id, tab: 'work' })}
                       className={`w-full flex items-center justify-between p-3 rounded-xl border text-left min-h-[44px] transition-colors ${active
-                          ? 'bg-card-elevated border-[color:var(--color-primary)]/50 text-primary'
-                          : 'bg-app border-app text-slate-300 hover:text-white'
+                        ? 'bg-card-elevated border-[color:var(--color-primary)]/50 text-primary'
+                        : 'bg-app border-app text-slate-300 hover:text-white'
                         }`}
                     >
                       <div className="flex items-center gap-2 truncate">
@@ -173,7 +173,7 @@ export const MobileNavBar: React.FC = () => {
           type="button"
           onClick={() => setDrawerOpen(true)}
           className="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] py-1 text-slate-400 hover:text-white transition-colors"
-          aria-label="Open full navigation menu"
+          aria-label="More"
         >
           <Menu className="w-4 h-4 mb-0.5" />
           <span className="text-[9px] font-mono">More</span>

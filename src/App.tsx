@@ -46,6 +46,13 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-main)] flex">
+      <a
+        href="#main-content"
+        className="sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-[color:var(--color-on-primary)] focus:font-bold focus:text-xs focus:w-auto focus:h-auto focus:m-0 focus:overflow-visible focus:clip-auto focus:whitespace-normal"
+      >
+        Skip to main content
+      </a>
+
       {/* Fleet Sidebar Navigation (Desktop) */}
       <div className="hidden md:block">
         <SupabaseSidebar
@@ -56,15 +63,18 @@ const AppContent: React.FC = () => {
 
       {/* Main Content View */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? 'md:pl-16' : 'md:pl-[14rem]'
-        }`}
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'md:pl-16' : 'md:pl-[14rem]'
+          }`}
       >
         {/* Fixed Header */}
         <TopBar />
 
         {/* Scrollable Content Area */}
-        <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8 overflow-y-auto">
+        <main
+          id="main-content"
+          className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8 overflow-y-auto"
+          tabIndex={-1}
+        >
           {(screen.kind === 'inbox' || screen.kind === 'portfolio') && <PortfolioScreen />}
           {screen.kind === 'projects' && <ProjectsScreen />}
           {(screen.kind === 'runs' || screen.kind === 'console') && (
