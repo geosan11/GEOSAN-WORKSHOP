@@ -9,9 +9,10 @@ import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { StatusPill } from '../components/StatusPill';
 import { VercelLogo, GitHubLogo } from '../components/ServiceLogos';
-import { FolderGit2, ChevronRight, Activity, ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, Plus } from 'lucide-react';
 import { ProjectWizardModal } from '../components/ProjectWizardModal';
 import { HowToStartCards, StartPath } from '../components/HowToStartCards';
+import { PageHeader, SectionCard } from '../components/ui';
 
 export const ProjectsScreen: React.FC = () => {
   const { navigate } = useNavigation();
@@ -56,32 +57,28 @@ export const ProjectsScreen: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Header: One H1 & Lede + Action */}
-      <div className="pb-2 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-            Projects
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Client verticals running isolated git worktrees and continuous verification.
-          </p>
-        </div>
-        <button
-          onClick={() => openWizard('ai')}
-          className="px-3.5 py-2 rounded-lg bg-[#F0B230] hover:bg-[#FFBD59] text-black font-bold text-xs flex items-center gap-1.5 transition-all shadow-md self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>New Project</span>
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Build"
+        title="Projects"
+        lede="Client verticals running isolated git worktrees and continuous verification."
+        actions={
+          <button
+            onClick={() => openWizard('ai')}
+            className="px-3.5 py-2 rounded-lg btn-gold font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>New Project</span>
+          </button>
+        }
+      />
 
       {projects.length === 0 ? (
         <HowToStartCards onChoose={openWizard} />
       ) : (
-        <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden shadow-lg">
+        <SectionCard flush>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-[#0d1117] border-b border-white/10 text-slate-400 text-[10px] uppercase tracking-wider">
+              <thead className="bg-app border-b border-app text-muted text-[10px] uppercase tracking-wider">
                 <tr>
                   <th className="py-3 px-4">Name</th>
                   <th className="py-3 px-4">Kind / Vertical</th>
@@ -164,7 +161,7 @@ export const ProjectsScreen: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
+        </SectionCard>
       )}
 
       <ProjectWizardModal

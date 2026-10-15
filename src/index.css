@@ -30,6 +30,20 @@
   --border-app: var(--color-border);
   --text-main: var(--color-text);
   --text-muted: var(--color-text-sub);
+
+  /* Material-style role aliases seeded from GEOSAN gold (dark) */
+  --color-primary: var(--color-gold);
+  --color-primary-hover: var(--color-gold-light);
+  --color-on-primary: var(--color-gold-ink);
+  --color-primary-container: rgba(240, 178, 48, 0.14);
+  --radius-card: 0.75rem;
+  --radius-control: 0.5rem;
+
+  /* Type scale */
+  --text-page: 1.25rem;
+  --text-section: 0.875rem;
+  --text-body: 0.75rem;
+  --text-meta: 0.625rem;
 }
 
 /* Keep .light in sync with html.light (theme.tsx toggles class on <html>) */
@@ -54,6 +68,11 @@ html.light {
   --border-app: rgba(15, 23, 42, 0.09);
   --text-main: #0A1420;
   --text-muted: #526071;
+
+  --color-primary: var(--color-gold);
+  --color-primary-hover: var(--color-gold-light);
+  --color-on-primary: var(--color-gold-ink);
+  --color-primary-container: rgba(217, 119, 6, 0.12);
   color-scheme: light;
 }
 
@@ -111,12 +130,52 @@ html.light {
 }
 
 .btn-gold {
-  background-color: var(--color-gold);
-  color: var(--color-gold-ink);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 .btn-gold:hover {
-  background-color: var(--color-gold-light);
+  background-color: var(--color-primary-hover);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-primary-container {
+  background-color: var(--color-primary-container);
+}
+
+.text-page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-page);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+}
+
+.text-section-title {
+  font-size: var(--text-section);
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.text-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.section-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-app);
+  border-radius: var(--radius-card);
 }
 
 body {

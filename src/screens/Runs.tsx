@@ -23,6 +23,7 @@ import {
   X,
   ShieldAlert,
 } from 'lucide-react';
+import { PageHeader } from '../components/ui';
 
 interface RunsScreenProps {
   initialRunId?: string;
@@ -123,42 +124,35 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-            Runs
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Model inference executions, worktree branches, and approval gates.
-          </p>
-        </div>
-
-        {/* Start Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setTaskType('BUILD_FEATURE');
-              setIsCreatingTask(true);
-            }}
-            className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-mono text-xs font-bold hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Build feature
-          </button>
-
-          <button
-            onClick={() => {
-              setTaskType('FIX_BUG');
-              setIsCreatingTask(true);
-            }}
-            className="px-3 py-1.5 rounded-lg bg-[#161b22] border border-white/10 text-slate-300 font-mono text-xs font-bold hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Fix bug
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Operate"
+        title="Runs"
+        lede="Model inference executions, worktree branches, and approval gates."
+        actions={
+          <>
+            <button
+              onClick={() => {
+                setTaskType('BUILD_FEATURE');
+                setIsCreatingTask(true);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 font-mono text-xs font-bold hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Build feature
+            </button>
+            <button
+              onClick={() => {
+                setTaskType('FIX_BUG');
+                setIsCreatingTask(true);
+              }}
+              className="px-3 py-1.5 rounded-lg bg-card border border-app text-muted font-mono text-xs font-bold hover:text-main hover:bg-white/5 transition-colors flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Fix bug
+            </button>
+          </>
+        }
+      />
 
       {/* Start Action Modal / Inline Form */}
       {isCreatingTask && (
