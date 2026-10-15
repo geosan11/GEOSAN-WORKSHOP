@@ -4,17 +4,12 @@ import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
 import {
   Search,
-  Inbox,
   FolderGit2,
-  Terminal,
-  Brain,
-  DollarSign,
-  Activity,
-  Settings,
   FileCode,
   ArrowRight,
   X
 } from 'lucide-react';
+import { NAV_LEAVES, sectionForScreen } from '../lib/navIA';
 
 interface PaletteOption {
   id: string;
@@ -22,6 +17,7 @@ interface PaletteOption {
   title: string;
   subtitle?: string;
   hint?: string;
+  keywords?: string[];
   icon: React.ElementType;
   screen: Screen;
   disabled?: boolean;
@@ -57,7 +53,7 @@ export const CommandPalette: React.FC = () => {
     setRecentIds(updated);
     try {
       localStorage.setItem('aether_recent_destinations', JSON.stringify(updated));
-    } catch {}
+    } catch { }
   };
 
   // Global Keyboard Listener for Cmd-K / Ctrl-K
@@ -91,15 +87,28 @@ export const CommandPalette: React.FC = () => {
   // 3. Projects (Click opens Work)
   // 4. Open tasks (An open project's tasks sort first, click opens that run)
   const items: PaletteOption[] = useMemo(() => {
-    const screens: PaletteOption[] = [
-      { id: 'screen-inbox', category: 'Screen', title: 'Inbox', subtitle: 'Operator triage & awaiting approvals', icon: Inbox, screen: { kind: 'inbox' } },
-      { id: 'screen-projects', category: 'Screen', title: 'Projects', subtitle: 'Managed client verticals list', icon: FolderGit2, screen: { kind: 'projects' } },
-      { id: 'screen-runs', category: 'Screen', title: 'Runs', subtitle: 'Execution traces and approval gates', icon: Terminal, screen: { kind: 'runs' } },
-      { id: 'screen-knowledge', category: 'Screen', title: 'Knowledge', subtitle: 'Engineering post-mortems and invariant rules', icon: Brain, screen: { kind: 'knowledge' } },
-      { id: 'screen-costs', category: 'Screen', title: 'Fleet Money', subtitle: 'Weekly inference ledger and rate admission', icon: DollarSign, screen: { kind: 'costs' } },
-      { id: 'screen-probes', category: 'Screen', title: 'Probes', subtitle: 'Production synthetic probes and edge telemetry', icon: Activity, screen: { kind: 'monitoring' } },
-      { id: 'screen-settings', category: 'Screen', title: 'Settings', subtitle: 'MCP plane and platform servers', icon: Settings, screen: { kind: 'settings' } }
-    ];
+    const screenCopy: Record<string, string> = {
+      inbox: 'Home · Operator triage and awaiting approvals',
+      projects: 'Build · Managed client verticals list',
+      runs: 'Operate · Execution traces and approval gates',
+      health: 'Observe · Production synthetic probes and edge telemetry',
+      spend: 'Observe · Weekly inference ledger and rate admission',
+      knowledge: 'Library · Engineering post-mortems and invariant rules',
+      settings: 'Library · MCP plane and platform servers',
+    };
+
+    const screens: PaletteOption[] = NAV_LEAVES.map((leaf) => {
+      const section = sectionForScreen(leaf.screen);
+      return {
+        id: `screen-${leaf.id === 'health' ? 'probes' : leaf.id === 'spend' ? 'costs' : leaf.id}`,
+        category: 'Screen' as const,
+        title: leaf.label,
+        subtitle: screenCopy[leaf.id] || (section ? `${section.label} · ${leaf.label}` : leaf.label),
+        keywords: [leaf.label, ...(section ? [section.label] : []), ...leaf.synonyms],
+        icon: leaf.icon,
+        screen: leaf.screen,
+      };
+    });
 
     const projectItems: PaletteOption[] = projects.map((p) => ({
       id: `project-${p.id}`,
@@ -176,13 +185,19 @@ export const CommandPalette: React.FC = () => {
   const filtered = useMemo(() => {
     if (!query.trim()) return items;
     const q = query.toLowerCase().trim();
-    return items.filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) ||
-        item.subtitle?.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q) ||
-        item.id.toLowerCase().includes(q)
-    );
+    return items.filter((item) => {
+      const haystack = [
+        item.title,
+        item.subtitle,
+        item.category,
+        item.id,
+        ...(item.keywords || []),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
   }, [items, query]);
 
   // Reset selected index on query change
@@ -276,17 +291,15 @@ export const CommandPalette: React.FC = () => {
                     }
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
-                  className={`w-full text-left p-3 rounded-xl flex items-center justify-between gap-3 transition-colors ${
-                    isSelected
-                      ? 'bg-[#1c2333] border border-emerald-500/40 text-slate-100'
-                      : 'bg-transparent text-slate-400 hover:text-slate-100'
-                  } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  className={`w-full text-left p-3 rounded-xl flex items-center justify-between gap-3 transition-colors ${isSelected
+                    ? 'bg-[#1c2333] border border-emerald-500/40 text-slate-100'
+                    : 'bg-transparent text-slate-400 hover:text-slate-100'
+                    } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center gap-3 truncate">
                     <div
-                      className={`p-2 rounded-lg shrink-0 ${
-                        isSelected ? 'bg-emerald-950 text-emerald-300' : 'bg-white/5 text-slate-400'
-                      }`}
+                      className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-emerald-950 text-emerald-300' : 'bg-white/5 text-slate-400'
+                        }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
@@ -298,15 +311,14 @@ export const CommandPalette: React.FC = () => {
                         </span>
                         {item.hint && (
                           <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${
-                              item.hint === 'Waiting on you'
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                : item.hint === 'Working'
+                            className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${item.hint === 'Waiting on you'
+                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              : item.hint === 'Working'
                                 ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
                                 : item.hint === 'Failed'
-                                ? 'bg-rose-950 text-rose-400 border border-rose-500/30'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
+                                  ? 'bg-rose-950 text-rose-400 border border-rose-500/30'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
                           >
                             {item.hint}
                           </span>

@@ -3,7 +3,8 @@ import { useNavigation } from '../lib/navigation';
 import { useProjects } from '../hooks/useProjects';
 import { useSharedStatus } from '../lib/sharedStatus';
 import { useDensity } from '../lib/density';
-import { Search, ChevronRight, ShieldAlert } from 'lucide-react';
+import { screenTitle } from '../lib/navIA';
+import { Search, ChevronRight } from 'lucide-react';
 
 export const TopBar: React.FC = () => {
   const { screen, navigate, back } = useNavigation();
@@ -16,7 +17,7 @@ export const TopBar: React.FC = () => {
   const callsCap = budget?.totalCapRequests ?? 400;
   const usdUsed = (budget?.usedUsd ?? 0.18).toFixed(2);
   const usdCap = (budget?.totalCapUsd ?? 3.0).toFixed(2);
-  
+
   // Format week key to short format e.g. W41 from 2026-W41 or W41
   const rawWeekKey = budget?.weekKey ?? '2026-W41';
   const weekKey = rawWeekKey.includes('-') ? rawWeekKey.split('-')[1] : rawWeekKey;
@@ -26,7 +27,7 @@ export const TopBar: React.FC = () => {
     if (screen.kind !== 'project') return null;
     const project = projects.find((p) => p.id === screen.projectId);
     const projectName = project ? project.name.split(' (')[0] : screen.projectId;
-    
+
     // Group name mapping
     let groupName = 'Work';
     if (screen.tab === 'verify' || screen.tab === 'qa') groupName = 'Verify';
@@ -42,28 +43,7 @@ export const TopBar: React.FC = () => {
 
   const projectCrumb = getProjectCrumb();
 
-  const getScreenTitle = () => {
-    switch (screen.kind) {
-      case 'inbox':
-      case 'portfolio':
-        return 'Inbox';
-      case 'projects':
-        return 'Projects';
-      case 'runs':
-      case 'console':
-        return 'Runs';
-      case 'knowledge':
-        return 'Knowledge';
-      case 'costs':
-        return 'Fleet Money';
-      case 'monitoring':
-        return 'Probes';
-      case 'settings':
-        return 'Settings';
-      default:
-        return 'Command Center';
-    }
-  };
+  const getScreenTitle = () => screenTitle(screen);
 
   return (
     <header className="sticky top-0 z-30 w-full bg-[#161b22]/95 border-b border-white/10 backdrop-blur-md px-4 md:px-6 h-14 flex items-center justify-between font-sans">
@@ -146,11 +126,10 @@ export const TopBar: React.FC = () => {
               role="radio"
               aria-checked={density === mode}
               onClick={() => setDensity(mode)}
-              className={`px-2 py-0.5 rounded capitalize transition-all ${
-                density === mode
-                  ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm'
-                  : 'text-[#8b98a8] hover:text-white'
-              }`}
+              className={`px-2 py-0.5 rounded capitalize transition-all ${density === mode
+                ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm'
+                : 'text-[#8b98a8] hover:text-white'
+                }`}
             >
               {mode}
             </button>

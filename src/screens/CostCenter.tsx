@@ -8,6 +8,7 @@ import { QueryError } from '../components/QueryError';
 import { EmptyState } from '../components/EmptyState';
 import { formatCost, formatDateTime, formatTokens } from '../lib/format';
 import { ShieldCheck, DollarSign } from 'lucide-react';
+import { PageHeader } from '../components/ui';
 
 export const CostCenterScreen: React.FC = () => {
   const { costEvents, loading, error, refetch } = useCosts();
@@ -47,15 +48,11 @@ export const CostCenterScreen: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Header: Single H1 & Lede */}
-      <div className="pb-2 border-b border-white/5">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-          Fleet Money
-        </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Shared weekly inference ledger, admission rate control, and micro-attribution.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Observe"
+        title="Spend"
+        lede="Shared weekly inference ledger, admission rate control, and micro-attribution."
+      />
 
       {/* The Weekly Cap & Rule Section */}
       <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4 font-mono text-xs">

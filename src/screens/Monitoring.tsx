@@ -3,6 +3,7 @@ import { useSharedStatus } from '../lib/sharedStatus';
 import { useProjects } from '../hooks/useProjects';
 import { useToast } from '../components/Toast';
 import { RefreshCw, Activity, CheckCircle2, ShieldCheck, Radio } from 'lucide-react';
+import { PageHeader } from '../components/ui';
 
 interface VerticalProbe {
   id: string;
@@ -72,26 +73,21 @@ export const MonitoringScreen: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-            Probes
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Production synthetic probes, latency breakdown, and edge telemetry.
-          </p>
-        </div>
-
-        <button
-          onClick={handleRunProbes}
-          disabled={isProbing}
-          className="px-3.5 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5 self-start sm:self-auto disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isProbing ? 'animate-spin' : ''}`} />
-          <span>{isProbing ? 'Probing…' : 'Probe Now'}</span>
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Observe"
+        title="Health"
+        lede="Production synthetic probes, latency breakdown, and edge telemetry."
+        actions={
+          <button
+            onClick={handleRunProbes}
+            disabled={isProbing}
+            className="px-3.5 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 text-xs font-mono font-bold hover:bg-emerald-900/60 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isProbing ? 'animate-spin' : ''}`} />
+            <span>{isProbing ? 'Probing…' : 'Probe Now'}</span>
+          </button>
+        }
+      />
 
       {/* FOUR FIGURES (Uptime, Edge p95, Upstream 1/hr, Incidents) with 1-hour series */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
