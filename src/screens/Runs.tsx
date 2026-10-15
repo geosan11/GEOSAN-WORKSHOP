@@ -1,28 +1,27 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
-import { useCosts } from '../hooks/useCosts';
-import { useNavigation } from '../lib/navigation';
 import { useToast } from '../components/Toast';
 import { StatusPill } from '../components/StatusPill';
 import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
 import { EmptyState } from '../components/EmptyState';
-import { AgentTask, TaskType } from '../lib/types';
-import { formatCost, formatRelative, formatDateTime } from '../lib/format';
+import { SessionEventTimeline } from '../components/session/SessionEventTimeline';
+import { SessionMetadataPanel } from '../components/session/SessionMetadataPanel';
+import { ReportIssueModal } from '../components/session/ReportIssueModal';
+import { TaskType } from '../lib/types';
+import { formatCost, formatRelative } from '../lib/format';
 import {
-  Terminal,
+  buildSessionMetadata,
+  buildSessionTraceEvents,
+  formatTraceAsPrompt,
+} from '../lib/sessionTrace';
+import {
   Plus,
   ArrowLeft,
   Check,
   X,
   ShieldAlert,
-  FileCode2,
-  GitBranch,
-  Cpu,
-  Clock,
-  Layers,
-  ArrowRight
 } from 'lucide-react';
 
 interface RunsScreenProps {
@@ -31,24 +30,41 @@ interface RunsScreenProps {
 
 export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
   const toast = useToast();
-  const { navigate } = useNavigation();
   const { projects } = useProjects();
   const { tasks, loading, error, refetch, createTask, approveTask, rejectTask } = useTasks();
-  const { costEvents } = useCosts();
 
   const [selectedRunId, setSelectedRunId] = useState<string | undefined>(initialRunId);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [taskType, setTaskType] = useState<TaskType>('BUILD_FEATURE');
-  const [selectedProjectId, setSelectedProjectId] = useState(projects[0]?.id || '');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
   const [promptText, setPromptText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialRunId) setSelectedRunId(initialRunId);
+  }, [initialRunId]);
+
+  useEffect(() => {
+    if (!selectedProjectId && projects[0]?.id) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
 
   const selectedRun = tasks.find((t) => t.id === selectedRunId);
+  const traceEvents = useMemo(
+    () => (selectedRun ? buildSessionTraceEvents(selectedRun) : []),
+    [selectedRun]
+  );
+  const sessionMeta = useMemo(
+    () => (selectedRun ? buildSessionMetadata(selectedRun) : null),
+    [selectedRun]
+  );
 
   const handleApproveGate = async (taskId: string) => {
     try {
+      // approveTask already toasts success — avoid a second toast.
       await approveTask(taskId);
-      toast.success('Plan approved. Worktree opens. Deploy still asks.');
     } catch {
       toast.error('Failed to approve plan');
     }
@@ -57,7 +73,6 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
   const handleRejectGate = async (taskId: string) => {
     try {
       await rejectTask(taskId);
-      toast.info('Plan rejected. No branch was opened.');
       setSelectedRunId(undefined);
     } catch {
       toast.error('Failed to reject plan');
@@ -67,19 +82,22 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
   const handleCreateRun = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promptText.trim()) return;
+    const proj = projects.find((p) => p.id === selectedProjectId) || projects[0];
+    if (!proj) {
+      toast.error('Create or select a project before dispatching a run');
+      return;
+    }
     try {
       setIsSubmitting(true);
-      const proj = projects.find((p) => p.id === selectedProjectId) || projects[0];
       const created = await createTask({
-        org_id: proj?.org_id || 'org-geosan',
-        project_id: selectedProjectId,
+        org_id: proj.org_id || 'org-geosan',
+        project_id: proj.id,
         task_type: taskType,
-        prompt: promptText.trim()
+        prompt: promptText.trim(),
       });
       setPromptText('');
       setIsCreatingTask(false);
       setSelectedRunId(created.id);
-      toast.success(`Run dispatched to Coordinator (${created.id})`);
     } catch {
       toast.error('Failed to create run');
     } finally {
@@ -222,7 +240,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
       )}
 
       {/* DETAIL VIEW OR LIST VIEW */}
-      {selectedRun ? (
+      {selectedRun && sessionMeta ? (
         <div className="space-y-4">
           <button
             onClick={() => setSelectedRunId(undefined)}
@@ -231,79 +249,36 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Runs List
           </button>
 
-          {/* TWO PANES DETAIL */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* LEFT PANE: Trace (Coordinator, Plan, specialist, Invariant) */}
-            <div className="lg:col-span-7 space-y-4 font-mono text-xs">
-              <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4">
-                <div className="flex items-center justify-between border-b border-white/5 pb-3">
-                  <h2 className="font-bold text-sm text-slate-100 uppercase">
-                    Execution Trace
-                  </h2>
-                  <span className="text-slate-400 text-[11px]">{selectedRun.id}</span>
-                </div>
+            <div className="lg:col-span-7 space-y-4">
+              <SessionEventTimeline
+                events={traceEvents}
+                live={sessionMeta.live}
+                sessionId={selectedRun.id}
+                onCopyPrompt={async () => {
+                  try {
+                    await navigator.clipboard.writeText(formatTraceAsPrompt(traceEvents, sessionMeta));
+                    toast.success('Agent traces copied as prompt');
+                  } catch {
+                    toast.error('Could not copy traces');
+                  }
+                }}
+                onDownloadJson={() => {
+                  const blob = new Blob(
+                    [JSON.stringify({ meta: sessionMeta, events: traceEvents }, null, 2)],
+                    { type: 'application/json' }
+                  );
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `session-${selectedRun.id}-traces.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success('Downloaded session traces JSON');
+                }}
+                onReportIssue={() => setReportOpen(true)}
+              />
 
-                <div className="space-y-3">
-                  {/* Step 1: Coordinator */}
-                  <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-emerald-400">1. CoordinatorAgent</span>
-                      <span className="text-slate-500">Dispatched</span>
-                    </div>
-                    <p className="text-slate-300 font-sans text-xs">{selectedRun.prompt}</p>
-                  </div>
-
-                  {/* Step 2: Plan (amber only while awaiting_approval) */}
-                  <div
-                    className={`p-3.5 rounded-xl border space-y-1 transition-all ${
-                      selectedRun.status === 'awaiting_approval'
-                        ? 'bg-amber-500/10 border-amber-500/50 text-amber-300'
-                        : 'bg-[#0d1117] border-white/5 text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className={`font-bold ${selectedRun.status === 'awaiting_approval' ? 'text-amber-400' : 'text-slate-200'}`}>
-                        2. Plan Synthesis & Worktree Spec
-                      </span>
-                      <span className="font-bold">
-                        {selectedRun.status === 'awaiting_approval' ? 'Waiting on you' : 'Generated'}
-                      </span>
-                    </div>
-                    <p className="font-sans text-xs">
-                      {(selectedRun.plan?.summary as string) ||
-                        'Isolated branch created. Static typing invariants verified across modified endpoints.'}
-                    </p>
-                  </div>
-
-                  {/* Step 3: Specialist Agent */}
-                  <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-slate-200">
-                        3. Specialist: {selectedRun.assigned_agent || 'CodingAgent + Reviewer'}
-                      </span>
-                      <span className="text-slate-500">
-                        {selectedRun.status === 'done' ? 'Completed' : selectedRun.status === 'running' ? 'Working' : 'Queued'}
-                      </span>
-                    </div>
-                    <p className="text-slate-400 font-sans text-xs">
-                      Model calls only. Subagent executes targeted code transformations in git worktree.
-                    </p>
-                  </div>
-
-                  {/* Step 4: Invariant Proof */}
-                  <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-bold text-slate-200">4. Invariant Assertion Check</span>
-                      <span className="text-slate-500">Continuous</span>
-                    </div>
-                    <p className="text-slate-400 font-sans text-xs">
-                      No regression on tenant RLS boundaries, payment reconciliation, and schema contracts.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Approval Gate Widget when awaiting_approval */}
               {selectedRun.status === 'awaiting_approval' && (
                 <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/50 space-y-4">
                   <div className="flex items-center gap-2 text-amber-400 font-bold uppercase text-xs">
@@ -316,7 +291,6 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
                   </p>
 
                   <div className="flex items-center gap-3 pt-2">
-                    {/* One primary button: Approve */}
                     <button
                       onClick={() => handleApproveGate(selectedRun.id)}
                       className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 shadow-md"
@@ -325,7 +299,6 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
                       Approve
                     </button>
 
-                    {/* Reject: rose outline */}
                     <button
                       onClick={() => handleRejectGate(selectedRun.id)}
                       className="px-4 py-2.5 rounded-xl border border-rose-500/50 text-rose-400 hover:bg-rose-500/10 font-bold text-xs transition-colors flex items-center gap-1.5"
@@ -338,49 +311,28 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
               )}
             </div>
 
-            {/* RIGHT PANE: Details & Metadata */}
-            <div className="lg:col-span-5 space-y-4 font-mono text-xs">
-              <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4">
-                <h3 className="font-bold text-sm text-slate-100 uppercase pb-2 border-b border-white/5">
-                  Run Properties
-                </h3>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">State:</span>
-                    <StatusPill status={selectedRun.status} />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Cost:</span>
-                    <span className="text-emerald-400 font-bold tabular-nums">
-                      {formatCost(selectedRun.cost_usd || 0.0045)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Worktree:</span>
-                    <span className="text-slate-200 font-bold">
-                      {selectedRun.branch_name ? `Opened (${selectedRun.branch_name})` : 'Not opened'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-400">Age:</span>
-                    <span className="text-slate-300">{formatRelative(selectedRun.created_at)}</span>
-                  </div>
-
-                  <div className="pt-3 border-t border-white/5 space-y-1">
-                    <span className="text-slate-400 block">Note:</span>
-                    <p className="text-slate-300 font-sans text-xs">
-                      Model calls only. Git worktree isolates writes until approval.
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <div className="lg:col-span-5 space-y-4">
+              <SessionMetadataPanel meta={sessionMeta} />
             </div>
           </div>
+
+          <ReportIssueModal
+            open={reportOpen}
+            sessionId={selectedRun.id}
+            onClose={() => setReportOpen(false)}
+            onSubmitted={() => toast.success('Session issue report saved')}
+          />
         </div>
+      ) : tasks.length === 0 ? (
+        <EmptyState
+          title="No runs yet"
+          description="Dispatch a build or fix to open a session trace with metadata and issue reporting."
+          actionLabel="Build feature"
+          onAction={() => {
+            setTaskType('BUILD_FEATURE');
+            setIsCreatingTask(true);
+          }}
+        />
       ) : (
         /* LIST VIEW */
         <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden shadow-lg">

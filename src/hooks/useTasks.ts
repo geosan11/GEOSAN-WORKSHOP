@@ -2,22 +2,37 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AgentTask, TaskType } from '../lib/types';
 import { useToast } from '../components/Toast';
 import { MOCK_TASKS } from '../lib/mockData';
+import { DEMO_SESSION_TASKS } from '../data/sessionFixtures';
+
+const SEED_TASKS: AgentTask[] = MOCK_TASKS.length > 0 ? [...MOCK_TASKS] : [...DEMO_SESSION_TASKS];
+const SEED_FLAG = 'geosan_tasks_seeded_v1';
+
+function readStoredTasks(): AgentTask[] | null {
+  const saved = localStorage.getItem('geosan_tasks');
+  if (saved == null) return null;
+  try {
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? (parsed as AgentTask[]) : null;
+  } catch {
+    return null;
+  }
+}
 
 const getTasks = async (projectId?: string): Promise<AgentTask[]> => {
-  if (typeof window === 'undefined') return [...MOCK_TASKS];
+  if (typeof window === 'undefined') return [...SEED_TASKS];
 
-  const saved = localStorage.getItem('geosan_tasks');
-  let tasks: AgentTask[] = [];
-
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      tasks = Array.isArray(parsed) ? parsed : [];
-    } catch {
-      tasks = [];
-    }
+  const stored = readStoredTasks();
+  const alreadySeeded = localStorage.getItem(SEED_FLAG) === '1';
+  // Seed once: missing key, or legacy empty [] from before Section B.
+  // After the flag is set, an intentional empty list stays empty.
+  let tasks: AgentTask[];
+  if (stored == null || (stored.length === 0 && !alreadySeeded)) {
+    tasks = [...SEED_TASKS];
+    localStorage.setItem('geosan_tasks', JSON.stringify(tasks));
+    localStorage.setItem(SEED_FLAG, '1');
   } else {
-    tasks = [...MOCK_TASKS];
+    tasks = stored ?? [];
+    if (!alreadySeeded) localStorage.setItem(SEED_FLAG, '1');
   }
 
   return projectId ? tasks.filter((t) => t.project_id === projectId) : tasks;
@@ -102,8 +117,14 @@ export function useTasks(projectId?: string) {
     error: error instanceof Error ? error : null,
     refetch,
     createTask: createTask.mutateAsync,
-    approveTask: async (id: string) => { await updateTaskStatus.mutateAsync({ taskId: id, status: 'running' }); toast.success('Task approved'); },
-    rejectTask: async (id: string) => { await updateTaskStatus.mutateAsync({ taskId: id, status: 'failed' }); toast.error('Task rejected'); },
+    approveTask: async (id: string) => {
+      await updateTaskStatus.mutateAsync({ taskId: id, status: 'running' });
+      toast.success('Plan approved. Worktree opens. Deploy still asks.');
+    },
+    rejectTask: async (id: string) => {
+      await updateTaskStatus.mutateAsync({ taskId: id, status: 'failed' });
+      toast.info('Plan rejected. No branch was opened.');
+    },
     cancelTask: async (id: string) => { await updateTaskStatus.mutateAsync({ taskId: id, status: 'cancelled' }); toast.info('Task cancelled'); },
     retryTask: async (id: string) => { await updateTaskStatus.mutateAsync({ taskId: id, status: 'queued' }); toast.success('Task requeued'); },
     confirmProposedTask: async (id: string) => { await updateTaskStatus.mutateAsync({ taskId: id, status: 'queued' }); },
