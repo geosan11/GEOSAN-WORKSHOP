@@ -10,10 +10,10 @@
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "clean": "rimraf dist server.js",
+    "clean": "rimraf dist",
     "lint": "tsc --noEmit",
     "verify": "npm run lint && npm run build",
-    "harness": "npm run lint && node scripts/check-deps.mjs && npx tsx scripts/replay-budget.ts && npx tsx scripts/full-system-test.ts && npx tsx scripts/design-lint.ts"
+    "harness": "npm run lint && node scripts/check-deps.mjs && node scripts/check-secrets.mjs && npx tsx scripts/replay-budget.ts && npx tsx scripts/full-system-test.ts && npx tsx scripts/design-lint.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

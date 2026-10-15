@@ -39,6 +39,9 @@ jobs:
       - name: Dependency weight check
         run: node scripts/check-deps.mjs
 
+      - name: Secret hygiene check
+        run: node scripts/check-secrets.mjs
+
       - name: Budget & telemetry replay
         run: npx tsx scripts/replay-budget.ts
 

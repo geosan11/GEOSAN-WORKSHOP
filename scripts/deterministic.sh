@@ -31,6 +31,7 @@ run_lint() {
 run_format_check() {
   echo "--> Checking codebase formatting integrity..."
   node scripts/check-deps.mjs
+  node scripts/check-secrets.mjs
 }
 
 run_replay() {

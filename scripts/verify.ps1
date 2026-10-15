@@ -20,6 +20,7 @@ Write-Host "=========================================="
 
 Invoke-Step 'Running strict TypeScript lint...' { npm run lint }
 Invoke-Step 'Running dependency weight + package check...' { node scripts/check-deps.mjs }
+Invoke-Step 'Running secret hygiene check...' { node scripts/check-secrets.mjs }
 Invoke-Step 'Running budget & telemetry replay...' { npx tsx scripts/replay-budget.ts }
 Invoke-Step 'Running full system invariant test...' { npx tsx scripts/full-system-test.ts }
 Invoke-Step 'Running deterministic Slop Critic & Design Contract lint...' { npx tsx scripts/design-lint.ts }
