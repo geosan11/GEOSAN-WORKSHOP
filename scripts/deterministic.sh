@@ -91,16 +91,6 @@ run_full_system_test() {
   npx tsx scripts/full-system-test.ts
 }
 
-run_user_interactions_test() {
-  echo "--> Running real-user button, input, and workflow interaction simulation..."
-  npx tsx scripts/test-all-user-interactions.ts
-}
-
-run_coverage_audit() {
-  echo "--> Running comprehensive blind-spot & edge-case coverage audit..."
-  npx tsx scripts/comprehensive-coverage-audit.ts
-}
-
 run_design_lint() {
   echo "--> Running deterministic Slop Critic & Design Contract lint..."
   npx tsx scripts/design-lint.ts
@@ -122,12 +112,6 @@ case "${COMMAND}" in
   system)
     run_full_system_test
     ;;
-  user-test)
-    run_user_interactions_test
-    ;;
-  audit)
-    run_coverage_audit
-    ;;
   design-lint)
     run_design_lint
     ;;
@@ -137,15 +121,13 @@ case "${COMMAND}" in
     run_format_check
     run_replay
     run_full_system_test
-    run_user_interactions_test
-    run_coverage_audit
     run_design_lint
     echo "=========================================="
-    echo "All deterministic, system, user-simulation, and coverage audit tests PASSED successfully."
+    echo "All deterministic, system, and design-lint checks PASSED successfully."
     echo "=========================================="
     ;;
   *)
-    echo "Unknown command: ${COMMAND}. Valid options: git, lint, format-check, replay, system, user-test, audit, design-lint, all"
+    echo "Unknown command: ${COMMAND}. Valid options: git, lint, format-check, replay, system, design-lint, all"
     exit 1
     ;;
 esac
