@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
 import { useCosts } from '../hooks/useCosts';
@@ -25,11 +25,9 @@ export const ProjectsScreen: React.FC = () => {
 
   const openWizard = (path: StartPath = 'ai') => {
     if (path === 'scratch') {
-      // Blank name/repo; skip template picker.
       setWizardTemplateId('scratch');
       setWizardStep(2);
     } else if (path === 'github') {
-      // Repo-first: reuse scratch blanks so operator pastes a GitHub URL.
       setWizardTemplateId('scratch');
       setWizardStep(2);
     } else {
@@ -38,6 +36,15 @@ export const ProjectsScreen: React.FC = () => {
     }
     setIsWizardOpen(true);
   };
+
+  const openTaskCount = useMemo(
+    () => tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length,
+    [tasks]
+  );
+  const fleetSpend = useMemo(
+    () => projects.reduce((sum, p) => sum + projectMonthlySpend(costEvents, p.id), 0),
+    [projects, costEvents]
+  );
 
   if (pLoading && projects.length === 0) {
     return (
@@ -60,9 +67,10 @@ export const ProjectsScreen: React.FC = () => {
       <PageHeader
         eyebrow="Build"
         title="Projects"
-        lede="Client verticals running isolated git worktrees and continuous verification."
+        lede="Client verticals with isolated worktrees. Open Work to continue, or start a new vertical."
         actions={
           <button
+            type="button"
             onClick={() => openWizard('ai')}
             className="px-3.5 py-2 rounded-lg btn-gold font-bold text-xs flex items-center gap-1.5 transition-all shadow-md"
           >
@@ -75,93 +83,137 @@ export const ProjectsScreen: React.FC = () => {
       {projects.length === 0 ? (
         <HowToStartCards onChoose={openWizard} />
       ) : (
-        <SectionCard flush>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-app border-b border-app text-muted text-[10px] uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Kind / Vertical</th>
-                  <th className="py-3 px-4">Health</th>
-                  <th className="py-3 px-4">Probe MS</th>
-                  <th className="py-3 px-4 text-center">Open Tasks</th>
-                  <th className="py-3 px-4 text-right">Month Spend</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {projects.map((project) => {
-                  const projectTasks = tasks.filter(
-                    (t) => t.project_id === project.id && t.status !== 'done' && t.status !== 'cancelled'
-                  );
-                  const spend = projectMonthlySpend(costEvents, project.id);
-                  const probeMs = 12 + ((project.name.length % 5) * 3);
-
-                  return (
-                    <tr
-                      key={project.id}
-                      onClick={() => navigate({ kind: 'project', projectId: project.id, tab: 'work' })}
-                      className="hover:bg-[#1c2333] transition-colors cursor-pointer group"
-                    >
-                      <td className="py-3.5 px-4 font-bold text-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                          <span className="font-sans font-semibold text-slate-100">{project.name.split(' (')[0]}</span>
-                          <div className="flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
-                            {(project as any).vercel_deployment_url && (
-                              <a
-                                href={(project as any).vercel_deployment_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1 rounded bg-[#0d1117] hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                                title="Open Vercel Deployment"
-                              >
-                                <VercelLogo className="w-3 h-3 text-slate-300" />
-                              </a>
-                            )}
-                            {((project as any).github_repo_url || project.repo_url) && (
-                              <a
-                                href={(project as any).github_repo_url || project.repo_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1 rounded bg-[#0d1117] hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                                title="Open GitHub Repository"
-                              >
-                                <GitHubLogo className="w-3 h-3 text-slate-300" />
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-400 uppercase text-[11px]">
-                        {project.vertical}
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <StatusPill status="healthy" size="sm" />
-                      </td>
-                      <td className="py-3.5 px-4 text-emerald-400 font-bold">
-                        {probeMs} ms
-                      </td>
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-200 font-bold">
-                          {projectTasks.length}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-bold text-slate-200 tabular-nums">
-                        {formatCost(spend)}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <span className="inline-flex items-center gap-1 text-emerald-400 group-hover:text-emerald-300 font-bold">
-                          Open Work <ArrowRight className="w-3.5 h-3.5" />
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          <div
+            className="grid grid-cols-3 gap-3"
+            aria-label="Projects orientation counts"
+          >
+            <div className="p-3 rounded-xl section-card">
+              <p className="text-meta">Projects</p>
+              <p className="text-lg font-display font-bold tabular-nums text-main">
+                {projects.length}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl section-card">
+              <p className="text-meta">Open tasks</p>
+              <p className="text-lg font-display font-bold tabular-nums text-main">
+                {openTaskCount}
+              </p>
+            </div>
+            <div className="p-3 rounded-xl section-card">
+              <p className="text-meta">Month spend</p>
+              <p className="text-lg font-display font-bold tabular-nums text-main">
+                {formatCost(fleetSpend)}
+              </p>
+            </div>
           </div>
-        </SectionCard>
+
+          <SectionCard
+            flush
+            title="All projects"
+            description="One row per vertical — open Work for the next action."
+          >
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-app border-b border-app text-muted text-[10px] uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Name</th>
+                    <th className="py-3 px-4">Vertical</th>
+                    <th className="py-3 px-4">Health</th>
+                    <th className="py-3 px-4 text-center">Open</th>
+                    <th className="py-3 px-4 text-right">Spend</th>
+                    <th className="py-3 px-4 text-right"> </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {projects.map((project) => {
+                    const projectTasks = tasks.filter(
+                      (t) =>
+                        t.project_id === project.id &&
+                        t.status !== 'done' &&
+                        t.status !== 'cancelled'
+                    );
+                    const spend = projectMonthlySpend(costEvents, project.id);
+
+                    return (
+                      <tr
+                        key={project.id}
+                        onClick={() =>
+                          navigate({ kind: 'project', projectId: project.id, tab: 'work' })
+                        }
+                        className="hover:bg-white/5 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                            <span className="font-sans font-semibold text-main">
+                              {project.name.split(' (')[0]}
+                            </span>
+                            <div
+                              className="flex items-center gap-1 ml-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {(project as { vercel_deployment_url?: string })
+                                .vercel_deployment_url && (
+                                  <a
+                                    href={
+                                      (project as { vercel_deployment_url?: string })
+                                        .vercel_deployment_url
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 rounded bg-app hover:bg-white/10 text-muted hover:text-main transition-colors"
+                                    title="Open Vercel Deployment"
+                                  >
+                                    <VercelLogo className="w-3 h-3" />
+                                  </a>
+                                )}
+                              {((project as { github_repo_url?: string }).github_repo_url ||
+                                project.repo_url) && (
+                                  <a
+                                    href={
+                                      (project as { github_repo_url?: string }).github_repo_url ||
+                                      project.repo_url ||
+                                      undefined
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="p-1 rounded bg-app hover:bg-white/10 text-muted hover:text-main transition-colors"
+                                    title="Open GitHub Repository"
+                                  >
+                                    <GitHubLogo className="w-3 h-3" />
+                                  </a>
+                                )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-muted uppercase text-[11px]">
+                          {project.vertical}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <StatusPill status="healthy" size="sm" />
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="px-2 py-0.5 rounded bg-card-elevated text-main font-bold border border-app">
+                            {projectTasks.length}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold text-main tabular-nums">
+                          {formatCost(spend)}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <span className="inline-flex items-center gap-1 text-primary group-hover:brightness-110 font-bold">
+                            Open Work <ArrowRight className="w-3.5 h-3.5" />
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </SectionCard>
+        </>
       )}
 
       <ProjectWizardModal

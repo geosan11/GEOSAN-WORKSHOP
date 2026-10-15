@@ -47,13 +47,11 @@ export const HowToStartCards: React.FC<HowToStartCardsProps> = ({
     onChoose,
 }) => {
     return (
-        <div className="rounded-2xl bg-[#161b22] border border-white/10 overflow-hidden shadow-lg">
-            <div className="px-6 py-5 border-b border-white/5 space-y-1">
-                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono">
-                    Workspace · {workspaceLabel}
-                </p>
-                <h2 className="text-lg font-bold text-[#e6edf3]">How do you want to start?</h2>
-                <p className="text-xs text-slate-400 max-w-xl">
+        <div className="section-card overflow-hidden shadow-lg">
+            <div className="px-6 py-5 border-b border-app space-y-1">
+                <p className="text-meta">Workspace · {workspaceLabel}</p>
+                <h2 className="text-section-title text-base">How do you want to start?</h2>
+                <p className="text-xs text-muted max-w-xl">
                     Starred verticals and agent pipelines will appear here. Pick a path to create your first project.
                 </p>
             </div>
@@ -66,19 +64,17 @@ export const HowToStartCards: React.FC<HowToStartCardsProps> = ({
                             key={card.id}
                             type="button"
                             onClick={() => onChoose(card.id)}
-                            className={`group text-left p-5 md:p-6 bg-gradient-to-b ${card.accent} hover:bg-white/[0.03] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F0B230]/50`}
+                            className={`group text-left p-5 md:p-6 bg-gradient-to-b ${card.accent} hover:bg-white/[0.03] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--color-primary)]/50`}
                         >
-                            <div className="w-10 h-10 rounded-xl bg-[#0d1117] border border-white/10 flex items-center justify-center mb-4">
-                                <Icon className="w-5 h-5 text-[#FFBD59]" />
+                            <div className="w-10 h-10 rounded-xl bg-app border border-app flex items-center justify-center mb-4">
+                                <Icon className="w-5 h-5 text-primary" />
                             </div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-500 font-mono mb-1">
-                                {card.eyebrow}
-                            </p>
-                            <h3 className="text-sm font-bold text-[#e6edf3] mb-2 flex items-center gap-2">
+                            <p className="text-meta mb-1">{card.eyebrow}</p>
+                            <h3 className="text-sm font-bold text-main mb-2 flex items-center gap-2">
                                 {card.title}
-                                <ArrowRight className="w-3.5 h-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-[#FFBD59]" />
+                                <ArrowRight className="w-3.5 h-3.5 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all text-primary" />
                             </h3>
-                            <p className="text-xs text-slate-400 leading-relaxed font-sans">{card.body}</p>
+                            <p className="text-xs text-muted leading-relaxed font-sans">{card.body}</p>
                         </button>
                     );
                 })}
