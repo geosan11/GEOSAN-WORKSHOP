@@ -50,12 +50,12 @@ export const MobileNavBar: React.FC = () => {
             <div className="flex items-center justify-between pb-2 border-b border-app">
               <div>
                 <p className="text-meta">Navigation</p>
-                <p className="text-sm font-bold text-main font-mono">GEOSAN Ops</p>
+                <p className="text-sm font-bold text-main font-display tracking-[-0.03em] uppercase">Geosan Ops</p>
               </div>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="p-2 rounded-lg text-muted hover:text-main hover:bg-white/5 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-2 rounded-[var(--radius-control)] text-muted hover:text-main hover:bg-[rgba(17,17,17,0.04)] dark:hover:bg-white/5 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                 aria-label="Close"
               >
                 <X className="w-5 h-5" />
@@ -74,9 +74,9 @@ export const MobileNavBar: React.FC = () => {
                         key={leaf.id}
                         type="button"
                         onClick={() => go(leaf.screen)}
-                        className={`flex items-center gap-2.5 p-3 rounded-xl border text-left min-h-[44px] transition-colors ${active
+                        className={`flex items-center gap-2.5 p-3 rounded-[var(--radius-card)] border text-left min-h-[44px] transition-colors ${active
                           ? 'bg-primary-container border-[color:var(--color-primary)]/50 text-primary'
-                          : 'bg-app border-app text-slate-300 hover:text-white hover:border-white/20'
+                          : 'bg-app border-app text-main hover:border-[color:var(--color-border-strong)]'
                           }`}
                       >
                         <Icon className="w-4 h-4 shrink-0 text-primary" />
@@ -84,9 +84,7 @@ export const MobileNavBar: React.FC = () => {
                           {leaf.label}
                         </span>
                         {leaf.id === 'inbox' && waitingCount > 0 && (
-                          <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 text-[10px] font-mono font-bold border border-amber-500/30">
-                            {waitingCount}
-                          </span>
+                          <span className="stamp stamp-warn">{waitingCount}</span>
                         )}
                       </button>
                     );
@@ -105,13 +103,13 @@ export const MobileNavBar: React.FC = () => {
                       key={p.id}
                       type="button"
                       onClick={() => go({ kind: 'project', projectId: p.id, tab: 'work' })}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl border text-left min-h-[44px] transition-colors ${active
+                      className={`w-full flex items-center justify-between p-3 rounded-[var(--radius-card)] border text-left min-h-[44px] transition-colors ${active
                         ? 'bg-card-elevated border-[color:var(--color-primary)]/50 text-primary'
-                        : 'bg-app border-app text-slate-300 hover:text-white'
+                        : 'bg-app border-app text-main hover:border-[color:var(--color-border-strong)]'
                         }`}
                     >
                       <div className="flex items-center gap-2 truncate">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        <span className="w-2 h-2 rounded-[1px] bg-[color:var(--color-success)] shrink-0" />
                         <span className="text-xs font-mono font-semibold truncate">
                           {p.name.split(' (')[0]}
                         </span>
@@ -130,9 +128,9 @@ export const MobileNavBar: React.FC = () => {
                   toggleTheme();
                   setDrawerOpen(false);
                 }}
-                className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border bg-white/5 border-app text-slate-300 hover:text-white transition-colors"
+                className="btn btn-ghost w-full"
               >
-                <span className="text-xs font-mono font-bold">Toggle Theme</span>
+                Toggle Theme
               </button>
             </div>
           </div>
@@ -140,7 +138,7 @@ export const MobileNavBar: React.FC = () => {
       )}
 
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#12171f]/95 border-t border-app backdrop-blur-lg flex items-center justify-between px-1 h-[62px] pb-[env(safe-area-inset-bottom,0px)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-card/95 border-t border-app backdrop-blur-lg flex items-center justify-between px-1 h-[62px] pb-[env(safe-area-inset-bottom,0px)]"
         aria-label="Primary sections"
       >
         {NAV_SECTIONS.map((section) => {
@@ -153,13 +151,13 @@ export const MobileNavBar: React.FC = () => {
               key={section.id}
               type="button"
               onClick={() => go(section.defaultScreen)}
-              className={`flex flex-col items-center justify-center flex-1 min-w-[44px] min-h-[44px] py-1 transition-colors relative ${active ? 'text-primary font-bold' : 'text-slate-400 hover:text-slate-200'
+              className={`flex flex-col items-center justify-center flex-1 min-w-[44px] min-h-[44px] py-1 transition-colors relative ${active ? 'text-primary font-bold' : 'text-muted hover:text-main'
                 }`}
             >
               <div className="relative">
                 <Icon className="w-4 h-4 mb-0.5" />
                 {showBadge && (
-                  <span className="absolute -top-1 -right-2 w-3.5 h-3.5 rounded-full bg-amber-500 text-black text-[9px] font-mono font-bold flex items-center justify-center">
+                  <span className="absolute -top-1 -right-2 w-3.5 h-3.5 rounded-[var(--radius-stamp)] bg-primary text-[color:var(--color-on-primary)] text-[9px] font-mono font-bold flex items-center justify-center">
                     {waitingCount}
                   </span>
                 )}
@@ -172,7 +170,7 @@ export const MobileNavBar: React.FC = () => {
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] py-1 text-slate-400 hover:text-white transition-colors"
+          className="flex flex-col items-center justify-center min-w-[44px] min-h-[44px] py-1 text-muted hover:text-main transition-colors"
           aria-label="More"
         >
           <Menu className="w-4 h-4 mb-0.5" />

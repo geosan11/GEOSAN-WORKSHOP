@@ -50,24 +50,24 @@ export const TopBar: React.FC = () => {
       {/* Breadcrumb / Title Area */}
       <div className="flex items-center gap-2 font-mono text-xs truncate">
         {projectCrumb ? (
-          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-slate-300 truncate">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-muted truncate">
             <button
               type="button"
               onClick={() => navigate({ kind: 'projects' })}
-              className="hover:text-emerald-400 font-semibold transition-colors truncate"
+              className="hover:text-primary font-semibold transition-colors truncate"
             >
               Projects
             </button>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <ChevronRight className="w-3.5 h-3.5 text-muted shrink-0" />
             <button
               type="button"
               onClick={back}
-              className="hover:text-emerald-400 transition-colors truncate max-w-[140px] sm:max-w-xs"
+              className="hover:text-primary transition-colors truncate max-w-[140px] sm:max-w-xs"
             >
               {projectCrumb.projectName}
             </button>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            <span className="text-emerald-400 font-bold">{projectCrumb.groupName}</span>
+            <ChevronRight className="w-3.5 h-3.5 text-muted shrink-0" />
+            <span className="text-primary font-bold">{projectCrumb.groupName}</span>
           </nav>
         ) : (
           <span className="font-display text-sm font-extrabold text-main tracking-[-0.03em] uppercase">
@@ -83,7 +83,7 @@ export const TopBar: React.FC = () => {
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[var(--radius-control)] bg-app border border-app text-[0.6875rem] font-mono text-main select-none cursor-help"
           title="Tripwire 3 fails. P0 under 5 minutes."
         >
-          <span className="w-1.5 h-1.5 rounded-[1px] bg-emerald-400 animate-pulse" />
+          <span className="w-1.5 h-1.5 rounded-[1px] bg-[color:var(--color-success)] animate-pulse" />
           <span className="font-bold tabular-nums">
             {callsUsed}/{callsCap}
           </span>
@@ -117,7 +117,7 @@ export const TopBar: React.FC = () => {
 
         {/* Density Control */}
         <div
-          className="hidden md:flex items-center rounded-lg bg-[#0d1117] border border-white/10 p-0.5 font-mono text-[10px]"
+          className="hidden md:flex items-center rounded-[var(--radius-control)] bg-app border border-app p-0.5 font-mono text-[10px]"
           title="Information Density: Compact | Normal | Expanded"
           role="radiogroup"
           aria-label="Information Density"
@@ -129,9 +129,9 @@ export const TopBar: React.FC = () => {
               role="radio"
               aria-checked={density === mode}
               onClick={() => setDensity(mode)}
-              className={`px-2 py-0.5 rounded capitalize transition-all ${density === mode
-                ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm'
-                : 'text-[#8b98a8] hover:text-white'
+              className={`px-2 py-0.5 rounded-[var(--radius-stamp)] capitalize transition-all ${density === mode
+                ? 'bg-primary-container text-primary font-bold border border-[color:var(--color-primary)]/40'
+                : 'text-muted hover:text-main border border-transparent'
                 }`}
             >
               {mode}

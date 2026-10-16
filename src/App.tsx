@@ -33,7 +33,7 @@ const AppContent: React.FC = () => {
   // While auth.loading is true, show minimal checking session splash
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center gap-3">
+      <div className="min-h-screen bg-app flex flex-col items-center justify-center gap-3">
         <LoadingState type="fullscreen" message="Checking session…" />
       </div>
     );
