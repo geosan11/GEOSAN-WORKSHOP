@@ -32,6 +32,8 @@ export interface ProjectWizardModalProps {
   onClose: () => void;
   onSuccess?: (projectId: string) => void;
   initialTemplateId?: string;
+  /** 1 = template, 2 = repository, … Used by empty-state start cards. */
+  initialStep?: number;
 }
 
 export interface ProjectTemplate {
@@ -50,6 +52,20 @@ export interface ProjectTemplate {
 }
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
+  {
+    id: 'scratch',
+    name: 'Blank project',
+    vertical: 'Custom',
+    badge: 'Start fresh',
+    badgeColor: 'bg-slate-800 text-slate-300 border-white/10',
+    description: 'Empty project shell. Name it, set a budget, and attach a repository when you are ready.',
+    stack: ['TypeScript', 'Vite', 'Worktrees'],
+    defaultBudget: 1000,
+    recommendedAgent: 'CoordinatorAgent',
+    recommendedModel: 'deepseek-v3',
+    defaultInstructions: 'Operator-defined. Keep writes gated behind approval and stay within weekly budget admission.',
+    scaffoldFiles: ['README.md', 'ARCHITECTURE.md'],
+  },
   {
     id: 'fintech-ledger',
     name: 'Fintech & Enterprise Ledger',
@@ -151,14 +167,15 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  initialTemplateId = 'fintech-ledger'
+  initialTemplateId = 'fintech-ledger',
+  initialStep = 1,
 }) => {
   const toast = useToast();
   const { navigate } = useNavigation();
   const { createProject } = useProjects();
 
   // Multi-step state: 1 = Template, 2 = Repository, 3 = Governance, 4 = Review, 5 = Complete
-  const [currentStep, setCurrentStep] = useState<number>(1);
+  const [currentStep, setCurrentStep] = useState<number>(initialStep);
 
   // Form Configuration State
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(initialTemplateId);
@@ -211,14 +228,46 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Reset entry step/template when opened from different start cards.
+  useEffect(() => {
+    if (!isOpen) return;
+    const step = Math.min(4, Math.max(1, initialStep || 1));
+    setCurrentStep(step);
+    setSelectedTemplateId(initialTemplateId);
+    const tmpl = PROJECT_TEMPLATES.find((t) => t.id === initialTemplateId) || PROJECT_TEMPLATES[0];
+    const blankScratch = initialTemplateId === 'scratch';
+    setProjectName(blankScratch ? '' : tmpl.name);
+    const slug = blankScratch
+      ? ''
+      : tmpl.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    setRepoSlug(slug || 'new-project');
+    setRepoUrl(blankScratch ? '' : `https://github.com/ehi-enterprise/${slug || tmpl.id}`);
+    setVercelUrl('');
+    setDefaultBranch('main');
+    setMonthlyBudget(tmpl.defaultBudget);
+    setAssignedAgent(tmpl.recommendedAgent);
+    setAssignedModel(tmpl.recommendedModel);
+    setInstructions(tmpl.defaultInstructions);
+    setCreatedProjectId(null);
+    setIsSubmitting(false);
+  }, [isOpen, initialStep, initialTemplateId]);
+
   if (!isOpen) return null;
 
+  const ensureProjectName = (): boolean => {
+    if (projectName.trim()) return true;
+    toast.error('Please enter a project name.');
+    setCurrentStep(2);
+    return false;
+  };
+
+  const handleContinue = () => {
+    if (currentStep === 2 && !ensureProjectName()) return;
+    setCurrentStep((prev) => Math.min(4, prev + 1));
+  };
+
   const handleCreateProject = async () => {
-    if (!projectName.trim()) {
-      toast.error('Please enter a project name.');
-      setCurrentStep(2);
-      return;
-    }
+    if (!ensureProjectName()) return;
 
     try {
       setIsSubmitting(true);
@@ -295,22 +344,20 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setCurrentStep(step.num)}
-                    className={`flex items-center gap-1.5 font-bold transition-colors ${
-                      isCurrent
-                        ? 'text-[#FFBD59]'
-                        : isPassed
+                    className={`flex items-center gap-1.5 font-bold transition-colors ${isCurrent
+                      ? 'text-[#FFBD59]'
+                      : isPassed
                         ? 'text-emerald-400'
                         : 'text-[#8b98a8]/60'
-                    }`}
+                      }`}
                   >
                     <span
-                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${
-                        isCurrent
-                          ? 'border-[#F0B230] bg-[#F0B230]/20 text-[#FFBD59]'
-                          : isPassed
+                      className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] border ${isCurrent
+                        ? 'border-[#F0B230] bg-[#F0B230]/20 text-[#FFBD59]'
+                        : isPassed
                           ? 'border-emerald-500 bg-emerald-950 text-emerald-300'
                           : 'border-white/10 bg-white/5 text-[#8b98a8]'
-                      }`}
+                        }`}
                     >
                       {isPassed ? <Check className="w-3 h-3 stroke-[3]" /> : step.num}
                     </span>
@@ -319,9 +366,8 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
 
                   {idx < 3 && (
                     <div
-                      className={`flex-1 h-0.5 mx-2 rounded-full hidden sm:block ${
-                        isPassed ? 'bg-emerald-500/60' : 'bg-white/5'
-                      }`}
+                      className={`flex-1 h-0.5 mx-2 rounded-full hidden sm:block ${isPassed ? 'bg-emerald-500/60' : 'bg-white/5'
+                        }`}
                     />
                   )}
                 </div>
@@ -350,17 +396,16 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 gap-3 pt-1">
-                {PROJECT_TEMPLATES.map((tmpl) => {
+                {PROJECT_TEMPLATES.filter((tmpl) => tmpl.id !== 'scratch').map((tmpl) => {
                   const isSelected = selectedTemplateId === tmpl.id;
                   return (
                     <div
                       key={tmpl.id}
                       onClick={() => handleSelectTemplate(tmpl)}
-                      className={`p-4 rounded-xl border cursor-pointer transition-all space-y-2.5 ${
-                        isSelected
-                          ? 'bg-[#1c2333] border-[#F0B230] shadow-md ring-1 ring-[#F0B230]'
-                          : 'bg-[#0d1117] border-white/5 hover:border-white/20'
-                      }`}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all space-y-2.5 ${isSelected
+                        ? 'bg-[#1c2333] border-[#F0B230] shadow-md ring-1 ring-[#F0B230]'
+                        : 'bg-[#0d1117] border-white/5 hover:border-white/20'
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
@@ -373,11 +418,10 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                         <div className="flex items-center gap-2 font-mono text-[10px] text-[#8b98a8]">
                           <span className="text-emerald-400">${tmpl.defaultBudget}/mo</span>
                           <div
-                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                              isSelected
-                                ? 'border-[#F0B230] bg-[#F0B230] text-[#0A1420]'
-                                : 'border-white/20'
-                            }`}
+                            className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected
+                              ? 'border-[#F0B230] bg-[#F0B230] text-[#0A1420]'
+                              : 'border-white/20'
+                              }`}
                           >
                             {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                           </div>
@@ -530,18 +574,16 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                       key={mod.label}
                       type="button"
                       onClick={mod.toggle}
-                      className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${
-                        mod.state
-                          ? 'bg-[#1c2333] border-emerald-500/40 text-[#e6edf3]'
-                          : 'bg-[#0d1117] border-white/5 text-[#8b98a8]'
-                      }`}
+                      className={`p-2.5 rounded-lg border text-left flex items-center gap-2 transition-all ${mod.state
+                        ? 'bg-[#1c2333] border-emerald-500/40 text-[#e6edf3]'
+                        : 'bg-[#0d1117] border-white/5 text-[#8b98a8]'
+                        }`}
                     >
                       <div
-                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                          mod.state
-                            ? 'bg-emerald-500 border-emerald-400 text-[#0A1420]'
-                            : 'border-white/20'
-                        }`}
+                        className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${mod.state
+                          ? 'bg-emerald-500 border-emerald-400 text-[#0A1420]'
+                          : 'border-white/20'
+                          }`}
                       >
                         {mod.state && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
@@ -588,11 +630,10 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                       key={preset}
                       type="button"
                       onClick={() => setMonthlyBudget(preset)}
-                      className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold transition-all ${
-                        monthlyBudget === preset
-                          ? 'bg-[#F0B230] text-[#0A1420] border-[#F0B230]'
-                          : 'bg-[#161b22] border-white/10 text-[#8b98a8] hover:text-[#e6edf3]'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-mono font-bold transition-all ${monthlyBudget === preset
+                        ? 'bg-[#F0B230] text-[#0A1420] border-[#F0B230]'
+                        : 'bg-[#161b22] border-white/10 text-[#8b98a8] hover:text-[#e6edf3]'
+                        }`}
                     >
                       ${preset}
                     </button>
@@ -616,11 +657,10 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setHardStopEnforced(!hardStopEnforced)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
-                      hardStopEnforced
-                        ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
-                        : 'bg-white/5 text-[#8b98a8] border-white/10'
-                    }`}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${hardStopEnforced
+                      ? 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40'
+                      : 'bg-white/5 text-[#8b98a8] border-white/10'
+                      }`}
                   >
                     {hardStopEnforced ? 'ENABLED' : 'DISABLED'}
                   </button>
@@ -846,7 +886,7 @@ export const ProjectWizardModal: React.FC<ProjectWizardModalProps> = ({
               {currentStep < 4 ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentStep((prev) => prev + 1)}
+                  onClick={handleContinue}
                   className="px-4 py-2 rounded-xl bg-[#F0B230] text-[#0A1420] font-bold text-xs hover:bg-[#FFBD59] transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   <span>Continue</span>

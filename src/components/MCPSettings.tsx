@@ -1,25 +1,6 @@
 import React, { useState } from 'react';
 import { useToast } from './Toast';
-import {
-  Cpu,
-  CheckCircle2,
-  Terminal,
-  Layers,
-  Copy,
-  Plus,
-  Play,
-  Activity,
-  Server,
-  Wrench,
-  Search,
-  ExternalLink,
-  RefreshCw,
-  Zap,
-  Sparkles,
-  Sliders,
-  Shield,
-  Code
-} from 'lucide-react';
+import { ChevronRight, Copy, Play, Plus } from 'lucide-react';
 
 export interface MCPServerConfig {
   id: string;
@@ -108,608 +89,289 @@ const INITIAL_MCP_SERVERS: MCPServerConfig[] = [
   }
 ];
 
+
 export const MCPSettings: React.FC = () => {
-  const toast = useToast();
-  const [servers, setServers] = useState<MCPServerConfig[]>(INITIAL_MCP_SERVERS);
-  const [selectedServerId, setSelectedServerId] = useState<string>('stitch');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'servers' | 'tools' | 'config' | 'test'>('servers');
-  
-  // Test simulator state
-  const [simulatedTool, setSimulatedTool] = useState<string>('generate_screen_from_text');
-  const [simulatedPayload, setSimulatedPayload] = useState<string>(
-    '{\n  "prompt": "Create an executive FinOps card with glowing amber borders and live token metrics"\n}'
-  );
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [simulationResult, setSimulationResult] = useState<string | null>(null);
+    const toast = useToast();
+    const [servers, setServers] = useState<MCPServerConfig[]>(INITIAL_MCP_SERVERS);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [testingTool, setTestingTool] = useState<string | null>(null);
+    const [configOpen, setConfigOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
-  // New server modal form state
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newServerName, setNewServerName] = useState('');
-  const [newServerCmd, setNewServerCmd] = useState('npx -y ');
-  const [newServerDesc, setNewServerDesc] = useState('');
+    const [simulatedTool, setSimulatedTool] = useState<string>('');
+    const [simulatedPayload, setSimulatedPayload] = useState<string>('{}');
+    const [isSimulating, setIsSimulating] = useState(false);
+    const [simulationResult, setSimulationResult] = useState<string | null>(null);
 
-  const selectedServer = servers.find((s) => s.id === selectedServerId) || servers[0];
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newServerName, setNewServerName] = useState('');
+    const [newServerCmd, setNewServerCmd] = useState('npx -y ');
+    const [newServerDesc, setNewServerDesc] = useState('');
 
-  const filteredTools = selectedServer.tools.filter(
-    (t) =>
-      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    const expanded = servers.find((s) => s.id === expandedId) || null;
 
-  const handleCopyConfig = (type: 'workspace' | 'global') => {
-    const configObj = {
-      mcpServers: servers.reduce((acc, s) => {
-        if (s.transport === 'builtin') return acc;
-        acc[s.id] = {
-          command: s.packageOrCommand.split(' ')[0] || 'npx',
-          args: s.args
-        };
-        return acc;
-      }, {} as Record<string, { command: string; args: string[] }>)
-    };
-
-    const jsonString = JSON.stringify(configObj, null, 2);
-    navigator.clipboard.writeText(jsonString);
-    toast.success(
-      type === 'workspace'
-        ? 'Copied .agents/mcp_config.json configuration!'
-        : 'Copied ~/.gemini/settings.json configuration!'
-    );
-  };
-
-  const handleRunSimulation = () => {
-    setIsSimulating(true);
-    setSimulationResult(null);
-
-    setTimeout(() => {
-      try {
-        const parsed = JSON.parse(simulatedPayload);
-        const result = {
-          status: '200_OK',
-          server: selectedServer.name,
-          tool: simulatedTool,
-          execution_time_ms: Math.floor(Math.random() * 80 + 35),
-          timestamp: new Date().toISOString(),
-          response: {
-            success: true,
-            message: `Executed tool '${simulatedTool}' successfully.`,
-            output_artifacts: [
-              `artifact_${simulatedTool}_${Date.now().toString(36)}.json`
-            ],
-            received_args: parsed
-          }
-        };
-        setSimulationResult(JSON.stringify(result, null, 2));
-        toast.success(`Tool ${simulatedTool} executed cleanly (${result.execution_time_ms}ms)`);
-      } catch {
-        setSimulationResult(
-          JSON.stringify(
-            {
-              status: '400_BAD_REQUEST',
-              error: 'Invalid JSON payload format provided in arguments editor.'
-            },
-            null,
-            2
-          )
-        );
-        toast.error('Invalid JSON payload');
-      } finally {
-        setIsSimulating(false);
-      }
-    }, 450);
-  };
-
-  const handleAddServer = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newServerName || !newServerCmd) {
-      toast.error('Please enter a server name and command');
-      return;
-    }
-
-    const id = newServerName.toLowerCase().replace(/[^a-z0-9]/g, '_');
-    const cmdParts = newServerCmd.trim().split(' ');
-    const command = cmdParts[0] || 'npx';
-    const args = cmdParts.slice(1);
-
-    const newConfig: MCPServerConfig = {
-      id,
-      name: newServerName,
-      packageOrCommand: newServerCmd,
-      args,
-      status: 'active',
-      transport: command === 'npx' ? 'npx' : 'stdio',
-      toolsCount: 3,
-      description: newServerDesc || 'Custom Model Context Protocol server',
-      category: 'custom',
-      tools: [
+    const configJson = JSON.stringify(
         {
-          name: `${id}_ping`,
-          description: 'Health check probe for custom MCP server',
-          mode: 'Eager',
-          sampleArgs: '{}'
+            mcpServers: servers.reduce((acc, s) => {
+                if (s.transport === 'builtin') return acc;
+                acc[s.id] = {
+                    command: s.packageOrCommand.split(' ')[0] || 'npx',
+                    args: s.args,
+                };
+                return acc;
+            }, {} as Record<string, { command: string; args: string[] }>),
         },
-        {
-          name: `${id}_query`,
-          description: 'Executes context query against MCP backend',
-          mode: 'Lazy',
-          sampleArgs: '{\n  "query": "status"\n}'
-        }
-      ]
+        null,
+        2
+    );
+
+    const handleCopyConfig = () => {
+        navigator.clipboard.writeText(configJson);
+        toast.success('Copied workspace MCP config');
     };
 
-    setServers((prev) => [...prev, newConfig]);
-    setSelectedServerId(id);
-    setShowAddModal(false);
-    setNewServerName('');
-    setNewServerCmd('npx -y ');
-    setNewServerDesc('');
-    toast.success(`MCP Server '${newServerName}' added to configuration`);
-  };
+    const handleRunSimulation = () => {
+        if (!expanded) return;
+        setIsSimulating(true);
+        setSimulationResult(null);
+        setTimeout(() => {
+            try {
+                const parsed = JSON.parse(simulatedPayload);
+                const result = {
+                    status: '200_OK',
+                    server: expanded.name,
+                    tool: simulatedTool,
+                    execution_time_ms: Math.floor(Math.random() * 80 + 35),
+                    timestamp: new Date().toISOString(),
+                    response: {
+                        success: true,
+                        message: `Executed tool '${simulatedTool}' successfully.`,
+                        received_args: parsed,
+                    },
+                };
+                setSimulationResult(JSON.stringify(result, null, 2));
+                toast.success(`Tool ${simulatedTool} finished`);
+            } catch {
+                setSimulationResult(JSON.stringify({ status: '400_BAD_REQUEST', error: 'Invalid JSON payload' }, null, 2));
+                toast.error('Invalid JSON payload');
+            } finally {
+                setIsSimulating(false);
+            }
+        }, 450);
+    };
 
-  return (
-    <div className="p-5 rounded-xl bg-[#161b22] border border-[#F0B230]/30 space-y-6 shadow-2xl relative overflow-hidden">
-      {/* Background Subtle Gradient Glow */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+    const handleAddServer = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newServerName || !newServerCmd) {
+            toast.error('Enter a server name and command');
+            return;
+        }
+        const id = newServerName.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'server';
+        const cmdParts = newServerCmd.trim().split(' ');
+        const command = cmdParts[0] || 'npx';
+        const args = cmdParts.slice(1);
+        const created: MCPServerConfig = {
+            id,
+            name: newServerName,
+            packageOrCommand: newServerCmd,
+            args,
+            status: 'active',
+            transport: command === 'npx' ? 'npx' : 'stdio',
+            toolsCount: 2,
+            description: newServerDesc || 'Custom MCP server',
+            category: 'custom',
+            tools: [
+                { name: `${id}_ping`, description: 'Health check', mode: 'Eager', sampleArgs: '{}' },
+                { name: `${id}_query`, description: 'Context query', mode: 'Lazy', sampleArgs: '{\n  "query": "status"\n}' },
+            ],
+        };
+        setServers((prev) => [...prev, created]);
+        setExpandedId(id);
+        setShowAddModal(false);
+        setNewServerName('');
+        setNewServerCmd('npx -y ');
+        setNewServerDesc('');
+        toast.success(`${newServerName} added`);
+    };
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#F0B230]/10 border border-[#F0B230]/40 flex items-center justify-center text-[#F0B230] shadow-inner">
-            <Cpu className="w-5 h-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold tracking-tight text-[#e6edf3] font-mono">
-                Model Context Protocol (MCP) Control Plane
-              </h2>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-emerald-400 text-[10px] font-mono font-bold flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                ANTIGRAVITY ACTIVE
-              </span>
-            </div>
-            <p className="text-xs text-[#8b98a8]">
-              Manage lazy-loaded & eager MCP servers, inspect capabilities, and run live tool simulations.
-            </p>
-          </div>
-        </div>
+    const visibleTools = expanded
+        ? expanded.tools.filter(
+            (tool) =>
+                tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                tool.description.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        : [];
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleCopyConfig('workspace')}
-            className="px-3 py-1.5 rounded-lg bg-[#0d1117] hover:bg-white/5 border border-white/10 text-xs font-mono font-semibold text-[#e6edf3] transition-colors flex items-center gap-1.5 shadow-sm"
-          >
-            <Copy className="w-3.5 h-3.5 text-[#F0B230]" />
-            Copy .agents Config
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="px-3.5 py-1.5 rounded-lg bg-[#F0B230] hover:bg-[#FFBD59] text-[#0A1420] text-xs font-mono font-bold transition-all flex items-center gap-1.5 shadow-md"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add MCP Server
-          </button>
-        </div>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-white/10 font-mono text-xs overflow-x-auto scrollbar-none">
-        <button
-          onClick={() => setActiveTab('servers')}
-          className={`px-4 py-2.5 font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'servers'
-              ? 'border-[#F0B230] text-[#F0B230] bg-[#F0B230]/5'
-              : 'border-transparent text-[#8b98a8] hover:text-[#e6edf3]'
-          }`}
-        >
-          <Server className="w-3.5 h-3.5" />
-          Active Servers ({servers.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('tools')}
-          className={`px-4 py-2.5 font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'tools'
-              ? 'border-[#F0B230] text-[#F0B230] bg-[#F0B230]/5'
-              : 'border-transparent text-[#8b98a8] hover:text-[#e6edf3]'
-          }`}
-        >
-          <Wrench className="w-3.5 h-3.5" />
-          Tool Explorer ({selectedServer.tools.length})
-        </button>
-
-        <button
-          onClick={() => setActiveTab('test')}
-          className={`px-4 py-2.5 font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'test'
-              ? 'border-[#F0B230] text-[#F0B230] bg-[#F0B230]/5'
-              : 'border-transparent text-[#8b98a8] hover:text-[#e6edf3]'
-          }`}
-        >
-          <Play className="w-3.5 h-3.5 text-emerald-400" />
-          Interactive Simulator
-        </button>
-
-        <button
-          onClick={() => setActiveTab('config')}
-          className={`px-4 py-2.5 font-bold border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'config'
-              ? 'border-[#F0B230] text-[#F0B230] bg-[#F0B230]/5'
-              : 'border-transparent text-[#8b98a8] hover:text-[#e6edf3]'
-          }`}
-        >
-          <Code className="w-3.5 h-3.5 text-cyan-400" />
-          JSON Configuration
-        </button>
-      </div>
-
-      {/* TAB 1: SERVERS OVERVIEW */}
-      {activeTab === 'servers' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {servers.map((srv) => {
-            const isSelected = srv.id === selectedServerId;
-            return (
-              <div
-                key={srv.id}
-                onClick={() => setSelectedServerId(srv.id)}
-                className={`p-4 rounded-xl border transition-all cursor-pointer space-y-3 relative group ${
-                  isSelected
-                    ? 'bg-[#0d1117] border-[#F0B230] shadow-lg ring-1 ring-[#F0B230]/30'
-                    : 'bg-[#0d1117]/60 border-white/5 hover:border-white/20 hover:bg-[#0d1117]'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-[#F0B230] font-mono text-xs font-bold">
-                      {srv.id.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-[#e6edf3] font-mono group-hover:text-[#F0B230] transition-colors">
-                        {srv.name}
-                      </h3>
-                      <span className="text-[10px] font-mono text-[#8b98a8] block truncate">
-                        ID: {srv.id}
-                      </span>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
-                      srv.status === 'active'
-                        ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/40'
-                        : srv.status === 'builtin'
-                        ? 'bg-cyan-950/60 text-cyan-300 border-cyan-500/40'
-                        : 'bg-amber-950/60 text-amber-400 border-amber-500/40'
-                    }`}
-                  >
-                    {srv.status}
-                  </span>
-                </div>
-
-                <p className="text-xs text-[#8b98a8] font-sans leading-relaxed line-clamp-2">
-                  {srv.description}
-                </p>
-
-                <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-[#8b98a8]">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1 text-slate-300">
-                      <Wrench className="w-3 h-3 text-[#F0B230]" />
-                      {srv.toolsCount} tools
-                    </span>
-                    <span className="px-1.5 py-0.5 rounded bg-white/5 text-[10px] uppercase">
-                      {srv.transport}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedServerId(srv.id);
-                      setActiveTab('tools');
-                    }}
-                    className="text-[10px] text-[#F0B230] font-bold hover:underline flex items-center gap-1"
-                  >
-                    Explore Tools &rarr;
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* TAB 2: TOOL EXPLORER */}
-      {activeTab === 'tools' && (
-        <div className="space-y-4">
-          {/* Server Selector Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-lg bg-[#0d1117] border border-white/5">
-            <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
-              <span className="text-xs font-mono text-[#8b98a8] shrink-0">Server:</span>
-              {servers.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setSelectedServerId(s.id)}
-                  className={`px-2.5 py-1 rounded text-xs font-mono font-bold transition-all shrink-0 ${
-                    s.id === selectedServerId
-                      ? 'bg-[#F0B230] text-[#0A1420]'
-                      : 'bg-white/5 text-[#8b98a8] hover:text-[#e6edf3]'
-                  }`}
-                >
-                  {s.id}
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center justify-end">
+                <button type="button" onClick={() => setShowAddModal(true)} className="btn btn-primary">
+                    <Plus className="w-3.5 h-3.5" />
+                    Add server
                 </button>
-              ))}
             </div>
 
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-[#8b98a8]" />
-              <input
-                type="text"
-                placeholder="Search tools in server…"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#161b22] border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs text-[#e6edf3] font-mono placeholder:text-slate-600 focus:outline-none focus:border-[#F0B230]"
-              />
+            <div className="section-card overflow-hidden divide-y divide-[color:var(--border-app)]">
+                {servers.map((server) => {
+                    const open = expandedId === server.id;
+                    return (
+                        <div key={server.id}>
+                            <button
+                                type="button"
+                                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+                                aria-expanded={open}
+                                onClick={() => {
+                                    setExpandedId(open ? null : server.id);
+                                    setTestingTool(null);
+                                    setSimulationResult(null);
+                                    setSearchQuery('');
+                                }}
+                            >
+                                <span className="min-w-0">
+                                    <span className="text-main font-bold text-sm block truncate">{server.name}</span>
+                                    <span className="text-meta block mt-1 normal-case tracking-normal">
+                                        {server.tools.length} tools · {server.transport}
+                                    </span>
+                                </span>
+                                <span className="flex items-center gap-2 shrink-0">
+                                    <span className={`stamp ${server.status === 'active' || server.status === 'builtin' ? 'stamp-success' : 'stamp-warn'}`}>
+                                        {server.status}
+                                    </span>
+                                    <ChevronRight className={`w-4 h-4 text-muted transition-transform ${open ? 'rotate-90' : ''}`} />
+                                </span>
+                            </button>
+
+                            {open && expanded ? (
+                                <div className="border-t border-app px-4 py-4 space-y-4 bg-app">
+                                    <p className="text-lede text-[0.75rem]">{expanded.description}</p>
+
+                                    <label className="block space-y-1">
+                                        <span className="text-meta">Find a tool</span>
+                                        <input
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder="Search tools"
+                                            className="field w-full"
+                                        />
+                                    </label>
+
+                                    <ul className="space-y-2">
+                                        {visibleTools.map((tool) => {
+                                            const testing = testingTool === tool.name;
+                                            return (
+                                                <li key={tool.name} className="border border-app rounded-[var(--radius-card)] bg-card p-3 space-y-2">
+                                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="font-mono text-xs font-bold text-main">{tool.name}</span>
+                                                                <span className="stamp">{tool.mode}</span>
+                                                            </div>
+                                                            <p className="text-lede text-[0.75rem] mt-1">{tool.description}</p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-ghost shrink-0"
+                                                            onClick={() => {
+                                                                if (testing) {
+                                                                    setTestingTool(null);
+                                                                    return;
+                                                                }
+                                                                setTestingTool(tool.name);
+                                                                setSimulatedTool(tool.name);
+                                                                setSimulatedPayload(tool.sampleArgs);
+                                                                setSimulationResult(null);
+                                                            }}
+                                                        >
+                                                            <Play className="w-3 h-3" />
+                                                            {testing ? 'Close test' : 'Test'}
+                                                        </button>
+                                                    </div>
+                                                    {testing ? (
+                                                        <div className="space-y-2">
+                                                            <textarea
+                                                                rows={5}
+                                                                value={simulatedPayload}
+                                                                onChange={(e) => setSimulatedPayload(e.target.value)}
+                                                                className="field w-full font-mono text-xs"
+                                                                aria-label="JSON arguments"
+                                                            />
+                                                            <button type="button" onClick={handleRunSimulation} disabled={isSimulating} className="btn btn-ink">
+                                                                {isSimulating ? 'Running…' : 'Run'}
+                                                            </button>
+                                                            {simulationResult ? (
+                                                                <pre className="text-[11px] font-mono text-main overflow-x-auto whitespace-pre-wrap">{simulationResult}</pre>
+                                                            ) : null}
+                                                        </div>
+                                                    ) : null}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+
+                                    <div className="text-xs font-mono text-muted">
+                                        {expanded.packageOrCommand}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+                    );
+                })}
             </div>
-          </div>
 
-          {/* Tools Grid */}
-          <div className="space-y-3 font-mono text-xs">
-            {filteredTools.map((tool) => (
-              <div
-                key={tool.name}
-                className="p-4 rounded-lg bg-[#0d1117] border border-white/5 space-y-2 hover:border-white/15 transition-all"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-[#e6edf3] text-sm">
-                      {selectedServer.id}:{tool.name}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        tool.mode === 'Eager'
-                          ? 'bg-purple-950/60 text-purple-300 border border-purple-500/30'
-                          : 'bg-cyan-950/60 text-cyan-300 border border-cyan-500/30'
-                      }`}
-                    >
-                      {tool.mode}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setSimulatedTool(tool.name);
-                      setSimulatedPayload(tool.sampleArgs);
-                      setActiveTab('test');
-                    }}
-                    className="px-2.5 py-1 rounded bg-[#F0B230]/10 hover:bg-[#F0B230]/20 text-[#F0B230] border border-[#F0B230]/30 text-[11px] font-bold transition-colors flex items-center gap-1 self-start sm:self-auto"
-                  >
-                    <Play className="w-3 h-3" /> Test in Simulator
-                  </button>
-                </div>
-
-                <p className="text-xs text-[#8b98a8] font-sans leading-relaxed">
-                  {tool.description}
-                </p>
-
-                <div className="pt-2 border-t border-white/5">
-                  <span className="text-[10px] text-slate-500 uppercase block mb-1">
-                    Sample JSON Arguments:
-                  </span>
-                  <pre className="p-2.5 rounded bg-[#161b22] border border-white/5 text-[11px] text-cyan-300 overflow-x-auto">
-                    {tool.sampleArgs}
-                  </pre>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: INTERACTIVE SIMULATOR */}
-      {activeTab === 'test' && (
-        <div className="space-y-4 font-mono text-xs">
-          <div className="p-4 rounded-xl bg-[#0d1117] border border-white/10 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-xs font-bold text-[#e6edf3] uppercase block">
-                  Tool Dispatch Simulator
-                </span>
-                <span className="text-[11px] text-[#8b98a8]">
-                  Simulate local MCP payload execution against server: <code className="text-[#F0B230]">{selectedServer.id}</code>
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRunSimulation}
-                disabled={isSimulating}
-                className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-[#0A1420] font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
-              >
-                {isSimulating ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Simulating…
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 fill-current" /> Execute Dispatch Payload
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-[10px] text-[#8b98a8] uppercase block">
-                  Select Tool Name
-                </label>
-                <select
-                  value={simulatedTool}
-                  onChange={(e) => {
-                    setSimulatedTool(e.target.value);
-                    const found = selectedServer.tools.find((t) => t.name === e.target.value);
-                    if (found) setSimulatedPayload(found.sampleArgs);
-                  }}
-                  className="w-full bg-[#161b22] border border-white/10 rounded-lg px-3 py-2 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+            <section className="section-card overflow-hidden">
+                <button
+                    type="button"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+                    aria-expanded={configOpen}
+                    onClick={() => setConfigOpen((v) => !v)}
                 >
-                  {selectedServer.tools.map((t) => (
-                    <option key={t.name} value={t.name}>
-                      {t.name} ({t.mode})
-                    </option>
-                  ))}
-                </select>
-
-                <label className="text-[10px] text-[#8b98a8] uppercase block pt-2">
-                  JSON Arguments Payload
-                </label>
-                <textarea
-                  rows={8}
-                  value={simulatedPayload}
-                  onChange={(e) => setSimulatedPayload(e.target.value)}
-                  className="w-full bg-[#161b22] border border-white/10 rounded-lg p-3 text-xs text-cyan-300 font-mono focus:outline-none focus:border-[#F0B230]"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <span className="text-[10px] text-[#8b98a8] uppercase block">
-                  Execution Output Console
-                </span>
-                <div className="h-[248px] bg-[#161b22] border border-white/10 rounded-lg p-3 overflow-y-auto text-[11px] text-emerald-400">
-                  {simulationResult ? (
-                    <pre className="whitespace-pre-wrap">{simulationResult}</pre>
-                  ) : (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2 font-mono">
-                      <Terminal className="w-6 h-6 text-slate-700" />
-                      <span>Ready for dispatch simulation…</span>
+                    <span>
+                        <span className="text-section-title block">Workspace config</span>
+                        <span className="text-lede text-[0.75rem]">JSON for the servers above</span>
+                    </span>
+                    <ChevronRight className={`w-4 h-4 text-muted transition-transform ${configOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {configOpen ? (
+                    <div className="border-t border-app p-4 space-y-3">
+                        <button type="button" onClick={handleCopyConfig} className="btn btn-ghost">
+                            <Copy className="w-3.5 h-3.5" />
+                            Copy JSON
+                        </button>
+                        <pre className="text-[11px] font-mono text-main overflow-x-auto whitespace-pre-wrap">{configJson}</pre>
                     </div>
-                  )}
+                ) : null}
+            </section>
+
+            {showAddModal ? (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-card border border-app rounded-[var(--radius-card)] p-5 max-w-lg w-full space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-section-title">Add server</h3>
+                            <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-ghost" aria-label="Close">
+                                Close
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddServer} className="space-y-3">
+                            <label className="block space-y-1">
+                                <span className="text-meta">Name</span>
+                                <input value={newServerName} onChange={(e) => setNewServerName(e.target.value)} className="field w-full" placeholder="Firebase Admin" />
+                            </label>
+                            <label className="block space-y-1">
+                                <span className="text-meta">Command</span>
+                                <input value={newServerCmd} onChange={(e) => setNewServerCmd(e.target.value)} className="field w-full font-mono" />
+                            </label>
+                            <label className="block space-y-1">
+                                <span className="text-meta">What it does</span>
+                                <textarea rows={2} value={newServerDesc} onChange={(e) => setNewServerDesc(e.target.value)} className="field w-full" />
+                            </label>
+                            <div className="flex justify-end gap-2">
+                                <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-ghost">Cancel</button>
+                                <button type="submit" className="btn btn-primary">Save</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-              </div>
-            </div>
-          </div>
+            ) : null}
         </div>
-      )}
-
-      {/* TAB 4: JSON CONFIGURATION */}
-      {activeTab === 'config' && (
-        <div className="space-y-4 font-mono text-xs">
-          <div className="p-4 rounded-xl bg-[#0d1117] border border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-bold text-[#e6edf3] block">
-                  Workspace MCP Config (`.agents/mcp_config.json`)
-                </span>
-                <span className="text-[11px] text-[#8b98a8]">
-                  Auto-loaded by Antigravity AI agent in GEOSAN-WORKSHOP workspace.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleCopyConfig('workspace')}
-                className="px-3 py-1 rounded bg-[#F0B230]/10 hover:bg-[#F0B230]/20 text-[#F0B230] border border-[#F0B230]/30 text-xs font-bold transition-colors flex items-center gap-1.5"
-              >
-                <Copy className="w-3.5 h-3.5" /> Copy JSON
-              </button>
-            </div>
-
-            <pre className="p-4 rounded-lg bg-[#161b22] border border-white/5 text-cyan-300 overflow-x-auto text-xs leading-relaxed">
-{JSON.stringify(
-  {
-    mcpServers: servers.reduce((acc, s) => {
-      if (s.transport === 'builtin') return acc;
-      acc[s.id] = {
-        command: s.packageOrCommand.split(' ')[0] || 'npx',
-        args: s.args
-      };
-      return acc;
-    }, {} as Record<string, { command: string; args: string[] }>)
-  },
-  null,
-  2
-)}
-            </pre>
-          </div>
-        </div>
-      )}
-
-      {/* ADD SERVER MODAL */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#161b22] border border-[#F0B230]/40 rounded-xl p-6 max-w-lg w-full space-y-4 shadow-2xl font-mono">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <h3 className="text-sm font-bold text-[#e6edf3] flex items-center gap-2">
-                <Plus className="w-4 h-4 text-[#F0B230]" />
-                Add Model Context Protocol Server
-              </h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-white text-xs font-bold"
-              >
-                &times;
-              </button>
-            </div>
-
-            <form onSubmit={handleAddServer} className="space-y-3 text-xs">
-              <div>
-                <label className="text-[10px] text-[#8b98a8] uppercase block mb-1">
-                  Server Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Firebase Admin MCP"
-                  value={newServerName}
-                  onChange={(e) => setNewServerName(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg px-3 py-2 text-[#e6edf3] focus:outline-none focus:border-[#F0B230]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-[#8b98a8] uppercase block mb-1">
-                  Package / CLI Command
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. npx -y @firebase/mcp-server"
-                  value={newServerCmd}
-                  onChange={(e) => setNewServerCmd(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg px-3 py-2 text-cyan-300 focus:outline-none focus:border-[#F0B230]"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] text-[#8b98a8] uppercase block mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Short summary of capabilities provided by this MCP server…"
-                  value={newServerDesc}
-                  onChange={(e) => setNewServerDesc(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-[#e6edf3] font-sans focus:outline-none focus:border-[#F0B230]"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-white/10 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg bg-[#F0B230] hover:bg-[#FFBD59] text-[#0A1420] font-bold shadow-md"
-                >
-                  Save MCP Server
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    );
 };

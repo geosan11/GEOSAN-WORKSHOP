@@ -3,39 +3,42 @@ import React from 'react';
 interface PageHeaderProps {
     eyebrow?: React.ReactNode;
     title: string;
+    /** One-line orientation lede under the title (Google Cloud page pattern). */
+    lede?: React.ReactNode;
     actions?: React.ReactNode;
     className?: string;
 }
 
 /**
- * Shared screen chrome: mono eyebrow → display title → optional actions.
- * Matches Portfolio / CostCenter / QARuns header pattern.
+ * Shared screen chrome: eyebrow stamp → display title → lede → actions.
+ * Type hierarchy follows Futur craft: weight contrast + hairline rule.
  */
 export const PageHeader: React.FC<PageHeaderProps> = ({
     eyebrow,
     title,
+    lede,
     actions,
-    className = ''
+    className = '',
 }) => {
     return (
-        <div
-            className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-app ${className}`}
-        >
-            <div className="min-w-0">
-                {eyebrow ? (
-                    <div className="flex items-center gap-2 text-xs font-mono text-muted mb-1 flex-wrap">
-                        {eyebrow}
+        <div className={`space-y-3 ${className}`}>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+                <div className="min-w-0 space-y-2">
+                    {eyebrow ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="stamp stamp-primary">{eyebrow}</span>
+                        </div>
+                    ) : null}
+                    <h1 className="text-page-title truncate">{title}</h1>
+                    {lede ? <p className="text-lede">{lede}</p> : null}
+                </div>
+                {actions ? (
+                    <div className="flex items-center gap-2 shrink-0 flex-wrap sm:pb-1">
+                        {actions}
                     </div>
                 ) : null}
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight text-main font-display truncate">
-                    {title}
-                </h1>
             </div>
-            {actions ? (
-                <div className="flex items-center gap-3 font-mono text-xs shrink-0 flex-wrap">
-                    {actions}
-                </div>
-            ) : null}
+            <div className="rule-gold" aria-hidden="true" />
         </div>
     );
 };

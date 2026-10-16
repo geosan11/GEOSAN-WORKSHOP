@@ -8,6 +8,7 @@ import { QueryError } from '../components/QueryError';
 import { EmptyState } from '../components/EmptyState';
 import { formatCost, formatDateTime, formatTokens } from '../lib/format';
 import { ShieldCheck, DollarSign } from 'lucide-react';
+import { PageHeader, SectionCard } from '../components/ui';
 
 export const CostCenterScreen: React.FC = () => {
   const { costEvents, loading, error, refetch } = useCosts();
@@ -47,38 +48,25 @@ export const CostCenterScreen: React.FC = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      {/* Header: Single H1 & Lede */}
-      <div className="pb-2 border-b border-white/5">
-        <h1 className="text-xl md:text-2xl font-bold tracking-tight text-[#e6edf3]">
-          Fleet Money
-        </h1>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Shared weekly inference ledger, admission rate control, and micro-attribution.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Observe"
+        title="Spend"
+        lede="Shared weekly inference ledger, admission rate control, and micro-attribution."
+      />
 
-      {/* The Weekly Cap & Rule Section */}
-      <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4 font-mono text-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span className="font-bold text-slate-100 uppercase">
-              Weekly Inference Admission Cap
-            </span>
-          </div>
-
-          <span className="text-[11px] text-slate-400">
-            git, lint, format, and replay are not admitted.
-          </span>
-        </div>
-
-        {/* 3 Metrics: Calls, Spend, Tiers */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Metric 1: Calls */}
-          <div className="p-4 rounded-xl bg-[#0d1117] border border-white/5 space-y-1.5">
-            <span className="text-[10px] text-slate-400 uppercase block">Weekly Calls</span>
-            <div className="text-2xl font-bold text-slate-100 tabular-nums">
-              {callsUsed} <span className="text-sm font-normal text-slate-500">/ {callsCap}</span>
+      <SectionCard
+        title="Weekly admission cap"
+        description="git, lint, format, and replay are not admitted."
+        actions={<ShieldCheck className="w-4 h-4 text-emerald-400" />}
+      >
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs"
+          aria-label="Spend KPI strip"
+        >
+          <div className="p-4 rounded-xl bg-app border border-app space-y-1.5">
+            <span className="text-meta">Weekly calls</span>
+            <div className="text-2xl font-bold text-main tabular-nums">
+              {callsUsed} <span className="text-sm font-normal text-muted">/ {callsCap}</span>
             </div>
             <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
@@ -88,62 +76,50 @@ export const CostCenterScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Metric 2: Spend Against $3.00 */}
-          <div className="p-4 rounded-xl bg-[#0d1117] border border-white/5 space-y-1.5">
-            <span className="text-[10px] text-slate-400 uppercase block">Weekly Spend</span>
-            <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+          <div className="p-4 rounded-xl bg-app border border-app space-y-1.5">
+            <span className="text-meta">Weekly spend</span>
+            <div className="text-2xl font-bold text-primary tabular-nums">
               {formatCost(usdUsed)}{' '}
-              <span className="text-sm font-normal text-slate-500">/ {formatCost(usdCap)}</span>
+              <span className="text-sm font-normal text-muted">/ {formatCost(usdCap)}</span>
             </div>
             <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-400 rounded-full"
+                className="h-full bg-[color:var(--color-primary)] rounded-full"
                 style={{ width: `${Math.min(100, Math.round((usdUsed / usdCap) * 100))}%` }}
               />
             </div>
           </div>
 
-          {/* Metric 3: 60/30/10 Tier Breakdown */}
-          <div className="p-4 rounded-xl bg-[#0d1117] border border-white/5 space-y-2 text-[11px]">
-            <span className="text-[10px] text-slate-400 uppercase block font-bold">
-              Tiers 60 / 30 / 10
-            </span>
-            <div className="flex items-center justify-between text-slate-300">
+          <div className="p-4 rounded-xl bg-app border border-app space-y-2 text-[11px]">
+            <span className="text-meta">Tiers 60 / 30 / 10</span>
+            <div className="flex items-center justify-between text-muted">
               <span>Tier 1 (Coding & Critic):</span>
               <span className="text-emerald-400 font-bold">60% ($1.80)</span>
             </div>
-            <div className="flex items-center justify-between text-slate-300">
+            <div className="flex items-center justify-between text-muted">
               <span>Tier 2 (Telemetry & Data):</span>
               <span className="text-cyan-400 font-bold">30% ($0.90)</span>
             </div>
-            <div className="flex items-center justify-between text-slate-300">
+            <div className="flex items-center justify-between text-muted">
               <span>Tier 3 (Utility / Ops):</span>
               <span className="text-amber-400 font-bold">10% ($0.30)</span>
             </div>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      {/* Virtualized Inference Ledger */}
-      <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-3 font-mono text-xs">
-        <div className="flex items-center justify-between pb-2">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Inference Transaction Ledger
-          </h2>
-          <span className="text-[10px] text-slate-400">
-            {costEvents.length} transactions recorded
-          </span>
-        </div>
-
+      <SectionCard
+        title="Inference ledger"
+        description={`${costEvents.length} transactions recorded`}
+      >
         {costEvents.length === 0 ? (
           <EmptyState
             title="No Cost Events Recorded"
             description="No inference transactions recorded in this ledger."
           />
         ) : (
-          <div className="border border-white/5 rounded-xl overflow-hidden">
-            {/* Table Header */}
-            <div className="grid grid-cols-12 px-4 py-2.5 bg-[#0d1117] text-[10px] uppercase tracking-wider text-slate-400 border-b border-white/5 font-bold">
+          <div className="border border-app rounded-xl overflow-hidden font-mono text-xs">
+            <div className="grid grid-cols-12 px-4 py-2.5 bg-app text-[10px] uppercase tracking-wider text-muted border-b border-app font-bold">
               <span className="col-span-3">Timestamp (Lagos)</span>
               <span className="col-span-3">Provider & Model</span>
               <span className="col-span-2 text-right">Tokens (In/Out)</span>
@@ -176,24 +152,24 @@ export const CostCenterScreen: React.FC = () => {
                         height: `${virtualRow.size}px`,
                         transform: `translateY(${virtualRow.start}px)`
                       }}
-                      className="grid grid-cols-12 px-4 py-2.5 items-center hover:bg-[#1c2333] transition-colors"
+                      className="grid grid-cols-12 px-4 py-2.5 items-center hover:bg-white/5 transition-colors"
                     >
-                      <span className="col-span-3 text-slate-400 text-[11px]">
+                      <span className="col-span-3 text-muted text-[11px]">
                         {formatDateTime(ev.created_at)}
                       </span>
                       <div className="col-span-3 truncate">
-                        <span className="text-slate-200 font-semibold text-[11px] block truncate">
+                        <span className="text-main font-semibold text-[11px] block truncate">
                           {ev.model}
                         </span>
-                        <span className="text-slate-500 text-[10px] uppercase">{ev.provider}</span>
+                        <span className="text-muted text-[10px] uppercase">{ev.provider}</span>
                       </div>
-                      <span className="col-span-2 text-right text-slate-300 text-[11px]">
+                      <span className="col-span-2 text-right text-muted text-[11px]">
                         {formatTokens(ev.tokens_input)} / {formatTokens(ev.tokens_output)}
                       </span>
-                      <span className="col-span-2 text-right text-emerald-400 font-bold tabular-nums text-[11px]">
+                      <span className="col-span-2 text-right text-primary font-bold tabular-nums text-[11px]">
                         {formatCost(ev.cost_usd)}
                       </span>
-                      <span className="col-span-2 text-right text-slate-400 text-[10px] truncate block">
+                      <span className="col-span-2 text-right text-muted text-[10px] truncate block">
                         {ev.attributed_to || 'task'}
                       </span>
                     </div>
@@ -203,7 +179,7 @@ export const CostCenterScreen: React.FC = () => {
             </div>
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 };

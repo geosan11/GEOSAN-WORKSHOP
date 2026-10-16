@@ -8,14 +8,15 @@ const getProjects = async (): Promise<Project[]> => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
+      return Array.isArray(parsed) ? parsed : [...MOCK_PROJECTS];
     } catch {
-      return [];
+      return [...MOCK_PROJECTS];
     }
   }
-  return []; // Start empty by default
+  // Demo parity with useTasks/useChat: seed verticals on first visit.
+  localStorage.setItem('geosan_projects', JSON.stringify(MOCK_PROJECTS));
+  return [...MOCK_PROJECTS];
 };
-
 const createProject = async (params: {
   name: string;
   vertical: string;

@@ -428,9 +428,9 @@ export const MultiAccountComponentHub: React.FC = () => {
   const activeMcpServer = INITIAL_MCP_REGISTRY.find((m) => m.id === selectedMcpServerId);
 
   return (
-    <div className="space-y-6 font-mono text-xs text-[#e6edf3]">
+    <div className="space-y-6 font-mono text-xs text-main">
       {/* ── TOP NAV HEADER & TAB SELECTOR ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-app">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-white flex items-center gap-2 font-mono">
@@ -441,19 +441,19 @@ export const MultiAccountComponentHub: React.FC = () => {
               Federation Active
             </span>
           </div>
-          <p className="text-slate-400 font-sans text-xs mt-1">
+          <p className="text-muted font-sans text-xs mt-1">
             Monitor and trigger automated fixes across Vercel, Supabase, and GitHub accounts, with distinct <strong>Per-Server MCPs</strong> and <strong>App-Wide Orchestrator APIs</strong>.
           </p>
         </div>
 
         {/* View Switcher Buttons */}
-        <div className="flex items-center gap-2 p-1 rounded-xl bg-[#0d1117] border border-white/10 shrink-0">
+        <div className="flex items-center gap-2 p-1 rounded-xl bg-app border border-app shrink-0">
           <button
             onClick={() => setActiveView('components')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeView === 'components'
                 ? 'bg-[#F0B230] text-[#0A1420]'
-                : 'text-[#8b98a8] hover:text-[#e6edf3]'
+                : 'text-muted hover:text-main'
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
@@ -465,7 +465,7 @@ export const MultiAccountComponentHub: React.FC = () => {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeView === 'mcp-architecture'
                 ? 'bg-[#F0B230] text-[#0A1420]'
-                : 'text-[#8b98a8] hover:text-[#e6edf3]'
+                : 'text-muted hover:text-main'
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
@@ -477,7 +477,7 @@ export const MultiAccountComponentHub: React.FC = () => {
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
               activeView === 'playground'
                 ? 'bg-[#F0B230] text-[#0A1420]'
-                : 'text-[#8b98a8] hover:text-[#e6edf3]'
+                : 'text-muted hover:text-main'
             }`}
           >
             <Terminal className="w-3.5 h-3.5" />
@@ -492,9 +492,9 @@ export const MultiAccountComponentHub: React.FC = () => {
       {activeView === 'components' && (
         <div className="space-y-5 animate-in fade-in duration-150">
           {/* Filter Bar & Action Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-[#161b22] border border-white/5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-card border border-app">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] text-[#8b98a8] uppercase font-bold flex items-center gap-1">
+              <span className="text-[10px] text-muted uppercase font-bold flex items-center gap-1">
                 <Filter className="w-3 h-3 text-[#F0B230]" /> Filter:
               </span>
 
@@ -502,7 +502,7 @@ export const MultiAccountComponentHub: React.FC = () => {
               <select
                 value={selectedServiceFilter}
                 onChange={(e) => setSelectedServiceFilter(e.target.value)}
-                className="bg-[#0d1117] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                className="bg-app border border-app rounded-lg px-2.5 py-1 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
               >
                 <option value="all">All Services (Vercel, Supabase, GitHub, Resend, Docker)</option>
                 <option value="vercel">Vercel Deployments</option>
@@ -516,7 +516,7 @@ export const MultiAccountComponentHub: React.FC = () => {
               <select
                 value={selectedAccountFilter}
                 onChange={(e) => setSelectedAccountFilter(e.target.value)}
-                className="bg-[#0d1117] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                className="bg-app border border-app rounded-lg px-2.5 py-1 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
               >
                 <option value="all">All Connected Accounts</option>
                 {accountOwners.map((owner) => (
@@ -538,11 +538,11 @@ export const MultiAccountComponentHub: React.FC = () => {
 
           {/* Component Grid */}
           {filteredComponents.length === 0 ? (
-            <div className="p-8 rounded-xl bg-[#161b22] border border-white/5 text-center space-y-3 font-mono">
-              <Share2 className="w-8 h-8 text-[#8b98a8] mx-auto opacity-50" />
+            <div className="p-8 rounded-xl bg-card border border-app text-center space-y-3 font-mono">
+              <Share2 className="w-8 h-8 text-muted mx-auto opacity-50" />
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-[#e6edf3]">No External Components Linked</h3>
-                <p className="text-xs text-[#8b98a8] font-sans max-w-md mx-auto">
+                <h3 className="text-sm font-bold text-main">No External Components Linked</h3>
+                <p className="text-xs text-muted font-sans max-w-md mx-auto">
                   You haven't linked any Vercel deployments, Supabase databases, or GitHub repositories yet. Link an external component with any account identifier to start unified monitoring.
                 </p>
               </div>
@@ -564,15 +564,15 @@ export const MultiAccountComponentHub: React.FC = () => {
                   key={comp.id}
                   className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
                     comp.status === 'degraded'
-                      ? 'bg-[#1c2333]/90 border-amber-500/40 shadow-sm'
-                      : 'bg-[#161b22] border-white/5 hover:border-white/15'
+                      ? 'bg-app/90 border-amber-500/40 shadow-sm'
+                      : 'bg-card border-app hover:border-white/15'
                   }`}
                 >
                   <div className="space-y-3">
                     {/* Top Row: Service Logo + Name + Account Pill */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-[#0d1117] border border-white/10 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-lg bg-app border border-app flex items-center justify-center shrink-0">
                           {comp.serviceType === 'supabase' && <SupabaseLogo className="w-4 h-4" />}
                           {comp.serviceType === 'vercel' && <VercelLogo className="w-4 h-4 text-white" />}
                           {comp.serviceType === 'github' && <GitHubLogo className="w-4 h-4 text-white" />}
@@ -582,9 +582,9 @@ export const MultiAccountComponentHub: React.FC = () => {
 
                         <div>
                           <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-xs text-[#e6edf3]">{comp.name}</span>
+                            <span className="font-bold text-xs text-main">{comp.name}</span>
                           </div>
-                          <span className="text-[10px] text-[#8b98a8] block">
+                          <span className="text-[10px] text-muted block">
                             Project: {comp.projectName}
                           </span>
                         </div>
@@ -601,19 +601,19 @@ export const MultiAccountComponentHub: React.FC = () => {
                         >
                           {comp.status === 'healthy' ? 'Healthy' : 'Latency Alert'}
                         </span>
-                        <span className="text-[10px] text-[#8b98a8] font-mono tabular-nums">
+                        <span className="text-[10px] text-muted font-mono tabular-nums">
                           {comp.latencyMs}ms · {comp.lastChecked}
                         </span>
                       </div>
                     </div>
 
                     {/* Account Ownership & Link Section */}
-                    <div className="p-2.5 rounded-lg bg-[#0d1117] border border-white/5 flex items-center justify-between text-[11px]">
+                    <div className="p-2.5 rounded-lg bg-app border border-app flex items-center justify-between text-[11px]">
                       <div>
-                        <span className="text-[10px] text-[#8b98a8] uppercase block">Linked Account:</span>
+                        <span className="text-[10px] text-muted uppercase block">Linked Account:</span>
                         <span className="font-bold text-cyan-300 flex items-center gap-1">
                           @{comp.accountOwner}
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-[#8b98a8] font-normal">
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-muted font-normal">
                             {comp.accountType}
                           </span>
                         </span>
@@ -633,17 +633,17 @@ export const MultiAccountComponentHub: React.FC = () => {
                     {/* Key Live Metrics Grid */}
                     <div className="grid grid-cols-2 gap-2 text-[10px]">
                       {Object.entries(comp.metrics).map(([key, val]) => (
-                        <div key={key} className="p-2 rounded bg-white/5 border border-white/5">
-                          <span className="text-[#8b98a8] uppercase block">{key}:</span>
-                          <span className="font-bold text-[#e6edf3] font-mono truncate block">{val}</span>
+                        <div key={key} className="p-2 rounded bg-white/5 border border-app">
+                          <span className="text-muted uppercase block">{key}:</span>
+                          <span className="font-bold text-main font-mono truncate block">{val}</span>
                         </div>
                       ))}
                     </div>
                   </div>
 
                   {/* One-Click Remediation Fixes */}
-                  <div className="mt-4 pt-3 border-t border-white/5 space-y-2">
-                    <span className="text-[10px] font-bold text-[#8b98a8] uppercase block flex items-center gap-1">
+                  <div className="mt-4 pt-3 border-t border-app space-y-2">
+                    <span className="text-[10px] font-bold text-muted uppercase block flex items-center gap-1">
                       <Zap className="w-3 h-3 text-[#F0B230]" />
                       Fast Diagnostic Fixes (Per-Server MCP):
                     </span>
@@ -655,7 +655,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                           type="button"
                           disabled={Boolean(executingFixId)}
                           onClick={() => handleExecuteFix(comp.id, fix)}
-                          className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-[#F0B230] text-[#e6edf3] hover:text-[#0A1420] border border-white/10 hover:border-[#F0B230] text-[10px] font-bold transition-all flex items-center gap-1 disabled:opacity-50"
+                          className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-[#F0B230] text-main hover:text-[#0A1420] border border-app hover:border-[#F0B230] text-[10px] font-bold transition-all flex items-center gap-1 disabled:opacity-50"
                           title={fix.description}
                         >
                           {executingFixId === `${comp.id}-${fix.actionId}` ? (
@@ -684,8 +684,8 @@ export const MultiAccountComponentHub: React.FC = () => {
           {/* Architectural Comparison Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Left Card: Per-Server / Per-Project MCP */}
-            <div className="p-5 rounded-2xl bg-[#161b22] border border-cyan-500/30 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/5">
+            <div className="p-5 rounded-2xl bg-card border border-cyan-500/30 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-app">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-cyan-950/80 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
                     <Server className="w-4 h-4" />
@@ -694,7 +694,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                     <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wide">
                       Per-Server / Project MCP & APIs
                     </h3>
-                    <span className="text-[10px] text-[#8b98a8]">
+                    <span className="text-[10px] text-muted">
                       Scope: Tenant-Isolated Container & Daemon
                     </span>
                   </div>
@@ -704,14 +704,14 @@ export const MultiAccountComponentHub: React.FC = () => {
                 </span>
               </div>
 
-              <div className="space-y-2 text-slate-300 font-sans text-xs leading-relaxed">
+              <div className="space-y-2 text-muted font-sans text-xs leading-relaxed">
                 <p>
                   <strong>What it is:</strong> A lightweight Model Context Protocol daemon attached exclusively to a specific project, container, or database instance (e.g. <code>mcp-server-supabase (EHI)</code> or <code>mcp-server-vercel (EdgePoint)</code>).
                 </p>
                 <p>
                   <strong>What it is used for:</strong>
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-slate-400 font-mono text-[11px]">
+                <ul className="list-disc list-inside space-y-1 text-muted font-mono text-[11px]">
                   <li>Executing isolated SQL queries and inspecting table schema</li>
                   <li>Tailing live edge container error logs during a deployment</li>
                   <li>Applying database migrations with deterministic rollbacks</li>
@@ -722,19 +722,19 @@ export const MultiAccountComponentHub: React.FC = () => {
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0d1117] border border-white/5 space-y-1.5 font-mono text-[11px]">
-                <span className="text-[10px] text-[#8b98a8] uppercase block">Assigned Agents:</span>
+              <div className="p-3 rounded-xl bg-app border border-app space-y-1.5 font-mono text-[11px]">
+                <span className="text-[10px] text-muted uppercase block">Assigned Agents:</span>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-white/5">FullStackAgent</span>
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-white/5">CodingAgent</span>
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-white/5">SecurityAuditorAgent</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-app">FullStackAgent</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-app">CodingAgent</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 text-cyan-300 border border-app">SecurityAuditorAgent</span>
                 </div>
               </div>
             </div>
 
             {/* Right Card: App-Wide / Global MCP */}
-            <div className="p-5 rounded-2xl bg-[#161b22] border border-[#F0B230]/30 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/5">
+            <div className="p-5 rounded-2xl bg-card border border-[#F0B230]/30 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-app">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-lg bg-[#F0B230]/20 border border-[#F0B230]/40 flex items-center justify-center text-[#FFBD59]">
                     <Workflow className="w-4 h-4" />
@@ -743,7 +743,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                     <h3 className="text-sm font-bold text-[#FFBD59] uppercase tracking-wide">
                       App-Wide / Whole App MCP & APIs
                     </h3>
-                    <span className="text-[10px] text-[#8b98a8]">
+                    <span className="text-[10px] text-muted">
                       Scope: AetherOrch Global Control Plane
                     </span>
                   </div>
@@ -753,14 +753,14 @@ export const MultiAccountComponentHub: React.FC = () => {
                 </span>
               </div>
 
-              <div className="space-y-2 text-slate-300 font-sans text-xs leading-relaxed">
+              <div className="space-y-2 text-muted font-sans text-xs leading-relaxed">
                 <p>
                   <strong>What it is:</strong> The global orchestrator mesh (<code>aetherorch-fleet-mesh</code>) running on the central server to oversee the entire platform across all client accounts.
                 </p>
                 <p>
                   <strong>What it is used for:</strong>
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-slate-400 font-mono text-[11px]">
+                <ul className="list-disc list-inside space-y-1 text-muted font-mono text-[11px]">
                   <li>Enforcing the 60/30/10 weekly FinOps ledger ($3.00 / 400 calls cap)</li>
                   <li>Multi-account credential federation and cross-account health pings</li>
                   <li>Routing tasks to foundation models (DeepSeek, Claude, Gemini, OpenAI)</li>
@@ -772,32 +772,32 @@ export const MultiAccountComponentHub: React.FC = () => {
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl bg-[#0d1117] border border-white/5 space-y-1.5 font-mono text-[11px]">
-                <span className="text-[10px] text-[#8b98a8] uppercase block">Assigned Agents:</span>
+              <div className="p-3 rounded-xl bg-app border border-app space-y-1.5 font-mono text-[11px]">
+                <span className="text-[10px] text-muted uppercase block">Assigned Agents:</span>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-[#FFBD59] border border-white/5">CoordinatorAgent</span>
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-[#FFBD59] border border-white/5">FinOpsLedgerAgent</span>
-                  <span className="px-2 py-0.5 rounded bg-white/5 text-[#FFBD59] border border-white/5">PlatformOperator</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 text-[#FFBD59] border border-app">CoordinatorAgent</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 text-[#FFBD59] border border-app">FinOpsLedgerAgent</span>
+                  <span className="px-2 py-0.5 rounded bg-white/5 text-[#FFBD59] border border-app">PlatformOperator</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Active MCP Server Registry Table */}
-          <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 space-y-4">
+          <div className="p-5 rounded-2xl bg-card border border-app space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#e6edf3] font-mono flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-main font-mono flex items-center gap-2">
                 <Cpu className="w-3.5 h-3.5 text-[#F0B230]" />
                 Connected MCP Server Daemons Registry
               </h3>
-              <span className="text-[10px] font-mono text-[#8b98a8]">
+              <span className="text-[10px] font-mono text-muted">
                 {INITIAL_MCP_REGISTRY.length} registered daemons
               </span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#0d1117] border-b border-white/5 text-[#8b98a8]">
+                <thead className="bg-app border-b border-app text-muted">
                   <tr>
                     <th className="py-2.5 px-3">Daemon Name</th>
                     <th className="py-2.5 px-3">Level / Scope</th>
@@ -807,12 +807,12 @@ export const MultiAccountComponentHub: React.FC = () => {
                     <th className="py-2.5 px-3">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-[color:var(--border-app)]">
                   {INITIAL_MCP_REGISTRY.map((mcp) => (
                     <tr key={mcp.id} className="hover:bg-white/5">
                       <td className="py-3 px-3">
-                        <span className="font-bold text-[#e6edf3] block">{mcp.name}</span>
-                        <span className="text-[10px] text-[#8b98a8]">{mcp.description}</span>
+                        <span className="font-bold text-main block">{mcp.name}</span>
+                        <span className="text-[10px] text-muted">{mcp.description}</span>
                       </td>
                       <td className="py-3 px-3">
                         <span
@@ -825,8 +825,8 @@ export const MultiAccountComponentHub: React.FC = () => {
                           {mcp.level}
                         </span>
                       </td>
-                      <td className="py-3 px-3 text-slate-300">{mcp.scopeTarget}</td>
-                      <td className="py-3 px-3 text-[#8b98a8]">{mcp.transport}</td>
+                      <td className="py-3 px-3 text-muted">{mcp.scopeTarget}</td>
+                      <td className="py-3 px-3 text-muted">{mcp.transport}</td>
                       <td className="py-3 px-3 font-bold text-[#FFBD59]">{mcp.toolsCount} tools</td>
                       <td className="py-3 px-3">
                         <span className="text-emerald-400 font-bold flex items-center gap-1.5">
@@ -848,24 +848,24 @@ export const MultiAccountComponentHub: React.FC = () => {
       {/* ══════════════════════════════════════════════════════════════════ */}
       {activeView === 'playground' && (
         <div className="space-y-5 animate-in fade-in duration-150">
-          <div className="p-4 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
+          <div className="p-4 rounded-xl bg-app border border-app space-y-1">
             <span className="text-[10px] font-bold uppercase text-[#FFBD59] tracking-wider">
               Interactive Test Runner
             </span>
-            <h3 className="text-sm font-bold text-[#e6edf3]">
+            <h3 className="text-sm font-bold text-main">
               Execute Live MCP Tool Invocations
             </h3>
-            <p className="text-slate-400 font-sans text-xs">
+            <p className="text-muted font-sans text-xs">
               Test how agents interact with both <strong>Per-Server MCPs</strong> (isolated to specific vertical) and the <strong>App-Wide MCP</strong> (global ledger & multi-model router).
             </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Input Config Form (5 cols) */}
-            <div className="lg:col-span-5 p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
+            <div className="lg:col-span-5 p-4 rounded-xl bg-card border border-app space-y-3">
               {/* Select MCP Daemon */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-[#e6edf3]">
+                <label className="text-[11px] font-bold text-main">
                   Select Target MCP Daemon:
                 </label>
                 <select
@@ -877,7 +877,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                       setSelectedToolName(server.tools[0].name);
                     }
                   }}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                 >
                   {INITIAL_MCP_REGISTRY.map((srv) => (
                     <option key={srv.id} value={srv.id}>
@@ -889,13 +889,13 @@ export const MultiAccountComponentHub: React.FC = () => {
 
               {/* Select Tool */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-[#e6edf3]">
+                <label className="text-[11px] font-bold text-main">
                   Select Exported Tool:
                 </label>
                 <select
                   value={selectedToolName}
                   onChange={(e) => setSelectedToolName(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                 >
                   {activeMcpServer?.tools.map((t) => (
                     <option key={t.name} value={t.name}>
@@ -907,7 +907,7 @@ export const MultiAccountComponentHub: React.FC = () => {
 
               {/* JSON Input Parameters */}
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-[#e6edf3] flex items-center justify-between">
+                <label className="text-[11px] font-bold text-main flex items-center justify-between">
                   <span>Tool Parameters (JSON-RPC 2.0 Payload):</span>
                   <span className="text-[10px] text-cyan-300">args</span>
                 </label>
@@ -915,7 +915,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                   value={mockInputParams}
                   onChange={(e) => setMockInputParams(e.target.value)}
                   rows={4}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                 />
               </div>
 
@@ -941,18 +941,18 @@ export const MultiAccountComponentHub: React.FC = () => {
             </div>
 
             {/* Output Display Console (7 cols) */}
-            <div className="lg:col-span-7 p-4 rounded-xl bg-[#0d1117] border border-white/5 flex flex-col justify-between space-y-3 font-mono">
-              <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                <span className="text-[10px] font-bold uppercase text-[#8b98a8] flex items-center gap-1.5">
+            <div className="lg:col-span-7 p-4 rounded-xl bg-app border border-app flex flex-col justify-between space-y-3 font-mono">
+              <div className="flex items-center justify-between pb-2 border-b border-app">
+                <span className="text-[10px] font-bold uppercase text-muted flex items-center gap-1.5">
                   <Terminal className="w-3 h-3 text-emerald-400" />
                   JSON-RPC Execution Output
                 </span>
                 <span className="text-[10px] text-emerald-400 font-bold">200 OK</span>
               </div>
 
-              <div className="flex-1 bg-[#161b22] p-3 rounded-lg border border-white/5 overflow-x-auto min-h-[200px]">
+              <div className="flex-1 bg-card p-3 rounded-lg border border-app overflow-x-auto min-h-[200px]">
                 {executionResult ? (
-                  <pre className="text-[11px] text-slate-200 leading-relaxed">
+                  <pre className="text-[11px] text-main leading-relaxed">
                     {JSON.stringify(executionResult, null, 2)}
                   </pre>
                 ) : (
@@ -963,7 +963,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                 )}
               </div>
 
-              <div className="text-[10px] text-[#8b98a8] flex items-center justify-between pt-1">
+              <div className="text-[10px] text-muted flex items-center justify-between pt-1">
                 <span>Protocol: Model Context Protocol (v2024-11-05 spec)</span>
                 <span>Latency: ~42ms</span>
               </div>
@@ -979,8 +979,8 @@ export const MultiAccountComponentHub: React.FC = () => {
           role="dialog"
           aria-modal="true"
         >
-          <div className="w-full max-w-lg bg-[#161b22] border border-white/10 rounded-2xl shadow-2xl overflow-hidden font-mono text-xs">
-            <div className="px-5 py-4 border-b border-white/5 bg-[#0d1117] flex items-center justify-between">
+          <div className="w-full max-w-lg bg-card border border-app rounded-2xl shadow-2xl overflow-hidden font-mono text-xs">
+            <div className="px-5 py-4 border-b border-app bg-app flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Share2 className="w-4 h-4 text-[#F0B230]" />
                 <h3 className="text-sm font-bold text-white">
@@ -989,7 +989,7 @@ export const MultiAccountComponentHub: React.FC = () => {
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-[#8b98a8] hover:text-white"
+                className="text-muted hover:text-main"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -997,7 +997,7 @@ export const MultiAccountComponentHub: React.FC = () => {
 
             <form onSubmit={handleAddComponent} className="p-5 space-y-3.5">
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-[#e6edf3]">
+                <label className="text-[11px] font-bold text-main">
                   Component Name
                 </label>
                 <input
@@ -1006,19 +1006,19 @@ export const MultiAccountComponentHub: React.FC = () => {
                   value={newServiceName}
                   onChange={(e) => setNewServiceName(e.target.value)}
                   placeholder="e.g. Kano Logistics Webhook Gateway"
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-[#e6edf3]">
+                  <label className="text-[11px] font-bold text-main">
                     Component Service Type
                   </label>
                   <select
                     value={newServiceType}
                     onChange={(e) => setNewServiceType(e.target.value as ServiceType)}
-                    className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                    className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                   >
                     <option value="vercel">Vercel Deployment</option>
                     <option value="supabase">Supabase Database</option>
@@ -1028,13 +1028,13 @@ export const MultiAccountComponentHub: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-[#e6edf3]">
+                  <label className="text-[11px] font-bold text-main">
                     Assigned Project
                   </label>
                   <select
                     value={newAssignedProject}
                     onChange={(e) => setNewAssignedProject(e.target.value)}
-                    className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                    className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                   >
                     {projects.length === 0 ? (
                       <option value="">(No Projects Registered)</option>
@@ -1048,9 +1048,9 @@ export const MultiAccountComponentHub: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-[#e6edf3] flex items-center justify-between">
+                <label className="text-[11px] font-bold text-main flex items-center justify-between">
                   <span>Linked Account Owner Identifier</span>
-                  <span className="text-[10px] text-[#8b98a8]">Can differ from app account</span>
+                  <span className="text-[10px] text-muted">Can differ from app account</span>
                 </label>
                 <input
                   type="text"
@@ -1058,12 +1058,12 @@ export const MultiAccountComponentHub: React.FC = () => {
                   value={newAccountOwner}
                   onChange={(e) => setNewAccountOwner(e.target.value)}
                   placeholder="e.g. client-team-prod or personal-account-3"
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-bold text-[#e6edf3]">
+                <label className="text-[11px] font-bold text-main">
                   Target URL or Public Host
                 </label>
                 <input
@@ -1071,7 +1071,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                   value={newEndpointUrl}
                   onChange={(e) => setNewEndpointUrl(e.target.value)}
                   placeholder="https://client-prod.vercel.app or https://xxx.supabase.co"
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
                 />
               </div>
 
@@ -1083,7 +1083,7 @@ export const MultiAccountComponentHub: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg text-[#8b98a8] hover:text-[#e6edf3] font-mono"
+                  className="px-3.5 py-1.5 rounded-lg text-muted hover:text-main font-mono"
                 >
                   Cancel
                 </button>

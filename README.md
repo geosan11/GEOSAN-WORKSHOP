@@ -58,6 +58,16 @@ To verify type safety, system invariants, and production build artifact generati
 # Cross-platform TypeScript lint and Vite build check
 npm run verify
 
+# Full deterministic harness (git, lint, deps, replay, system, design-lint)
+npm run harness
+
 # Windows PowerShell deterministic test harness
-powershell scripts/verify.ps1
+pwsh -ExecutionPolicy Bypass -File scripts/verify.ps1
 ```
+
+### CI / CD
+GitHub Actions runs a single `CI` job on every pull request and on pushes to `main`:
+
+`npm ci` → typecheck → dependency weight check → budget/telemetry replay → system invariants → design lint → production build
+
+Vercel uses `npm ci` + `npm run build` (see `vercel.json`). Protect `main` so merges require the `CI` check to pass, and keep production deploys tied to green `main` only.
