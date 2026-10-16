@@ -28,12 +28,7 @@ export const TopBar: React.FC = () => {
     const project = projects.find((p) => p.id === screen.projectId);
     const projectName = project ? project.name.split(' (')[0] : screen.projectId;
 
-    // Group name mapping
-    let groupName = 'Work';
-    if (screen.tab === 'verify' || screen.tab === 'qa') groupName = 'Verify';
-    else if (screen.tab === 'money' || screen.tab === 'costs') groupName = 'Spend';
-    else if (screen.tab === 'system' || screen.tab === 'codebase' || screen.tab === 'components') groupName = 'System';
-    else if (screen.tab === 'spec' || screen.tab === 'discovery' || screen.tab === 'design') groupName = 'Spec';
+    const groupName = screen.tab === 'verify' || screen.tab === 'qa' ? 'Verify' : 'Work';
 
     return {
       projectName,

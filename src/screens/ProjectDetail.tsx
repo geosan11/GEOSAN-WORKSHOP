@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
 import { useCosts } from '../hooks/useCosts';
@@ -28,17 +28,13 @@ import {
 import {
   Layers,
   ShieldCheck,
-  DollarSign,
-  Cpu,
-  FileText,
   User,
   Plus,
-  Play,
   ArrowRight,
   CheckCircle2,
-  AlertTriangle,
   Save,
-  MessageSquare
+  MessageSquare,
+  ChevronRight,
 } from 'lucide-react';
 import { PageHeader, SectionCard } from '../components/ui';
 
@@ -60,27 +56,25 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
   const { costEvents } = useCosts(projectId);
   const { qaFindings, qaRuns, refetch: qRefetch } = useQA(projectId);
 
-  // Map legacy tabs to the 5 official groups
-  const normalizeTab = (tab: ProjectTab): 'work' | 'verify' | 'money' | 'system' | 'spec' => {
-    if (tab === 'qa') return 'verify';
-    if (tab === 'costs') return 'money';
-    if (tab === 'codebase' || tab === 'components' || tab === 'settings') return 'system';
-    if (tab === 'discovery' || tab === 'design') return 'spec';
-    if (tab === 'overview' || tab === 'session' || tab === 'tasks' || tab === 'chat') return 'work';
-    return tab;
-  };
+  type Surface = 'work' | 'verify';
 
-  const [activeGroup, setActiveGroup] = useState<'work' | 'verify' | 'money' | 'system' | 'spec'>(
-    normalizeTab(initialTab)
-  );
+  const resolveEntry = (tab: ProjectTab) => ({
+    surface: (tab === 'qa' || tab === 'verify' ? 'verify' : 'work') as Surface,
+    openSpec: tab === 'spec' || tab === 'discovery' || tab === 'design',
+    openSystem: tab === 'system' || tab === 'codebase' || tab === 'components' || tab === 'settings',
+    openChat: tab === 'chat',
+  });
+
+  const entry = resolveEntry(initialTab);
+  const [surface, setSurface] = useState<Surface>(entry.surface);
   const [activeTaskId, setActiveTaskId] = useState<string | undefined>(initialTaskId);
   const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
   const [openWorkspace, setOpenWorkspace] = useState(Boolean(initialTaskId));
   const [dispatchedFixIds, setDispatchedFixIds] = useState<Record<string, boolean>>({});
-
-  // Sub-views for Work & Verify
-  const [workView, setWorkView] = useState<'tasks' | 'chat'>('tasks');
-  const [verifyView, setVerifyView] = useState<'findings' | 'runs'>('findings');
+  const [specOpen, setSpecOpen] = useState(entry.openSpec);
+  const [systemOpen, setSystemOpen] = useState(entry.openSystem);
+  const [chatOpen, setChatOpen] = useState(entry.openChat);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [hardStopEnabled, setHardStopEnabled] = useState(false);
 
@@ -172,6 +166,24 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
     toast.success('Spec answers saved successfully');
   };
 
+  const unansweredCount = useMemo(() => {
+    return UI_SDLC_PHASES.flatMap((phase) => phase.questions).filter(
+      (q) => !(discoveryState.answers[q.id] || '').trim()
+    ).length;
+  }, [discoveryState]);
+
+  useEffect(() => {
+    const next = resolveEntry(initialTab);
+    setSurface(next.surface);
+    if (next.openSystem) setSystemOpen(true);
+    if (next.openChat) setChatOpen(true);
+    const loaded = loadProjectDiscovery(projectId);
+    const missing = UI_SDLC_PHASES.flatMap((phase) => phase.questions).some(
+      (q) => !(loaded.answers[q.id] || '').trim()
+    );
+    if (next.openSpec || missing) setSpecOpen(true);
+  }, [initialTab, projectId]);
+
   if (pLoading && !project) {
     return (
       <div className="p-6 max-w-7xl mx-auto">
@@ -189,15 +201,15 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
   }
 
   const groups = [
-    { id: 'work', label: 'Work', icon: Layers, count: projectTasks.length },
-    { id: 'verify', label: 'Verify', icon: ShieldCheck, count: projectFindings.length },
-    { id: 'money', label: 'Spend', icon: DollarSign },
-    { id: 'system', label: 'System', icon: Cpu },
-    { id: 'spec', label: 'Spec', icon: FileText }
-  ] as const;
+    { id: 'work' as const, label: 'Work', icon: Layers, count: projectTasks.length },
+    { id: 'verify' as const, label: 'Verify', icon: ShieldCheck, count: projectFindings.length },
+  ];
 
-  const selectGroup = (id: (typeof groups)[number]['id']) => {
-    setActiveGroup(id);
+  const budget = project.monthly_budget_usd || 1000;
+  const spendRatio = Math.round((monthSpend / budget) * 100);
+
+  const selectGroup = (id: Surface) => {
+    setSurface(id);
     setOpenWorkspace(false);
     navigate({ kind: 'project', projectId, tab: id });
   };
@@ -213,7 +225,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             : `${project.vertical} · Open Work to dispatch the first agent action.`
         }
         actions={
-          activeGroup === 'work' && !openWorkspace ? (
+          surface === 'work' && !openWorkspace ? (
             <button
               type="button"
               onClick={() => setIsDispatchModalOpen(true)}
@@ -233,7 +245,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
       >
         {groups.map((g) => {
           const Icon = g.icon;
-          const isActive = activeGroup === g.id;
+          const isActive = surface === g.id;
           return (
             <button
               key={g.id}
@@ -258,8 +270,109 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
         })}
       </div>
 
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="kpi-tile">
+          <div>
+            <span className="text-meta block mb-1">Month spend</span>
+            <span className="kpi-tile-value text-main">{formatCost(monthSpend)}</span>
+          </div>
+        </div>
+        <div className="kpi-tile">
+          <div>
+            <span className="text-meta block mb-1">Budget</span>
+            <span className="kpi-tile-value text-main">{formatCost(budget)}</span>
+          </div>
+        </div>
+        <div className="kpi-tile">
+          <div>
+            <span className="text-meta block mb-1">Of limit</span>
+            <span className="kpi-tile-value text-primary">{spendRatio}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── GROUP 5: SPEC ── */}
+      {surface === 'work' && !openWorkspace && (
+        <section className="section-card overflow-hidden">
+          <button type="button" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={specOpen} onClick={() => setSpecOpen((v) => !v)}>
+            <span>
+              <span className="text-section-title block">Spec</span>
+              <span className="text-lede text-[0.75rem]">{unansweredCount > 0 ? `${unansweredCount} unanswered` : 'Discovery answers'}</span>
+            </span>
+            <ChevronRight className={`w-4 h-4 text-muted transition-transform ${specOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {specOpen ? <div className="border-t border-app p-4 md:p-5 space-y-6">
+            <div className="flex items-center justify-end">
+
+              <button
+                onClick={handleSaveSpec}
+                className="px-4 py-2 rounded-lg bg-[#F0B230] text-[#0A1420] font-bold text-xs hover:bg-[#FFBD59] transition-colors flex items-center gap-1.5 shadow-sm font-mono"
+              >
+                <Save className="w-3.5 h-3.5" />
+                Save Spec Answers
+              </button>
+            </div>
+
+            {/* Unified Document of all Questions across phases */}
+            <div className="space-y-4">
+              {UI_SDLC_PHASES.flatMap((phase) => phase.questions).map((q) => {
+                const currentVal = discoveryState.answers[q.id] || '';
+                const isUnanswered = currentVal.trim().length === 0;
+
+                return (
+                  <div
+                    key={q.id}
+                    className={`p-4 rounded-xl bg-[#161b22] border transition-all space-y-2 text-xs font-mono ${isUnanswered
+                      ? 'border-amber-500/50 bg-amber-500/5'
+                      : 'border-white/10'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-100 font-sans text-sm">
+                        {q.title}
+                      </span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${isUnanswered
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                          }`}
+                      >
+                        {isUnanswered ? 'Unanswered' : 'Answered'}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-300 font-sans text-xs">{q.question}</p>
+
+                    <textarea
+                      rows={isUnanswered ? 3 : 2}
+                      value={currentVal}
+                      onChange={(e) => handleDiscoveryChange(q.id, e.target.value)}
+                      placeholder={`Document specification decision for ${q.title}...`}
+                      className={`w-full rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${isUnanswered
+                        ? 'bg-[#0d1117] border border-amber-500/40 focus:border-amber-400 placeholder:text-amber-500/40'
+                        : 'bg-[#0d1117] border border-white/10 focus:border-emerald-400'
+                        }`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Reference Design Brief */}
+            <div className="pt-4 border-t border-white/10">
+              <h3 className="text-xs font-bold text-slate-300 uppercase font-mono mb-3">
+                Design Brief & Golden Fixtures
+              </h3>
+              <ReferenceBoard project={project} onDesignApproved={() => tRefetch()} />
+            </div>
+          </div> : null}
+        </section>
+      )}
+
+
       {/* ── GROUP 1: WORK ── */}
-      {activeGroup === 'work' && (
+      {surface === 'work' && (
         <div className="space-y-4">
           {openWorkspace ? (
             <div className="space-y-3">
@@ -277,474 +390,271 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setWorkView('tasks')}
-                  className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${workView === 'tasks'
-                    ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40 shadow-sm'
-                    : 'text-muted hover:text-main hover:bg-white/5'
-                    }`}
-                >
-                  <Layers className="w-3.5 h-3.5" />
-                  Tasks ({projectTasks.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWorkView('chat')}
-                  className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${workView === 'chat'
-                    ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40 shadow-sm'
-                    : 'text-muted hover:text-main hover:bg-white/5'
-                    }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Agent Chat
-                </button>
-              </div>
-
-              {workView === 'chat' ? (
-                <div className="section-card overflow-hidden p-2 shadow-lg">
-                  <ProjectChatTab project={project} />
-                </div>
-              ) : (
-                <>
-                  {nextActionTask && (
-                    <SectionCard
-                      title="Next action"
-                      description="Highest-priority open task for this vertical."
-                      actions={
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveTaskId(nextActionTask.id);
-                            setOpenWorkspace(true);
-                          }}
-                          className="btn btn-primary"
-                        >
-                          Open <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      }
+              {nextActionTask && (
+                <SectionCard
+                  title="Next action"
+                  description="Highest-priority open task for this vertical."
+                  actions={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTaskId(nextActionTask.id);
+                        setOpenWorkspace(true);
+                      }}
+                      className="btn btn-primary"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2 text-muted">
-                            <User className="w-3.5 h-3.5 text-primary" />
-                            <span>{nextActionTask.assigned_agent || 'CoordinatorAgent'}</span>
-                            <span>·</span>
-                            <span>{nextActionTask.id}</span>
-                          </div>
-                          <p className="text-main font-sans font-medium line-clamp-2">
-                            {nextActionTask.prompt}
-                          </p>
-                        </div>
-                        <StatusPill status={nextActionTask.status} />
+                      Open <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  }
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 text-muted">
+                        <User className="w-3.5 h-3.5 text-primary" />
+                        <span>{nextActionTask.assigned_agent || 'CoordinatorAgent'}</span>
+                        <span>·</span>
+                        <span>{nextActionTask.id}</span>
                       </div>
-                    </SectionCard>
-                  )}
-
-                  {projectTasks.length === 0 ? (
-                    <EmptyState
-                      title="No Tasks for this Project"
-                      description="No tasks currently registered for this vertical."
-                      actionLabel="Dispatch First Task"
-                      onAction={() => setIsDispatchModalOpen(true)}
-                    />
-                  ) : (
-                    <SectionCard flush title="All tasks" description="Open a row for the session workspace.">
-                      <div className="divide-y divide-white/5">
-                        {projectTasks.map((task) => (
-                          <button
-                            key={task.id}
-                            type="button"
-                            onClick={() => {
-                              setActiveTaskId(task.id);
-                              setOpenWorkspace(true);
-                            }}
-                            className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/5 transition-colors text-xs font-mono group"
-                          >
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="flex items-center gap-1 text-muted">
-                                  <User className="w-3.5 h-3.5 text-primary" />
-                                  {task.assigned_agent || 'CoordinatorAgent'}
-                                </span>
-                                <span className="text-slate-600">·</span>
-                                <span className="text-muted">{task.id}</span>
-                              </div>
-                              <p className="text-main font-sans font-medium line-clamp-1">
-                                {task.prompt}
-                              </p>
-                            </div>
-
-                            <div className="flex items-center gap-3 shrink-0">
-                              <StatusPill status={task.status} />
-                              <span className="text-muted text-[10px] hidden md:inline">
-                                {formatRelative(task.created_at)}
-                              </span>
-                              <ArrowRight className="w-3.5 h-3.5 text-muted group-hover:text-primary transition-colors" />
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    </SectionCard>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── GROUP 2: VERIFY ── */}
-      {activeGroup === 'verify' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-sm font-bold text-slate-100 font-mono">
-                QA Verification for {project.name.split(' (')[0]}
-              </h2>
-              <p className="text-xs text-slate-400">
-                Autonomous crawler regressions, invariant failures, and test runs for this vertical only.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setVerifyView('findings')}
-                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${verifyView === 'findings'
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Findings ({projectFindings.length})
-              </button>
-              <button
-                onClick={() => setVerifyView('runs')}
-                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1.5 ${verifyView === 'runs'
-                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-              >
-                <Play className="w-3.5 h-3.5" />
-                QA Runs ({projectRuns.length})
-              </button>
-            </div>
-          </div>
-
-          {verifyView === 'runs' ? (
-            projectRuns.length === 0 ? (
-              <div className="p-8 rounded-xl bg-[#161b22] border border-white/5 text-center text-xs font-mono text-slate-400">
-                No QA execution runs recorded for this vertical yet.
-              </div>
-            ) : (
-              <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5 font-mono text-xs">
-                {projectRuns.map((run) => (
-                  <div
-                    key={run.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[#1c2333]/50 transition-colors"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-100">{run.id}</span>
-                        <span className="px-1.5 py-0.2 rounded bg-slate-800 text-[10px] text-slate-300 uppercase">
-                          {run.run_type || 'explore'}
-                        </span>
-                        {(run as any).target_platform && (
-                          <span className="text-[10px] text-slate-500">
-                            platform: {(run as any).target_platform}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-slate-400">
-                        {(run as any).target_url || `Task reference: ${run.task_id || 'manual trigger'}`}
+                      <p className="text-main font-sans font-medium line-clamp-2">
+                        {nextActionTask.prompt}
                       </p>
-                      {(run as any).execution_speed && (
-                        <p className="text-[10px] text-slate-500">
-                          Speed: {(run as any).execution_speed} · Nodes inspected: {(run as any).dom_nodes_inspected || 0}
-                        </p>
-                      )}
                     </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${run.status === 'completed'
-                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
-                          : run.status === 'failed'
-                            ? 'bg-rose-950 text-rose-400 border border-rose-500/30'
-                            : 'bg-amber-950 text-amber-400 border border-amber-500/30'
-                          }`}
-                      >
-                        {run.status}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        {formatRelative((run as any).started_at || (run as any).created_at || new Date().toISOString())}
-                      </span>
-                    </div>
+                    <StatusPill status={nextActionTask.status} />
                   </div>
-                ))}
-              </div>
-            )
-          ) : (
-            projectFindings.length === 0 ? (
-              <div className="p-8 rounded-xl bg-[#161b22] border border-white/5 text-center text-xs font-mono text-emerald-400 flex flex-col items-center gap-2">
-                <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-                <span>Zero invariant failures or QA regressions found for this vertical.</span>
-              </div>
-            ) : (
-              <div className="bg-[#161b22] border border-white/10 rounded-xl overflow-hidden divide-y divide-white/5">
-                {projectFindings.map((finding) => {
-                  const isFixDispatched = dispatchedFixIds[finding.id];
-                  return (
-                    <div
-                      key={finding.id}
-                      className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs font-mono hover:bg-[#1c2333]/50 transition-colors"
-                    >
-                      <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase ${finding.severity === 'critical'
-                              ? 'bg-rose-950 text-rose-400 border border-rose-500/40'
-                              : 'bg-amber-950 text-amber-400 border border-amber-500/40'
-                              }`}
-                          >
-                            {finding.severity}
-                          </span>
-                          <span className="text-slate-200 font-bold text-sm font-sans">{finding.title}</span>
-                        </div>
-                        {finding.description && (
-                          <p className="text-slate-400 font-sans text-xs leading-relaxed">
-                            {finding.description}
+                </SectionCard>
+              )}
+
+              {projectTasks.length === 0 ? (
+                <EmptyState
+                  title="No Tasks for this Project"
+                  description="No tasks currently registered for this vertical."
+                  actionLabel="Dispatch First Task"
+                  onAction={() => setIsDispatchModalOpen(true)}
+                />
+              ) : (
+                <SectionCard flush title="All tasks" description="Open a row for the session workspace.">
+                  <div className="divide-y divide-white/5">
+                    {projectTasks.map((task) => (
+                      <button
+                        key={task.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveTaskId(task.id);
+                          setOpenWorkspace(true);
+                        }}
+                        className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/5 transition-colors text-xs font-mono group"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1 text-muted">
+                              <User className="w-3.5 h-3.5 text-primary" />
+                              {task.assigned_agent || 'CoordinatorAgent'}
+                            </span>
+                            <span className="text-slate-600">·</span>
+                            <span className="text-muted">{task.id}</span>
+                          </div>
+                          <p className="text-main font-sans font-medium line-clamp-1">
+                            {task.prompt}
                           </p>
-                        )}
-                        <div className="text-[10px] text-slate-500">
-                          Component: <span className="text-slate-300">{finding.component || 'codebase'}</span> · ID: {finding.id}
                         </div>
-                      </div>
 
-                      <div className="shrink-0 flex items-center gap-2 self-start sm:self-center">
-                        {isFixDispatched ? (
-                          <span className="px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            Fix queued
+                        <div className="flex items-center gap-3 shrink-0">
+                          <StatusPill status={task.status} />
+                          <span className="text-muted text-[10px] hidden md:inline">
+                            {formatRelative(task.created_at)}
                           </span>
-                        ) : (
-                          <button
-                            onClick={() => handleDispatchFix(finding)}
-                            className="px-3 py-1.5 rounded-lg bg-[#F0B230] text-[#0A1420] hover:bg-[#FFBD59] font-bold text-xs transition-colors flex items-center gap-1 shadow-sm"
-                          >
-                            Dispatch fix
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
+                          <ArrowRight className="w-3.5 h-3.5 text-muted group-hover:text-primary transition-colors" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </SectionCard>
+              )}
+              <section className="section-card overflow-hidden">
+                <button type="button" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)}>
+                  <span className="inline-flex items-center gap-2">
+                    <MessageSquare className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-section-title">Agent chat</span>
+                  </span>
+                  <ChevronRight className={`w-4 h-4 text-muted transition-transform ${chatOpen ? 'rotate-90' : ''}`} />
+                </button>
+                {chatOpen ? (
+                  <div className="border-t border-app p-2">
+                    <ProjectChatTab project={project} />
+                  </div>
+                ) : null}
+              </section>
+            </div>
           )}
-        </div>
-      )}
-
-      {/* ── GROUP 3: PROJECT MONEY ── */}
-      {activeGroup === 'money' && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-sm font-bold text-slate-100 font-mono">
-              Project Spend ({project.name.split(' (')[0]})
-            </h2>
-            <p className="text-xs text-slate-400">
-              Current calendar month inference burn for this vertical only.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 font-mono text-xs">
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase block">Vertical Month Spend</span>
-              <span className="text-2xl font-bold text-emerald-400 tabular-nums">
-                {formatCost(monthSpend)}
-              </span>
-              <span className="text-[10px] text-slate-500 block">Attributed model calls</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase block">Monthly Budget Limit</span>
-              <span className="text-2xl font-bold text-slate-100 tabular-nums">
-                {formatCost(project.monthly_budget_usd || 1000)}
-              </span>
-              <span className="text-[10px] text-slate-500 block">Configured threshold</span>
-            </div>
-
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-1">
-              <span className="text-[10px] text-slate-400 uppercase block">Consumption Ratio</span>
-              <span className="text-2xl font-bold text-cyan-400 tabular-nums">
-                {Math.round((monthSpend / (project.monthly_budget_usd || 1000)) * 100)}%
-              </span>
-              <span className="text-[10px] text-slate-500 block">Of vertical limit</span>
-            </div>
-          </div>
         </div>
       )}
 
       {/* ── GROUP 4: SYSTEM ── */}
-      {activeGroup === 'system' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-sm font-bold text-slate-100 font-mono">
-              System, Codebase & MCP Plane
-            </h2>
-            <p className="text-xs text-slate-400">
-              Repository analysis findings as rows, MCP rows, and execution budgets.
-            </p>
-          </div>
+      {surface === 'work' && !openWorkspace && (
+        <section className="section-card overflow-hidden">
+          <button type="button" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={systemOpen} onClick={() => setSystemOpen((v) => !v)}>
+            <span>
+              <span className="text-section-title block">System</span>
+              <span className="text-lede text-[0.75rem]">Repos, MCP, and budget limits</span>
+            </span>
+            <ChevronRight className={`w-4 h-4 text-muted transition-transform ${systemOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {systemOpen ? <div className="border-t border-app p-4 md:p-5 space-y-6">
 
-          {/* Project Budget & Invariant Thresholds */}
-          <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4 font-mono text-xs shadow-md">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span className="font-bold text-slate-100 uppercase">
-                  Vertical Budget & Rate Invariants
+            {/* Project Budget & Invariant Thresholds */}
+            <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4 font-mono text-xs shadow-md">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="font-bold text-slate-100 uppercase">
+                    Vertical Budget & Rate Invariants
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-400">
+                  Hard boundary for {project.name.split(' (')[0]}
                 </span>
               </div>
-              <span className="text-[10px] text-slate-400">
-                Hard boundary for {project.name.split(' (')[0]}
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 uppercase block">Monthly Budget Limit</span>
-                  <button
-                    onClick={() => {
-                      const newB = window.prompt('Set new Monthly Budget (USD):', String(project.monthly_budget_usd || 1000));
-                      if (newB && !isNaN(Number(newB))) {
-                        project.monthly_budget_usd = Number(newB);
-                        toast.success(`Budget updated to ${formatCost(Number(newB))}`);
-                        // Force a re-render
-                        setHardStopEnabled((prev) => prev);
-                      }
-                    }}
-                    className="text-[10px] text-emerald-400 hover:text-emerald-300 uppercase font-bold"
-                  >
-                    Edit
-                  </button>
-                </div>
-                <span className="text-base font-bold text-slate-100">{formatCost(project.monthly_budget_usd || 1000)}</span>
-                <span className="text-[10px] text-slate-500 block">Inference allocation</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase block">Hard Stop Enforcement</span>
-                <div className="flex items-center justify-between pt-0.5">
-                  <span className={`text-xs font-bold ${hardStopEnabled ? 'text-rose-400' : 'text-slate-400'}`}>
-                    {hardStopEnabled ? 'Locked on Overrun' : 'Warning Only (80%)'}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setHardStopEnabled(!hardStopEnabled);
-                      toast.info(`Hard-stop ${!hardStopEnabled ? 'enabled' : 'disabled'} for ${project.id}`);
-                    }}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${hardStopEnabled
-                      ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                      }`}
-                  >
-                    {hardStopEnabled ? 'Armed' : 'Toggle'}
-                  </button>
-                </div>
-                <span className="text-[10px] text-slate-500 block">Prevents runaway loops</span>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase block">Worktree Isolation</span>
-                <span className="text-xs font-bold text-emerald-400 block pt-0.5">Strict (Isolated git worktree)</span>
-                <span className="text-[10px] text-slate-500 block">Read silent · Write gated</span>
-              </div>
-            </div>
-          </div>
-
-          <RepoAnalyzer project={project} onTaskDispatched={() => setActiveGroup('work')} />
-
-          <MultiAccountComponentHub />
-        </div>
-      )}
-
-      {/* ── GROUP 5: SPEC ── */}
-      {activeGroup === 'spec' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between pb-2 border-b border-white/5">
-            <div>
-              <h2 className="text-sm font-bold text-slate-100 font-mono">
-                Project Spec & Discovery Answers
-              </h2>
-              <p className="text-xs text-slate-400">
-                Discovery decisions rendered as one unified document. Unanswered questions are amber textareas.
-              </p>
-            </div>
-
-            <button
-              onClick={handleSaveSpec}
-              className="px-4 py-2 rounded-lg bg-[#F0B230] text-[#0A1420] font-bold text-xs hover:bg-[#FFBD59] transition-colors flex items-center gap-1.5 shadow-sm font-mono"
-            >
-              <Save className="w-3.5 h-3.5" />
-              Save Spec Answers
-            </button>
-          </div>
-
-          {/* Unified Document of all Questions across phases */}
-          <div className="space-y-4">
-            {UI_SDLC_PHASES.flatMap((phase) => phase.questions).map((q) => {
-              const currentVal = discoveryState.answers[q.id] || '';
-              const isUnanswered = currentVal.trim().length === 0;
-
-              return (
-                <div
-                  key={q.id}
-                  className={`p-4 rounded-xl bg-[#161b22] border transition-all space-y-2 text-xs font-mono ${isUnanswered
-                    ? 'border-amber-500/50 bg-amber-500/5'
-                    : 'border-white/10'
-                    }`}
-                >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-100 font-sans text-sm">
-                      {q.title}
+                    <span className="text-[10px] text-slate-400 uppercase block">Monthly Budget Limit</span>
+                    <button
+                      onClick={() => {
+                        const newB = window.prompt('Set new Monthly Budget (USD):', String(project.monthly_budget_usd || 1000));
+                        if (newB && !isNaN(Number(newB))) {
+                          project.monthly_budget_usd = Number(newB);
+                          toast.success(`Budget updated to ${formatCost(Number(newB))}`);
+                          // Force a re-render
+                          setHardStopEnabled((prev) => prev);
+                        }
+                      }}
+                      className="text-[10px] text-emerald-400 hover:text-emerald-300 uppercase font-bold"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <span className="text-base font-bold text-slate-100">{formatCost(project.monthly_budget_usd || 1000)}</span>
+                  <span className="text-[10px] text-slate-500 block">Inference allocation</span>
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase block">Hard Stop Enforcement</span>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <span className={`text-xs font-bold ${hardStopEnabled ? 'text-rose-400' : 'text-slate-400'}`}>
+                      {hardStopEnabled ? 'Locked on Overrun' : 'Warning Only (80%)'}
                     </span>
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${isUnanswered
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
+                    <button
+                      onClick={() => {
+                        setHardStopEnabled(!hardStopEnabled);
+                        toast.info(`Hard-stop ${!hardStopEnabled ? 'enabled' : 'disabled'} for ${project.id}`);
+                      }}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${hardStopEnabled
+                        ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
+                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                         }`}
                     >
-                      {isUnanswered ? 'Unanswered' : 'Answered'}
-                    </span>
+                      {hardStopEnabled ? 'Armed' : 'Toggle'}
+                    </button>
                   </div>
-
-                  <p className="text-slate-300 font-sans text-xs">{q.question}</p>
-
-                  <textarea
-                    rows={isUnanswered ? 3 : 2}
-                    value={currentVal}
-                    onChange={(e) => handleDiscoveryChange(q.id, e.target.value)}
-                    placeholder={`Document specification decision for ${q.title}...`}
-                    className={`w-full rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${isUnanswered
-                      ? 'bg-[#0d1117] border border-amber-500/40 focus:border-amber-400 placeholder:text-amber-500/40'
-                      : 'bg-[#0d1117] border border-white/10 focus:border-emerald-400'
-                      }`}
-                  />
+                  <span className="text-[10px] text-slate-500 block">Prevents runaway loops</span>
                 </div>
-              );
-            })}
+
+                <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
+                  <span className="text-[10px] text-slate-400 uppercase block">Worktree Isolation</span>
+                  <span className="text-xs font-bold text-emerald-400 block pt-0.5">Strict (Isolated git worktree)</span>
+                  <span className="text-[10px] text-slate-500 block">Read silent · Write gated</span>
+                </div>
+              </div>
+            </div>
+
+            <RepoAnalyzer project={project} onTaskDispatched={() => selectGroup('work')} />
+
+            <MultiAccountComponentHub />
+          </div> : null}
+        </section>
+      )}
+
+
+      {surface === 'verify' && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-section-title">QA verification</h2>
+            <p className="text-lede text-[0.75rem]">Findings for this vertical. Runs stay under Evidence.</p>
           </div>
 
-          {/* Reference Design Brief */}
-          <div className="pt-4 border-t border-white/10">
-            <h3 className="text-xs font-bold text-slate-300 uppercase font-mono mb-3">
-              Design Brief & Golden Fixtures
-            </h3>
-            <ReferenceBoard project={project} onDesignApproved={() => tRefetch()} />
-          </div>
+          {projectFindings.length === 0 ? (
+            <div className="section-card p-8 text-center text-xs font-mono text-[color:var(--color-success)] flex flex-col items-center gap-2">
+              <CheckCircle2 className="w-6 h-6" />
+              <span>No open findings for this vertical.</span>
+            </div>
+          ) : (
+            <div className="section-card overflow-hidden divide-y divide-[color:var(--border-app)]">
+              {projectFindings.map((finding) => {
+                const isFixDispatched = dispatchedFixIds[finding.id];
+                return (
+                  <div key={finding.id} className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs font-mono">
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`stamp ${finding.severity === 'critical' ? 'stamp-danger' : 'stamp-warn'}`}>
+                          {finding.severity}
+                        </span>
+                        <span className="text-main font-bold text-sm font-sans">{finding.title}</span>
+                      </div>
+                      {finding.description ? (
+                        <p className="text-muted font-sans text-xs leading-relaxed">{finding.description}</p>
+                      ) : null}
+                      <div className="text-[10px] text-muted">
+                        Component: <span className="text-main">{finding.component || 'codebase'}</span> · {finding.id}
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      {isFixDispatched ? (
+                        <span className="stamp stamp-success">Fix queued</span>
+                      ) : (
+                        <button type="button" onClick={() => handleDispatchFix(finding)} className="btn btn-primary">
+                          Dispatch fix
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <section className="section-card overflow-hidden">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
+              aria-expanded={evidenceOpen}
+              onClick={() => setEvidenceOpen((v) => !v)}
+            >
+              <span>
+                <span className="text-section-title block">Evidence</span>
+                <span className="text-lede text-[0.75rem]">{projectRuns.length} QA runs</span>
+              </span>
+              <ChevronRight className={`w-4 h-4 text-muted transition-transform ${evidenceOpen ? 'rotate-90' : ''}`} />
+            </button>
+            {evidenceOpen ? (
+              <div className="border-t border-app p-4 space-y-2">
+                {projectRuns.length === 0 ? (
+                  <p className="text-lede text-[0.75rem]">No QA runs recorded for this vertical yet.</p>
+                ) : (
+                  projectRuns.map((run) => (
+                    <div key={run.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+                      <div className="min-w-0">
+                        <span className="text-main font-bold">{run.id}</span>
+                        <span className="text-muted"> · {run.run_type || 'explore'}</span>
+                        <p className="text-muted truncate">{(run as { target_url?: string }).target_url || run.task_id || 'manual trigger'}</p>
+                      </div>
+                      <span className="stamp">{run.status}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </section>
         </div>
       )}
 
