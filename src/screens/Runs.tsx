@@ -193,28 +193,25 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
       {isCreatingTask && !selectedRun && (
         <form
           onSubmit={handleCreateRun}
-          className="p-5 rounded-xl section-card border-[color:var(--color-primary)]/30 space-y-4 font-mono text-xs"
+          className="p-5 section-card section-card-accent space-y-4 font-mono text-xs"
         >
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-emerald-400 uppercase">
-              Dispatch New Execution Run ({taskType})
-            </span>
-            <button
-              type="button"
-              onClick={() => setIsCreatingTask(false)}
-              className="text-slate-400 hover:text-white"
-            >
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1">
+              <span className="stamp stamp-primary">Dispatch</span>
+              <p className="text-section-title">{taskType.replace(/_/g, ' ')}</p>
+            </div>
+            <button type="button" onClick={() => setIsCreatingTask(false)} className="btn btn-ghost !px-2">
               ✕
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] uppercase text-slate-400 block mb-1">Target Vertical:</label>
+              <label className="text-meta block mb-1.5">Target vertical</label>
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2 text-xs text-slate-200"
+                className="field"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -223,11 +220,11 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
             </div>
 
             <div>
-              <label className="text-[10px] uppercase text-slate-400 block mb-1">Execution Mode:</label>
+              <label className="text-meta block mb-1.5">Execution mode</label>
               <select
                 value={taskType}
                 onChange={(e) => setTaskType(e.target.value as TaskType)}
-                className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2 text-xs text-slate-200"
+                className="field"
               >
                 <option value="BUILD_FEATURE">BUILD FEATURE</option>
                 <option value="FIX_BUG">FIX BUG</option>
@@ -238,29 +235,25 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
           </div>
 
           <div>
-            <label className="text-[10px] uppercase text-slate-400 block mb-1">Instruction Prompt:</label>
+            <label className="text-meta block mb-1.5">Instruction prompt</label>
             <textarea
               required
               rows={3}
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
               placeholder="e.g. Implement dual-read waybill settlement validator on Kano Hub reconnect queue..."
-              className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-3 text-xs text-slate-200 focus:border-emerald-400 focus:outline-none"
+              className="field"
             />
           </div>
 
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setIsCreatingTask(false)}
-              className="px-3 py-1.5 rounded-lg bg-white/5 text-slate-400 text-xs"
-            >
+            <button type="button" onClick={() => setIsCreatingTask(false)} className="btn btn-ghost">
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !promptText.trim()}
-              className="px-4 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-bold text-xs hover:bg-emerald-400 disabled:opacity-50"
+              className="btn btn-primary disabled:opacity-50"
             >
               {isSubmitting ? 'Starting…' : 'Start Run'}
             </button>
@@ -364,39 +357,30 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
         />
       ) : (
         <div className="space-y-4">
-          <div
-            className="grid grid-cols-3 gap-3"
-            aria-label="Runs orientation counts"
-          >
+          <div className="grid grid-cols-3 gap-3" aria-label="Runs orientation counts">
             <button
               type="button"
               onClick={() => setRunFilter('needs_you')}
-              className={`p-3 rounded-xl section-card text-left transition-colors ${runFilter === 'needs_you' ? 'border-[color:var(--color-primary)]/50' : ''}`}
+              className={`kpi-tile text-left ${runFilter === 'needs_you' ? 'border-[color:var(--color-primary)]/50' : ''}`}
             >
               <p className="text-meta">Needs you</p>
-              <p className="text-lg font-display font-bold tabular-nums text-amber-300">
-                {needsYou.length}
-              </p>
+              <span className="kpi-tile-value text-amber-300">{needsYou.length}</span>
             </button>
             <button
               type="button"
               onClick={() => setRunFilter('working')}
-              className={`p-3 rounded-xl section-card text-left transition-colors ${runFilter === 'working' ? 'border-[color:var(--color-primary)]/50' : ''}`}
+              className={`kpi-tile text-left ${runFilter === 'working' ? 'border-[color:var(--color-primary)]/50' : ''}`}
             >
               <p className="text-meta">Working</p>
-              <p className="text-lg font-display font-bold tabular-nums text-emerald-300">
-                {working.length}
-              </p>
+              <span className="kpi-tile-value text-emerald-300">{working.length}</span>
             </button>
             <button
               type="button"
               onClick={() => setRunFilter('all')}
-              className={`p-3 rounded-xl section-card text-left transition-colors ${runFilter === 'all' ? 'border-[color:var(--color-primary)]/50' : ''}`}
+              className={`kpi-tile text-left ${runFilter === 'all' ? 'border-[color:var(--color-primary)]/50' : ''}`}
             >
               <p className="text-meta">All runs</p>
-              <p className="text-lg font-display font-bold tabular-nums text-main">
-                {tasks.length}
-              </p>
+              <span className="kpi-tile-value text-main">{tasks.length}</span>
             </button>
           </div>
 
@@ -415,10 +399,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
                 role="tab"
                 aria-selected={runFilter === id}
                 onClick={() => setRunFilter(id)}
-                className={`px-3 py-1.5 rounded-lg font-mono text-xs font-bold transition-all ${runFilter === id
-                  ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40'
-                  : 'text-muted hover:text-main hover:bg-white/5 border border-transparent'
-                  }`}
+                className={`filter-chip ${runFilter === id ? 'filter-chip-active' : ''}`}
               >
                 {label}
               </button>
@@ -437,13 +418,13 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs font-mono">
-                  <thead className="bg-app border-b border-app text-muted text-[10px] uppercase tracking-wider">
+                  <thead className="bg-app border-b border-app text-meta">
                     <tr>
-                      <th className="py-3 px-4">Title</th>
-                      <th className="py-3 px-4">Vertical</th>
-                      <th className="py-3 px-4">State</th>
-                      <th className="py-3 px-4 text-right">Cost</th>
-                      <th className="py-3 px-4 text-right">Age</th>
+                      <th className="py-3 px-4 font-normal">Title</th>
+                      <th className="py-3 px-4 font-normal">Vertical</th>
+                      <th className="py-3 px-4 font-normal">State</th>
+                      <th className="py-3 px-4 text-right font-normal">Cost</th>
+                      <th className="py-3 px-4 text-right font-normal">Age</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
@@ -453,14 +434,12 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
                         <tr
                           key={task.id}
                           onClick={() => setSelectedRunId(task.id)}
-                          className="hover:bg-white/5 transition-colors cursor-pointer group"
+                          className="list-row cursor-pointer group"
                         >
                           <td className="py-3.5 px-4 font-bold text-main max-w-md">
-                            <div className="flex items-center gap-2">
-                              <span className="px-1.5 py-0.2 rounded bg-white/5 text-[10px] text-muted">
-                                {task.task_type}
-                              </span>
-                              <span className="truncate font-sans">{task.prompt}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="stamp shrink-0">{task.task_type}</span>
+                              <span className="truncate font-sans font-medium">{task.prompt}</span>
                             </div>
                           </td>
                           <td className="py-3.5 px-4 text-muted">

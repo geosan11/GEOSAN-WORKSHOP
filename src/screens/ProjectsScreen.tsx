@@ -84,27 +84,18 @@ export const ProjectsScreen: React.FC = () => {
         <HowToStartCards onChoose={openWizard} />
       ) : (
         <>
-          <div
-            className="grid grid-cols-3 gap-3"
-            aria-label="Projects orientation counts"
-          >
-            <div className="p-3 rounded-xl section-card">
+          <div className="grid grid-cols-3 gap-3" aria-label="Projects orientation counts">
+            <div className="kpi-tile">
               <p className="text-meta">Projects</p>
-              <p className="text-lg font-display font-bold tabular-nums text-main">
-                {projects.length}
-              </p>
+              <span className="kpi-tile-value text-main">{projects.length}</span>
             </div>
-            <div className="p-3 rounded-xl section-card">
+            <div className="kpi-tile">
               <p className="text-meta">Open tasks</p>
-              <p className="text-lg font-display font-bold tabular-nums text-main">
-                {openTaskCount}
-              </p>
+              <span className="kpi-tile-value text-main">{openTaskCount}</span>
             </div>
-            <div className="p-3 rounded-xl section-card">
+            <div className="kpi-tile">
               <p className="text-meta">Month spend</p>
-              <p className="text-lg font-display font-bold tabular-nums text-main">
-                {formatCost(fleetSpend)}
-              </p>
+              <span className="kpi-tile-value text-primary">{formatCost(fleetSpend)}</span>
             </div>
           </div>
 
@@ -115,14 +106,14 @@ export const ProjectsScreen: React.FC = () => {
           >
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-app border-b border-app text-muted text-[10px] uppercase tracking-wider">
+                <thead className="bg-app border-b border-app text-meta">
                   <tr>
-                    <th className="py-3 px-4">Name</th>
-                    <th className="py-3 px-4">Vertical</th>
-                    <th className="py-3 px-4">Health</th>
-                    <th className="py-3 px-4 text-center">Open</th>
-                    <th className="py-3 px-4 text-right">Spend</th>
-                    <th className="py-3 px-4 text-right"> </th>
+                    <th className="py-3 px-4 font-normal">Name</th>
+                    <th className="py-3 px-4 font-normal">Vertical</th>
+                    <th className="py-3 px-4 font-normal">Health</th>
+                    <th className="py-3 px-4 text-center font-normal">Open</th>
+                    <th className="py-3 px-4 text-right font-normal">Spend</th>
+                    <th className="py-3 px-4 text-right font-normal"> </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
@@ -141,12 +132,12 @@ export const ProjectsScreen: React.FC = () => {
                         onClick={() =>
                           navigate({ kind: 'project', projectId: project.id, tab: 'work' })
                         }
-                        className="hover:bg-white/5 transition-colors cursor-pointer group"
+                        className="list-row cursor-pointer group"
                       >
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                            <span className="font-sans font-semibold text-main">
+                            <span className="w-1.5 h-1.5 rounded-[1px] bg-emerald-400 shrink-0" />
+                            <span className="font-display font-bold text-sm tracking-tight text-main">
                               {project.name.split(' (')[0]}
                             </span>
                             <div
@@ -194,17 +185,15 @@ export const ProjectsScreen: React.FC = () => {
                           <StatusPill status="healthy" size="sm" />
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          <span className="px-2 py-0.5 rounded bg-card-elevated text-main font-bold border border-app">
-                            {projectTasks.length}
-                          </span>
+                          <span className="stamp">{projectTasks.length}</span>
                         </td>
-                        <td className="py-3.5 px-4 text-right font-bold text-main tabular-nums">
+                        <td className="py-3.5 px-4 text-right font-mono font-bold text-main tabular-nums">
                           {formatCost(spend)}
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <button
                             type="button"
-                            className="inline-flex items-center gap-1 text-primary group-hover:brightness-110 font-bold"
+                            className="btn btn-ghost !px-2 !py-1"
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate({ kind: 'project', projectId: project.id, tab: 'work' });
