@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
-import { isDemoMode } from '../lib/supabase';
 import {
   AetherOrchLogo,
   SupabaseLogo,
   GitHubLogo,
   PostgresLogo
 } from '../components/ServiceLogos';
-import { Lock, Mail, ArrowRight, AlertCircle, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
   const { signIn } = useAuth();
@@ -51,53 +50,48 @@ export const LoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-[#161b22] border border-white/10 rounded-[16px] p-7 sm:p-8 shadow-2xl space-y-6">
-        {/* Brand Header with Official Emblem */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center p-2 rounded-2xl bg-gradient-to-b from-[#1c2333] to-[#0d1117] border border-white/10 shadow-lg">
-            <AetherOrchLogo className="w-10 h-10" />
+    <div className="min-h-screen bg-app flex items-center justify-center p-3">
+      <div className="w-full max-w-[22rem] section-card section-card-accent p-4 sm:p-5 space-y-3.5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-[var(--radius-control)] bg-primary text-[color:var(--color-on-primary)] flex items-center justify-center shrink-0">
+            <AetherOrchLogo className="w-5 h-5" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-[#e6edf3]">
-              GEOSAN-WORKSHOP Command Center
+          <div className="min-w-0 space-y-0.5">
+            <h1 className="font-display font-extrabold text-[0.95rem] tracking-[-0.03em] text-main uppercase leading-tight truncate">
+              Geosan Workshop
             </h1>
-            <p className="text-xs text-[#8b98a8] mt-1">
-              Multi-Agent Orchestrator & Governance Engine
+            <p className="text-[0.625rem] text-muted font-mono truncate">
+              Command Center · Operator gate
             </p>
-          </div>
-
-          {/* Connected Services Badges with Official Logos */}
-          <div className="flex items-center justify-center gap-2 pt-1 font-mono text-[10px]">
-            <div className="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 flex items-center gap-1.5 shadow-sm">
-              <SupabaseLogo className="w-3.5 h-3.5" />
-              <span>Supabase Cloud</span>
-            </div>
-            <div className="px-2 py-0.5 rounded-full bg-slate-900 border border-slate-700 text-slate-300 flex items-center gap-1.5 shadow-sm">
-              <GitHubLogo className="w-3.5 h-3.5 text-white" />
-              <span>GitHub REST</span>
-            </div>
-            <div className="px-2 py-0.5 rounded-full bg-blue-950/40 border border-blue-500/40 text-blue-300 flex items-center gap-1.5 shadow-sm">
-              <PostgresLogo className="w-3.5 h-3.5 text-blue-400" />
-              <span>PostgreSQL</span>
-            </div>
           </div>
         </div>
 
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="stamp stamp-success inline-flex items-center gap-1">
+            <SupabaseLogo className="w-2.5 h-2.5" /> Supabase
+          </span>
+          <span className="stamp inline-flex items-center gap-1">
+            <GitHubLogo className="w-2.5 h-2.5" /> GitHub
+          </span>
+          <span className="stamp inline-flex items-center gap-1">
+            <PostgresLogo className="w-2.5 h-2.5 text-sky-400" /> Postgres
+          </span>
+        </div>
+
         {errorMsg && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+          <div className="px-2.5 py-2 rounded-[var(--radius-control)] bg-rose-500/10 border border-rose-500/30 text-rose-400 text-[0.6875rem] flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             <span>{errorMsg}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          <div className="space-y-1.5">
-            <label htmlFor="staff-email" className="block text-[#8b98a8] font-mono text-[11px] uppercase">
-              Staff Operator Email
+        <form onSubmit={handleSubmit} className="space-y-2.5">
+          <div className="space-y-1">
+            <label htmlFor="staff-email" className="text-meta block">
+              Staff email
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-[#8b98a8] absolute left-3 top-3" />
+              <Mail className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 id="staff-email"
                 type="email"
@@ -105,62 +99,52 @@ export const LoginScreen: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="geoflashsanni@gmail.com"
                 required
-                className="w-full bg-[#0d1117] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                className="field !pl-8 !py-2"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label htmlFor="staff-password" className="block text-[#8b98a8] font-mono text-[11px] uppercase">
-                Access Key / Password
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="staff-password" className="text-meta block">
+                Access key
               </label>
-              <span className="text-[10px] text-[#8b98a8] font-mono">Staff session protected</span>
+              <span className="text-[0.5625rem] text-muted font-mono">Protected</span>
             </div>
             <div className="relative">
-              <Lock className="w-4 h-4 text-[#8b98a8] absolute left-3 top-3" />
+              <Lock className="w-3.5 h-3.5 text-muted absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 id="staff-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full bg-[#0d1117] border border-white/10 rounded-lg pl-9 pr-3 py-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                placeholder="••••••••"
+                className="field !pl-8 !py-2"
               />
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-2.5 rounded-lg bg-[#F0B230] text-[#0A1420] font-bold text-xs hover:bg-[#FFBD59] transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 mt-1 cursor-pointer"
-          >
-            {submitting ? 'Authenticating…' : 'Sign In as Operator'}
-            <ArrowRight className="w-4 h-4" />
+          <button type="submit" disabled={submitting} className="btn btn-primary w-full disabled:opacity-50">
+            {submitting ? 'Authenticating…' : 'Sign in'}
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </form>
 
-        {/* Quick Staff Operator Access Buttons */}
-        <div className="pt-3 border-t border-white/5 space-y-2">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-[#8b98a8] block text-center">
-            Authorized Quick Access
-          </span>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="pt-2.5 border-t border-app space-y-1.5">
+          <span className="text-meta block text-center">Quick access</span>
+          <div className="grid grid-cols-2 gap-1.5">
             <button
               type="button"
               onClick={() => handleQuickOperatorLogin('geoflashsanni@gmail.com')}
               disabled={submitting}
-              className="p-2.5 rounded-lg bg-[#0d1117] hover:bg-[#1a202c] border border-white/10 hover:border-emerald-500/40 text-left transition-colors text-xs group"
+              className="p-2 rounded-[var(--radius-control)] bg-app border border-app hover:border-emerald-500/40 text-left transition-colors disabled:opacity-50"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[#e6edf3] text-[11px] group-hover:text-emerald-300">
-                  Lead Admin
-                </span>
-                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-bold text-main text-[0.625rem]">Lead Admin</span>
+                <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
               </div>
-              <span className="text-[10px] text-[#8b98a8] block truncate">
-                geoflashsanni@gmail.com
+              <span className="text-[0.5625rem] text-muted block truncate font-mono">
+                geoflashsanni@…
               </span>
             </button>
 
@@ -168,24 +152,22 @@ export const LoginScreen: React.FC = () => {
               type="button"
               onClick={() => handleQuickOperatorLogin('operator@ehi-multisystems.com')}
               disabled={submitting}
-              className="p-2.5 rounded-lg bg-[#0d1117] hover:bg-[#1a202c] border border-white/10 hover:border-[#F0B230]/40 text-left transition-colors text-xs group"
+              className="p-2 rounded-[var(--radius-control)] bg-app border border-app hover:border-[color:var(--color-primary)]/40 text-left transition-colors disabled:opacity-50"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-[#e6edf3] text-[11px] group-hover:text-[#FFBD59]">
-                  EHI Operator
-                </span>
-                <Sparkles className="w-3 h-3 text-[#F0B230]" />
+              <div className="flex items-center justify-between gap-1">
+                <span className="font-bold text-main text-[0.625rem]">EHI Operator</span>
+                <Sparkles className="w-3 h-3 text-primary shrink-0" />
               </div>
-              <span className="text-[10px] text-[#8b98a8] block truncate">
-                operator@ehi-multisystems.com
+              <span className="text-[0.5625rem] text-muted block truncate font-mono">
+                operator@ehi…
               </span>
             </button>
           </div>
         </div>
 
-        <div className="pt-2 text-center text-[10px] font-mono text-[#8b98a8]">
-          <span>Protected by Multi-Tenant Governance · Supabase GoTrue Auth</span>
-        </div>
+        <p className="text-center text-[0.5625rem] font-mono text-muted">
+          Multi-tenant · GoTrue
+        </p>
       </div>
     </div>
   );
