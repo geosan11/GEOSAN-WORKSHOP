@@ -233,19 +233,19 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
       />
 
       {/* ── TOP CONTROL BAR: GITHUB REPO CONNECTOR ── */}
-      <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 shadow-md space-y-4">
+      <div className="p-5 rounded-2xl bg-card border border-app shadow-md space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs font-mono text-[#8b98a8]">
+            <div className="flex items-center gap-2 text-xs font-mono text-muted">
               <FolderGit2 className="w-4 h-4 text-[#F0B230]" />
               <span>GitHub Codebase Ingestion & Analyzer</span>
               <span>·</span>
               <span className="text-[#FFBD59]">{project.name}</span>
             </div>
-            <h2 className="text-lg font-bold text-[#e6edf3]">
+            <h2 className="text-lg font-bold text-main">
               Pull from GitHub & Autonomous Change Analysis
             </h2>
-            <p className="text-xs text-[#8b98a8]">
+            <p className="text-xs text-muted">
               Fetch repository AST, detect critical security & invariant regressions, preview code diffs, and dispatch autonomous agent fixes.
             </p>
           </div>
@@ -254,7 +254,7 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
             <button
               type="button"
               onClick={() => setShowTokenInput(!showTokenInput)}
-              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-[#8b98a8] hover:text-[#e6edf3] flex items-center gap-1.5 border border-white/5 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-mono text-muted hover:text-main flex items-center gap-1.5 border border-app transition-colors"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>{token ? 'Token Configured' : 'Auth Token (Optional)'}</span>
@@ -282,31 +282,31 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
         </div>
 
         {/* Repository Inputs Row */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-white/5 font-mono text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-app font-mono text-xs">
           <div className="md:col-span-8 space-y-1">
-            <label className="text-[#8b98a8] block text-[10px] uppercase">GitHub Repository URL</label>
+            <label className="text-muted block text-[10px] uppercase">GitHub Repository URL</label>
             <div className="relative">
-              <FolderGit2 className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[#8b98a8]" />
+              <FolderGit2 className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted" />
               <input
                 type="text"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
                 placeholder="https://github.com/owner/repository"
-                className="w-full bg-[#0d1117] border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs text-[#e6edf3] focus:border-[#F0B230] focus:outline-none"
+                className="w-full bg-app border border-app rounded-xl pl-8 pr-3 py-2 text-xs text-main focus:border-[#F0B230] focus:outline-none"
               />
             </div>
           </div>
 
           <div className="md:col-span-4 space-y-1">
-            <label className="text-[#8b98a8] block text-[10px] uppercase">Git Branch</label>
+            <label className="text-muted block text-[10px] uppercase">Git Branch</label>
             <div className="relative">
-              <GitBranch className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[#8b98a8]" />
+              <GitBranch className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted" />
               <input
                 type="text"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
                 placeholder="main"
-                className="w-full bg-[#0d1117] border border-white/10 rounded-xl pl-8 pr-3 py-2 text-xs text-[#e6edf3] focus:border-[#F0B230] focus:outline-none"
+                className="w-full bg-app border border-app rounded-xl pl-8 pr-3 py-2 text-xs text-main focus:border-[#F0B230] focus:outline-none"
               />
             </div>
           </div>
@@ -314,8 +314,8 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
 
         {/* Optional GitHub Token Drawer */}
         {showTokenInput && (
-          <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/10 font-mono text-xs space-y-2">
-            <div className="flex items-center justify-between text-[#8b98a8]">
+          <div className="p-3.5 rounded-xl bg-app border border-app font-mono text-xs space-y-2">
+            <div className="flex items-center justify-between text-muted">
               <span className="flex items-center gap-1.5 text-[11px] text-[#FFBD59]">
                 <Lock className="w-3.5 h-3.5" />
                 GitHub Personal Access Token (for Private Repositories & Pushing Branches)
@@ -327,7 +327,7 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="ghp_xxxxxxxxxxxxxxxxxxxx or github_pat_xxxxxxxx"
-              className="w-full bg-[#161b22] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-[#e6edf3] focus:border-[#F0B230] focus:outline-none"
+              className="w-full bg-card border border-app rounded-lg px-3 py-1.5 text-xs text-main focus:border-[#F0B230] focus:outline-none"
             />
           </div>
         )}
@@ -339,9 +339,9 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
           {/* Top Metric Strip: Health Score & Languages */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             {/* Health Score Gauge */}
-            <div className="md:col-span-4 p-5 rounded-2xl bg-[#161b22] border border-white/5 shadow-md flex flex-col justify-between">
+            <div className="md:col-span-4 p-5 rounded-2xl bg-card border border-app shadow-md flex flex-col justify-between">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono uppercase text-[#8b98a8]">Codebase Health Score</span>
+                <span className="text-xs font-mono uppercase text-muted">Codebase Health Score</span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${report.healthScore >= 80
                     ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/40'
@@ -355,8 +355,8 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
               </div>
 
               <div className="my-3 flex items-baseline gap-3">
-                <span className="text-4xl font-black font-mono text-[#e6edf3]">{report.healthScore}%</span>
-                <span className="text-xs text-[#8b98a8] font-mono">
+                <span className="text-4xl font-black font-mono text-main">{report.healthScore}%</span>
+                <span className="text-xs text-muted font-mono">
                   {report.findings.length} proposed changes detected
                 </span>
               </div>
@@ -374,17 +374,17 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                 />
               </div>
 
-              <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-[11px] font-mono text-[#8b98a8]">
+              <div className="mt-3 pt-3 border-t border-app flex items-center justify-between text-[11px] font-mono text-muted">
                 <span>Files Pulled: {report.totalFiles}</span>
                 <span>Lines of Code: ~{report.totalLines.toLocaleString()}</span>
               </div>
             </div>
 
             {/* Language Breakdown */}
-            <div className="md:col-span-8 p-5 rounded-2xl bg-[#161b22] border border-white/5 shadow-md flex flex-col justify-between space-y-3">
+            <div className="md:col-span-8 p-5 rounded-2xl bg-card border border-app shadow-md flex flex-col justify-between space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono uppercase text-[#8b98a8]">Language & Architecture Composition</span>
-                <span className="text-xs font-mono text-[#8b98a8]">Commit: {report.commitSha.slice(0, 10)}</span>
+                <span className="text-xs font-mono uppercase text-muted">Language & Architecture Composition</span>
+                <span className="text-xs font-mono text-muted">Commit: {report.commitSha.slice(0, 10)}</span>
               </div>
 
               {/* Multi-segmented bar */}
@@ -404,13 +404,13 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                 {report.languages.map((l) => (
                   <div key={l.language} className="flex items-center gap-1.5 text-xs font-mono">
                     <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
-                    <span className="text-[#e6edf3] font-semibold">{l.language}</span>
-                    <span className="text-[#8b98a8]">({l.percentage}%)</span>
+                    <span className="text-main font-semibold">{l.language}</span>
+                    <span className="text-muted">({l.percentage}%)</span>
                   </div>
                 ))}
               </div>
 
-              <div className="text-[11px] font-mono text-[#8b98a8] pt-2 border-t border-white/5 flex items-center justify-between">
+              <div className="text-[11px] font-mono text-muted pt-2 border-t border-app flex items-center justify-between">
                 <span>Branch: origin/{report.branch}</span>
                 <span>Last Ingested: {new Date(report.analyzedAt).toLocaleTimeString()}</span>
               </div>
@@ -421,10 +421,10 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono font-bold uppercase text-[#e6edf3]">
+                <span className="text-xs font-mono font-bold uppercase text-main">
                   Proposed Changes ({filteredFindings.length})
                 </span>
-                <span className="text-xs text-[#8b98a8]">· Review & Dispatch</span>
+                <span className="text-xs text-muted">· Review & Dispatch</span>
               </div>
 
               {/* Category Filter Pills */}
@@ -440,7 +440,7 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                     onClick={() => setSelectedCategory(cat.id)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-colors ${selectedCategory === cat.id
                       ? 'bg-[#F0B230]/20 text-[#FFBD59] border border-[#F0B230]/40 font-bold'
-                      : 'bg-white/5 text-[#8b98a8] hover:text-[#e6edf3]'
+                      : 'bg-white/5 text-muted hover:text-main'
                       }`}
                   >
                     {cat.label}
@@ -459,8 +459,8 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                   <div
                     key={finding.id}
                     className={`rounded-2xl border transition-all ${isExpanded
-                      ? 'bg-[#161b22] border-[#F0B230]/40 shadow-lg'
-                      : 'bg-[#161b22]/70 border-white/5 hover:border-white/15'
+                      ? 'bg-card border-[#F0B230]/40 shadow-lg'
+                      : 'bg-card/70 border-app hover:border-white/15'
                       }`}
                   >
                     {/* Header Row */}
@@ -488,23 +488,23 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                             >
                               {finding.severity}
                             </span>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-[#8b98a8]">
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-muted">
                               {finding.category}
                             </span>
-                            <span className="text-xs font-mono text-[#8b98a8]">
+                            <span className="text-xs font-mono text-muted">
                               {finding.file} ({finding.lineRange})
                             </span>
                           </div>
 
-                          <h3 className="text-sm font-bold text-[#e6edf3]">{finding.title}</h3>
-                          <p className="text-xs text-[#8b98a8] mt-0.5 line-clamp-1">{finding.description}</p>
+                          <h3 className="text-sm font-bold text-main">{finding.title}</h3>
+                          <p className="text-xs text-muted mt-0.5 line-clamp-1">{finding.description}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          className="p-1 rounded text-[#8b98a8] hover:text-[#e6edf3]"
+                          className="p-1 rounded text-muted hover:text-main"
                         >
                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
@@ -513,30 +513,30 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
 
                     {/* Expanded Detail Body with Code Diff */}
                     {isExpanded && (
-                      <div className="px-5 pb-5 pt-1 border-t border-white/5 space-y-4">
+                      <div className="px-5 pb-5 pt-1 border-t border-app space-y-4">
                         {/* Description & Impact */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                          <div className="p-3 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                            <span className="text-[10px] uppercase text-[#8b98a8] block">Architectural Root Cause</span>
-                            <p className="text-[#e6edf3] font-sans leading-relaxed">{finding.description}</p>
+                          <div className="p-3 rounded-xl bg-app border border-app space-y-1">
+                            <span className="text-[10px] uppercase text-muted block">Architectural Root Cause</span>
+                            <p className="text-main font-sans leading-relaxed">{finding.description}</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
+                          <div className="p-3 rounded-xl bg-app border border-app space-y-1">
                             <span className="text-[10px] uppercase text-red-400 block">Production Failure Impact</span>
-                            <p className="text-[#e6edf3] font-sans leading-relaxed">{finding.impact}</p>
+                            <p className="text-main font-sans leading-relaxed">{finding.impact}</p>
                           </div>
                         </div>
 
                         {/* Proposed Remediation & Diff Preview */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between text-xs font-mono">
-                            <span className="text-[#8b98a8] flex items-center gap-1.5">
+                            <span className="text-muted flex items-center gap-1.5">
                               <FileCode className="w-3.5 h-3.5 text-[#F0B230]" />
                               <span>Proposed Code Diff: {finding.file}</span>
                             </span>
 
                             <button
                               onClick={() => handleCopyDiff(finding)}
-                              className="text-[11px] text-[#8b98a8] hover:text-[#e6edf3] flex items-center gap-1 transition-colors"
+                              className="text-[11px] text-muted hover:text-main flex items-center gap-1 transition-colors"
                             >
                               {copiedPatchId === finding.id ? (
                                 <>
@@ -553,14 +553,14 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                           </div>
 
                           {/* Unified Diff Box */}
-                          <div className="rounded-xl overflow-hidden border border-white/10 font-mono text-xs">
-                            <div className="bg-[#0d1117] px-4 py-2 text-[10px] text-[#8b98a8] border-b border-white/5 flex items-center justify-between">
+                          <div className="rounded-xl overflow-hidden border border-app font-mono text-xs">
+                            <div className="bg-app px-4 py-2 text-[10px] text-muted border-b border-app flex items-center justify-between">
                               <span>@@ -Before vs +After Code Remediations @@</span>
                               <span className="text-[#FFBD59]">Recommended Agent: {finding.recommendedAgent}</span>
                             </div>
 
                             {/* Removed Lines (Red) */}
-                            <div className="bg-red-950/30 p-3 text-red-300 font-mono whitespace-pre-wrap border-b border-white/5">
+                            <div className="bg-red-950/30 p-3 text-red-300 font-mono whitespace-pre-wrap border-b border-app">
                               {finding.diffSnippet.before}
                             </div>
 
@@ -573,8 +573,8 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
 
                         {/* Action Buttons for this Finding */}
                         <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono text-xs">
-                          <div className="text-[11px] text-[#8b98a8]">
-                            Recommended Fix Action: <span className="text-[#e6edf3]">{finding.proposedFix}</span>
+                          <div className="text-[11px] text-muted">
+                            Recommended Fix Action: <span className="text-main">{finding.proposedFix}</span>
                           </div>
 
                           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -582,7 +582,7 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                               type="button"
                               disabled={isPushingBranch === finding.id}
                               onClick={() => handlePushFixToGitHub(finding)}
-                              className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#e6edf3] font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                              className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-app text-main font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
                             >
                               <GitPullRequest className="w-3.5 h-3.5" />
                               <span>{isPushingBranch === finding.id ? 'Pushing...' : 'Push to GitHub Branch'}</span>
@@ -607,13 +607,13 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
           </div>
 
           {/* ── PULLED FILE EXPLORER ── */}
-          <div className="p-5 rounded-2xl bg-[#161b22] border border-white/5 shadow-md space-y-3 font-mono text-xs">
+          <div className="p-5 rounded-2xl bg-card border border-app shadow-md space-y-3 font-mono text-xs">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-[#e6edf3] flex items-center gap-2">
+              <span className="font-bold text-main flex items-center gap-2">
                 <FolderGit2 className="w-4 h-4 text-[#F0B230]" />
                 Pulled In-Memory Repository Files ({report.files.length})
               </span>
-              <span className="text-[#8b98a8] text-[11px]">Ready for AST Modification & Testing</span>
+              <span className="text-muted text-[11px]">Ready for AST Modification & Testing</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-2">
@@ -622,15 +622,15 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
                   key={file.path}
                   onClick={() => setSelectedFileForPreview(file.path === selectedFileForPreview ? null : file.path)}
                   className={`p-2.5 rounded-xl border cursor-pointer transition-all ${selectedFileForPreview === file.path
-                    ? 'bg-[#1c2333] border-[#F0B230] text-[#e6edf3]'
-                    : 'bg-[#0d1117] border-white/5 text-[#8b98a8] hover:border-white/15'
+                    ? 'bg-app border-[#F0B230] text-main'
+                    : 'bg-app border-app text-muted hover:border-white/15'
                     }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-[11px] truncate text-[#e6edf3]">{file.path}</span>
-                    <span className="text-[10px] text-[#8b98a8]">{file.language}</span>
+                    <span className="font-semibold text-[11px] truncate text-main">{file.path}</span>
+                    <span className="text-[10px] text-muted">{file.language}</span>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] text-[#8b98a8]">
+                  <div className="flex items-center justify-between text-[10px] text-muted">
                     <span>{file.lines} lines</span>
                     <span>{Math.round(file.size / 1024 * 10) / 10} KB</span>
                   </div>
@@ -640,17 +640,17 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
 
             {/* File Preview Snippet */}
             {selectedFileForPreview && (
-              <div className="mt-3 p-3 rounded-xl bg-[#0d1117] border border-white/10 space-y-2">
-                <div className="flex items-center justify-between text-[11px] text-[#8b98a8]">
+              <div className="mt-3 p-3 rounded-xl bg-app border border-app space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-muted">
                   <span>Viewing: {selectedFileForPreview}</span>
                   <button
                     onClick={() => setSelectedFileForPreview(null)}
-                    className="hover:text-white"
+                    className="hover:text-main"
                   >
                     Close
                   </button>
                 </div>
-                <pre className="p-3 bg-[#161b22] rounded-lg text-[11px] text-slate-300 overflow-x-auto whitespace-pre-wrap max-h-60">
+                <pre className="p-3 bg-card rounded-lg text-[11px] text-muted overflow-x-auto whitespace-pre-wrap max-h-60">
                   {report.files.find((f) => f.path === selectedFileForPreview)?.preview || 'No preview available'}
                 </pre>
               </div>

@@ -305,10 +305,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
           {specOpen ? <div className="border-t border-app p-4 md:p-5 space-y-6">
             <div className="flex items-center justify-end">
 
-              <button
-                onClick={handleSaveSpec}
-                className="px-4 py-2 rounded-lg bg-[#F0B230] text-[#0A1420] font-bold text-xs hover:bg-[#FFBD59] transition-colors flex items-center gap-1.5 shadow-sm font-mono"
-              >
+              <button type="button" onClick={handleSaveSpec} className="btn btn-primary">
                 <Save className="w-3.5 h-3.5" />
                 Save Spec Answers
               </button>
@@ -323,36 +320,28 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                 return (
                   <div
                     key={q.id}
-                    className={`p-4 rounded-xl bg-[#161b22] border transition-all space-y-2 text-xs font-mono ${isUnanswered
-                      ? 'border-amber-500/50 bg-amber-500/5'
-                      : 'border-white/10'
+                    className={`p-4 rounded-[var(--radius-card)] bg-card border space-y-2 text-xs ${isUnanswered
+                      ? 'border-[color:var(--color-warning)]'
+                      : 'border-app'
                       }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-100 font-sans text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-main font-sans text-sm">
                         {q.title}
                       </span>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${isUnanswered
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                          : 'bg-emerald-950 text-emerald-300 border border-emerald-500/30'
-                          }`}
-                      >
+                      <span className={`stamp ${isUnanswered ? 'stamp-warn' : 'stamp-success'}`}>
                         {isUnanswered ? 'Unanswered' : 'Answered'}
                       </span>
                     </div>
 
-                    <p className="text-slate-300 font-sans text-xs">{q.question}</p>
+                    <p className="text-muted font-sans text-xs">{q.question}</p>
 
                     <textarea
                       rows={isUnanswered ? 3 : 2}
                       value={currentVal}
                       onChange={(e) => handleDiscoveryChange(q.id, e.target.value)}
-                      placeholder={`Document specification decision for ${q.title}...`}
-                      className={`w-full rounded-lg p-2.5 text-xs text-slate-200 font-mono focus:outline-none transition-colors ${isUnanswered
-                        ? 'bg-[#0d1117] border border-amber-500/40 focus:border-amber-400 placeholder:text-amber-500/40'
-                        : 'bg-[#0d1117] border border-white/10 focus:border-emerald-400'
-                        }`}
+                      placeholder={`Decision for ${q.title}`}
+                      className="field w-full font-mono text-xs"
                     />
                   </div>
                 );
@@ -360,9 +349,9 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
             </div>
 
             {/* Reference Design Brief */}
-            <div className="pt-4 border-t border-white/10">
-              <h3 className="text-xs font-bold text-slate-300 uppercase font-mono mb-3">
-                Design Brief & Golden Fixtures
+            <div className="pt-4 border-t border-app">
+              <h3 className="text-section-title mb-3">
+                Design brief
               </h3>
               <ReferenceBoard project={project} onDesignApproved={() => tRefetch()} />
             </div>
@@ -502,68 +491,59 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
           {systemOpen ? <div className="border-t border-app p-4 md:p-5 space-y-6">
 
             {/* Project Budget & Invariant Thresholds */}
-            <div className="p-5 rounded-2xl bg-[#161b22] border border-white/10 space-y-4 font-mono text-xs shadow-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                  <span className="font-bold text-slate-100 uppercase">
-                    Vertical Budget & Rate Invariants
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-400">
-                  Hard boundary for {project.name.split(' (')[0]}
+            <div className="rounded-[var(--radius-card)] bg-app border border-app p-4 space-y-4 font-mono text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-app pb-3">
+                <span className="text-section-title">Budget limits</span>
+                <span className="text-meta normal-case tracking-normal">
+                  {project.name.split(' (')[0]}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
+                <div className="p-3 rounded-[var(--radius-control)] bg-card border border-app space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400 uppercase block">Monthly Budget Limit</span>
+                    <span className="text-meta">Monthly budget</span>
                     <button
+                      type="button"
                       onClick={() => {
                         const newB = window.prompt('Set new Monthly Budget (USD):', String(project.monthly_budget_usd || 1000));
                         if (newB && !isNaN(Number(newB))) {
                           project.monthly_budget_usd = Number(newB);
                           toast.success(`Budget updated to ${formatCost(Number(newB))}`);
-                          // Force a re-render
                           setHardStopEnabled((prev) => prev);
                         }
                       }}
-                      className="text-[10px] text-emerald-400 hover:text-emerald-300 uppercase font-bold"
+                      className="text-meta text-primary"
                     >
                       Edit
                     </button>
                   </div>
-                  <span className="text-base font-bold text-slate-100">{formatCost(project.monthly_budget_usd || 1000)}</span>
-                  <span className="text-[10px] text-slate-500 block">Inference allocation</span>
+                  <span className="text-base font-bold text-main">{formatCost(project.monthly_budget_usd || 1000)}</span>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase block">Hard Stop Enforcement</span>
-                  <div className="flex items-center justify-between pt-0.5">
-                    <span className={`text-xs font-bold ${hardStopEnabled ? 'text-rose-400' : 'text-slate-400'}`}>
-                      {hardStopEnabled ? 'Locked on Overrun' : 'Warning Only (80%)'}
+                <div className="p-3 rounded-[var(--radius-control)] bg-card border border-app space-y-1">
+                  <span className="text-meta block">Hard stop</span>
+                  <div className="flex items-center justify-between pt-0.5 gap-2">
+                    <span className={`text-xs font-bold ${hardStopEnabled ? 'text-[color:var(--color-error)]' : 'text-muted'}`}>
+                      {hardStopEnabled ? 'Locked on overrun' : 'Warning at 80%'}
                     </span>
                     <button
+                      type="button"
                       onClick={() => {
                         setHardStopEnabled(!hardStopEnabled);
                         toast.info(`Hard-stop ${!hardStopEnabled ? 'enabled' : 'disabled'} for ${project.id}`);
                       }}
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${hardStopEnabled
-                        ? 'bg-rose-950 text-rose-300 border border-rose-500/40'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                        }`}
+                      className="btn btn-ghost !py-1"
                     >
                       {hardStopEnabled ? 'Armed' : 'Toggle'}
                     </button>
                   </div>
-                  <span className="text-[10px] text-slate-500 block">Prevents runaway loops</span>
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-[#0d1117] border border-white/5 space-y-1">
-                  <span className="text-[10px] text-slate-400 uppercase block">Worktree Isolation</span>
-                  <span className="text-xs font-bold text-emerald-400 block pt-0.5">Strict (Isolated git worktree)</span>
-                  <span className="text-[10px] text-slate-500 block">Read silent · Write gated</span>
+                <div className="p-3 rounded-[var(--radius-control)] bg-card border border-app space-y-1">
+                  <span className="text-meta block">Worktree</span>
+                  <span className="text-xs font-bold text-main block">Isolated git worktree</span>
+                  <span className="text-meta normal-case tracking-normal block">Read silent · write gated</span>
                 </div>
               </div>
             </div>
