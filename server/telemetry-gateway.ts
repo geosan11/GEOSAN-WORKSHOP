@@ -12,11 +12,14 @@ import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from '.
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
 import {
   ProxyError,
+  addLearningRecord,
   guardGatewayRequest,
+  loadLearningLimits,
   loadAuthConfig,
   loadProjectCredentials,
   ownOrigins,
   prepareGitHubRequest,
+  validateLearningPayload,
 } from './proxySecurity.js';
 
 let proxySecurity: { auth: any; projects: Map<string, any>; errors: string[] } | null = null;
@@ -464,15 +467,25 @@ export function handleTelemetryGateway(
     return true;
   }
 
-  // 8. Record New Learning Event: POST /api/learning/record
-  if (pathname === '/api/learning/record' && req.method === 'POST') {
+  // 8. Record New Learning Event: POST /api/learning/record or POST /learning/record
+  // Records are exported as rules that "must govern" the AI, so this uses the
+  // same guard as git/sync (503 if unconfigured, loopback, Origin + JSON, auth)
+  // and the limits from LEARNING_MAX_RECORDS / LEARNING_MAX_FIELD_BYTES.
+  if ((pathname === '/api/learning/record' || pathname === '/learning/record') && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const payload = body ? JSON.parse(body) : {};
+        await guardProxyRoute(req, 'Learning record');
+      } catch (err: any) {
+        sendProxyError(res, err, 'Learning record');
+        return;
+      }
+      try {
+        const limits = loadLearningLimits();
+        const payload = validateLearningPayload(body ? JSON.parse(body) : {}, limits);
         const newRecord: LearningRecord = {
           id: `learn-srv-${Date.now()}`,
           projectId: payload.projectId || 'proj-general',
@@ -491,14 +504,13 @@ export function handleTelemetryGateway(
           tags: payload.tags || ['custom-fix']
         };
 
-        serverLearningRecords.unshift(newRecord);
+        addLearningRecord(serverLearningRecords, newRecord, limits.maxRecords);
         broadcastStatusUpdate();
 
         res.writeHead(201, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, record: newRecord }));
       } catch (err: any) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: err.message || 'Invalid learning payload' }));
+        sendProxyError(res, err, 'Learning record');
       }
     });
     return true;

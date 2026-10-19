@@ -290,3 +290,82 @@ export function prepareAiRequest(projects, { messages, project_id, modelId }) {
   if (!apiKey) throw new ProxyError(403, `${project.id} has no ${provider} key configured`);
   return { provider, model, apiKey, messages: clean, projectId: project.id };
 }
+
+// --- Learning vault (dev gateway /api/learning/record) ---------------------
+// Records end up in /api/learning/export, whose markdown format presents them
+// as rules that "must govern" the AI, so writes are guarded and bounded.
+
+export const LEARNING_DEFAULTS = { maxRecords: 500, maxFieldBytes: 4096, maxTags: 32 };
+const LEARNING_TEXT_FIELDS = [
+  'projectId',
+  'projectName',
+  'category',
+  'title',
+  'symptomAndIssue',
+  'rootCause',
+  'verifiedFix',
+  'invariantRule',
+  'modelUsed',
+];
+
+function positiveInt(value, fallback) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+/** LEARNING_MAX_RECORDS (default 500) and LEARNING_MAX_FIELD_BYTES (default 4096). */
+export function loadLearningLimits(env = process.env) {
+  return {
+    maxRecords: positiveInt(env.LEARNING_MAX_RECORDS, LEARNING_DEFAULTS.maxRecords),
+    maxFieldBytes: positiveInt(env.LEARNING_MAX_FIELD_BYTES, LEARNING_DEFAULTS.maxFieldBytes),
+    maxTags: LEARNING_DEFAULTS.maxTags,
+  };
+}
+
+/**
+ * Validates a learning record payload. Wrong types get 400; a text field or
+ * tag over maxFieldBytes (UTF-8) or more than maxTags tags gets 413.
+ * Returns only the known fields; missing ones are left to the caller's defaults.
+ * @returns {Record<string, any>}
+ */
+export function validateLearningPayload(payload, limits = LEARNING_DEFAULTS) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new ProxyError(400, 'Learning record must be a JSON object');
+  }
+  const tooBig = (s) => Buffer.byteLength(s, 'utf8') > limits.maxFieldBytes;
+  /** @type {Record<string, any>} */
+  const clean = {};
+  for (const field of LEARNING_TEXT_FIELDS) {
+    const v = payload[field];
+    if (v === undefined || v === null || v === '') continue;
+    if (typeof v !== 'string') throw new ProxyError(400, `${field} must be a string`);
+    if (tooBig(v)) throw new ProxyError(413, `${field} is larger than ${limits.maxFieldBytes} bytes`);
+    clean[field] = v;
+  }
+  for (const field of ['tokensUsed', 'costUsd']) {
+    const v = payload[field];
+    if (v === undefined || v === null) continue;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) throw new ProxyError(400, `${field} must be a non-negative number`);
+    clean[field] = v;
+  }
+  if (payload.tags !== undefined && payload.tags !== null) {
+    if (!Array.isArray(payload.tags) || payload.tags.some((t) => typeof t !== 'string')) {
+      throw new ProxyError(400, 'tags must be an array of strings');
+    }
+    if (payload.tags.length > limits.maxTags) throw new ProxyError(413, `At most ${limits.maxTags} tags are allowed`);
+    if (payload.tags.some(tooBig)) throw new ProxyError(413, `A tag is larger than ${limits.maxFieldBytes} bytes`);
+    clean.tags = [...payload.tags];
+  }
+  return clean;
+}
+
+/**
+ * Adds a record newest-first and drops the oldest ones beyond maxRecords
+ * (seeded records included), so the store never grows without bound and
+ * recording never gets stuck at the cap. Mutates and returns `records`.
+ */
+export function addLearningRecord(records, record, maxRecords = LEARNING_DEFAULTS.maxRecords) {
+  records.unshift(record);
+  if (records.length > maxRecords) records.length = maxRecords;
+  return records;
+}

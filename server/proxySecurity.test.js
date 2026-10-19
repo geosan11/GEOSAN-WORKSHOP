@@ -5,8 +5,11 @@ import {
   assertBrowserSafe,
   authenticate,
   isLoopback,
+  addLearningRecord,
   corsHeaders,
   guardGatewayRequest,
+  loadLearningLimits,
+  validateLearningPayload,
   loadAuthConfig,
   loadProjectCredentials,
   prepareAiRequest,
@@ -163,4 +166,50 @@ test('gateway guard (git/sync, github proxy): loopback, then origin + JSON, then
   const keyAuth = loadAuthConfig({ PROXY_API_KEY: 'k3y' });
   await assert.rejects(guardGatewayRequest(keyAuth, req('127.0.0.1', json)), { status: 401 });
   assert.equal((await guardGatewayRequest(keyAuth, req('127.0.0.1', { ...json, authorization: 'Bearer k3y' }))).kind, 'api-key');
+});
+
+test('learning/record guard: foreign origin 403, text/plain 415, LAN 403, local JSON ok, no token 401', async () => {
+  // Same guard the gateway runs before accepting POST /api/learning/record.
+  const auth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
+  const req = (remoteAddress, headers) => ({ socket: { remoteAddress }, headers: { host: '127.0.0.1:3000', ...headers } });
+  const json = { 'content-type': 'application/json' };
+  await assert.rejects(guardGatewayRequest(auth, req('127.0.0.1', { 'content-type': 'text/plain', origin: 'https://evil.example.com' })), { status: 403 });
+  await assert.rejects(guardGatewayRequest(auth, req('127.0.0.1', { ...json, origin: 'null' })), { status: 403 });
+  await assert.rejects(guardGatewayRequest(auth, req('127.0.0.1', { 'content-type': 'text/plain' })), { status: 415 });
+  await assert.rejects(guardGatewayRequest(auth, req('10.0.0.5', json)), { status: 403 });
+  assert.equal((await guardGatewayRequest(auth, req('127.0.0.1', { ...json, origin: 'http://127.0.0.1:3000' }))).kind, 'local-dev');
+  await assert.rejects(guardGatewayRequest(loadAuthConfig({ PROXY_API_KEY: 'k' }), req('127.0.0.1', json)), { status: 401 });
+});
+
+test('learning limits: env config, field size, tags, types', () => {
+  assert.deepEqual(loadLearningLimits({}), { maxRecords: 500, maxFieldBytes: 4096, maxTags: 32 });
+  assert.deepEqual(loadLearningLimits({ LEARNING_MAX_RECORDS: '10', LEARNING_MAX_FIELD_BYTES: '64' }), { maxRecords: 10, maxFieldBytes: 64, maxTags: 32 });
+  assert.deepEqual(loadLearningLimits({ LEARNING_MAX_RECORDS: '-1', LEARNING_MAX_FIELD_BYTES: 'abc' }), loadLearningLimits({}));
+
+  const limits = loadLearningLimits({ LEARNING_MAX_FIELD_BYTES: '16' });
+  const v = (p) => status(() => validateLearningPayload(p, limits));
+  assert.deepEqual(validateLearningPayload({ title: 'ok', tags: ['a'], tokensUsed: 5, extra: 'dropped' }, limits), { title: 'ok', tags: ['a'], tokensUsed: 5 });
+  assert.equal(v({ title: 'x'.repeat(16) }), 200);
+  assert.equal(v({ invariantRule: 'x'.repeat(17) }), 413);
+  assert.equal(v({ title: 'é'.repeat(9) }), 413); // 18 UTF-8 bytes
+  assert.equal(v({ tags: ['x'.repeat(17)] }), 413);
+  assert.equal(v({ tags: Array(33).fill('t') }), 413);
+  assert.equal(v({ title: { nested: true } }), 400);
+  assert.equal(v({ tags: 'not-an-array' }), 400);
+  assert.equal(v({ costUsd: 'free' }), 400);
+  assert.equal(v([]), 400);
+  assert.equal(v({}), 200);
+  assert.equal(status(() => validateLearningPayload({ rootCause: 'x'.repeat(4096) })), 200);
+  assert.equal(status(() => validateLearningPayload({ rootCause: 'x'.repeat(4097) })), 413);
+});
+
+test('learning store keeps at most maxRecords, dropping the oldest', () => {
+  const records = [{ id: 'old-2' }, { id: 'old-1' }];
+  addLearningRecord(records, { id: 'new-1' }, 3);
+  assert.deepEqual(records.map((r) => r.id), ['new-1', 'old-2', 'old-1']);
+  addLearningRecord(records, { id: 'new-2' }, 3);
+  assert.deepEqual(records.map((r) => r.id), ['new-2', 'new-1', 'old-2']);
+  for (let i = 0; i < 600; i++) addLearningRecord(records, { id: `n${i}` });
+  assert.equal(records.length, 500);
+  assert.equal(records[0].id, 'n599');
 });
