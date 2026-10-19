@@ -1,44 +1,42 @@
 import express from 'express';
 import cors from 'cors';
+import { checkGitHubProxyRequest, isOriginAllowed } from './server/githubProxyPolicy.mjs';
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-// Fake Vault for the proxy
-const VAULT = {
-  "proj-ehi-001": {
-    github_token: process.env.GITHUB_TOKEN || "ghp_fake_token_for_ehi_123",
-    openai_api_key: process.env.OPENAI_API_KEY || "sk-fake-openai-token",
-    anthropic_api_key: process.env.ANTHROPIC_API_KEY || "sk-ant-fake-anthropic-token",
+// Only pages we serve may call this backend from a browser.
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isOriginAllowed(origin));
   },
-  "proj-iya-001": {
-    github_token: process.env.GITHUB_TOKEN || "ghp_fake_token_for_iya_456",
+}));
+app.use((req, res, next) => {
+  if (!isOriginAllowed(req.headers.origin)) {
+    return res.status(403).json({ error: 'Origin not allowed' });
   }
+  next();
+});
+app.use(express.json({ limit: '2mb' }));
+
+// Credentials come only from the environment. There are no per-project
+// fallbacks and no placeholder keys: a missing key is reported as 503.
+const credentials = {
+  openai_api_key: process.env.OPENAI_API_KEY || '',
+  anthropic_api_key: process.env.ANTHROPIC_API_KEY || '',
 };
 
 app.post('/api/github/proxy', async (req, res) => {
-  const { endpoint, options, project_id } = req.body;
-  const credentials = VAULT[project_id] || VAULT["proj-ehi-001"];
-
-  if (!endpoint) {
-    return res.status(400).json({ error: 'Missing endpoint' });
-  }
-
-  const url = `https://api.github.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-  
-  const headers = { ...options?.headers, 'User-Agent': 'AetherOrch-Proxy' };
-  
-  // Inject the server-side token securely
-  if (credentials && credentials.github_token) {
-    headers['Authorization'] = `token ${credentials.github_token}`;
+  const { endpoint, options } = req.body || {};
+  const check = checkGitHubProxyRequest(endpoint, options);
+  if (!check.ok) {
+    return res.status(check.status).json({ error: check.error });
   }
 
   try {
-    const ghRes = await fetch(url, {
-      method: options?.method || 'GET',
-      headers,
-      body: options?.body ? JSON.stringify(options.body) : undefined
+    const ghRes = await fetch(check.url, {
+      method: check.method,
+      headers: check.headers,
+      body: check.body,
     });
 
     // Proxy headers back for Rate Limit info
@@ -53,27 +51,33 @@ app.post('/api/github/proxy', async (req, res) => {
     }
 
     const text = await ghRes.text();
-    res.status(ghRes.status).send(text);
+    res.status(ghRes.status).type(ghRes.headers.get('content-type') || 'application/json').send(text);
   } catch (error) {
     console.error('Proxy Error:', error);
-    res.status(500).json({ message: 'Internal Proxy Error', details: error.message });
+    res.status(500).json({ message: 'Internal Proxy Error' });
   }
 });
 
 // AI Inference Endpoint
 app.post('/api/ai/chat', async (req, res) => {
-  const { messages, project_id, modelId } = req.body;
-  const credentials = VAULT[project_id] || VAULT["proj-ehi-001"];
+  const { messages, modelId } = req.body || {};
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Missing or invalid messages array' });
+  }
+
+  const provider = modelId?.includes('claude') ? 'anthropic' : 'openai';
+  const key = provider === 'anthropic' ? credentials.anthropic_api_key : credentials.openai_api_key;
+  if (!key) {
+    const envName = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY';
+    return res.status(503).json({ error: `AI provider not configured on the server (set ${envName})` });
   }
 
   try {
     let aiResponseText = '';
 
     // Route to Anthropic (Claude)
-    if (modelId?.includes('claude')) {
+    if (provider === 'anthropic') {
       const url = 'https://api.anthropic.com/v1/messages';
       const systemMessage = messages.find(m => m.role === 'system');
       const userMessages = messages.filter(m => m.role !== 'system');
@@ -135,11 +139,16 @@ app.post('/api/ai/chat', async (req, res) => {
     res.status(200).json({ reply: aiResponseText });
   } catch (error) {
     console.error('AI Proxy Error:', error);
-    res.status(500).json({ error: 'AI inference failed', details: error.message });
+    res.status(500).json({ error: 'AI inference failed' });
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Orchestrator Backend running on http://localhost:${PORT}`);
+const PORT = Number(process.env.PORT) || 3001;
+// Bind to localhost by default so the backend is not reachable from other machines.
+const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`Orchestrator Backend running on http://${HOST}:${PORT}`);
+  if (!process.env.GITHUB_TOKEN && !process.env.GITHUB_PAT) console.warn('GITHUB_TOKEN not set: /api/github/proxy will return 503.');
+  if (!credentials.openai_api_key) console.warn('OPENAI_API_KEY not set: OpenAI chat will return 503.');
+  if (!credentials.anthropic_api_key) console.warn('ANTHROPIC_API_KEY not set: Claude chat will return 503.');
 });

@@ -8,6 +8,7 @@
  */
 
 import http from 'http';
+import { checkGitHubProxyRequest, isOriginAllowed } from './githubProxyPolicy.mjs';
 import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from './budgetLedger.ts';
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
 
@@ -260,29 +261,25 @@ export function handleTelemetryGateway(
     });
     req.on('end', async () => {
       try {
-        const parsed = body ? JSON.parse(body) : {};
-        const { endpoint, options } = parsed;
-        if (!endpoint) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Missing endpoint' }));
+        if (!isOriginAllowed(req.headers.origin)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Origin not allowed' }));
           return;
         }
 
-        const serverToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
-        const url = `https://api.github.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-        const headers: Record<string, string> = {
-          'User-Agent': 'AetherOrch-Proxy/1.0',
-          Accept: 'application/vnd.github.v3+json',
-          ...(options?.headers || {}),
-        };
-        if (serverToken) {
-          headers['Authorization'] = `token ${serverToken}`;
+        const parsed = body ? JSON.parse(body) : {};
+        const { endpoint, options } = parsed;
+        const check = checkGitHubProxyRequest(endpoint, options);
+        if (!check.ok) {
+          res.writeHead(check.status, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: check.error }));
+          return;
         }
 
-        const ghRes = await fetch(url, {
-          method: options?.method || 'GET',
-          headers,
-          body: options?.body ? JSON.stringify(options.body) : undefined,
+        const ghRes = await fetch(check.url, {
+          method: check.method,
+          headers: check.headers,
+          body: check.body,
         });
 
         const text = await ghRes.text();
@@ -292,7 +289,7 @@ export function handleTelemetryGateway(
         res.end(text);
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'GitHub Proxy Error', details: err.message }));
+        res.end(JSON.stringify({ error: 'GitHub Proxy Error' }));
       }
     });
     return true;
