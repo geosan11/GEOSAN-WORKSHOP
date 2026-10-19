@@ -10,6 +10,23 @@
 import http from 'http';
 import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from './budgetLedger.ts';
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
+import {
+  ProxyError,
+  authenticate,
+  loadAuthConfig,
+  loadProjectCredentials,
+  prepareGitHubRequest,
+} from './proxySecurity.js';
+
+let proxySecurity: { auth: any; projects: Map<string, any>; errors: string[] } | null = null;
+function getProxySecurity() {
+  if (!proxySecurity) {
+    const auth = loadAuthConfig();
+    const { projects, errors } = loadProjectCredentials();
+    proxySecurity = { auth, projects, errors: [...auth.errors, ...errors] };
+  }
+  return proxySecurity;
+}
 
 // In-memory server-side knowledge records
 let serverLearningRecords: LearningRecord[] = [...INITIAL_LEARNING_RECORDS];
@@ -253,46 +270,46 @@ export function handleTelemetryGateway(
   }
 
   // 5b. GitHub API Proxy: POST /api/github/proxy
+  // Same rules as server.js: signed-in callers only, allowlisted endpoints and
+  // methods, and the token of the project that owns the repo. If the proxy is
+  // not configured it answers 503 so the dev server (and Demo Mode) keep working.
   if (pathname === '/api/github/proxy' && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
     });
     req.on('end', async () => {
+      const send = (status: number, payload: unknown) => {
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(payload));
+      };
       try {
-        const parsed = body ? JSON.parse(body) : {};
-        const { endpoint, options } = parsed;
-        if (!endpoint) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Missing endpoint' }));
+        const security = getProxySecurity();
+        if (security.errors.length > 0) {
+          send(503, { error: 'GitHub proxy is not configured', details: security.errors });
           return;
         }
-
-        const serverToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
-        const url = `https://api.github.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-        const headers: Record<string, string> = {
-          'User-Agent': 'AetherOrch-Proxy/1.0',
-          Accept: 'application/vnd.github.v3+json',
-          ...(options?.headers || {}),
-        };
-        if (serverToken) {
-          headers['Authorization'] = `token ${serverToken}`;
-        }
-
-        const ghRes = await fetch(url, {
-          method: options?.method || 'GET',
-          headers,
-          body: options?.body ? JSON.stringify(options.body) : undefined,
+        await authenticate(security.auth, req.headers, req.socket.remoteAddress);
+        const upstream = prepareGitHubRequest(security.projects, body ? JSON.parse(body) : {});
+        const ghRes = await fetch(upstream.url, {
+          method: upstream.method,
+          headers: upstream.headers,
+          body: upstream.body,
         });
-
         const text = await ghRes.text();
         res.writeHead(ghRes.status, {
           'Content-Type': ghRes.headers.get('content-type') || 'application/json',
         });
         res.end(text);
       } catch (err: any) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'GitHub Proxy Error', details: err.message }));
+        if (err instanceof ProxyError) {
+          send(err.status, { error: err.message });
+        } else if (err instanceof SyntaxError) {
+          send(400, { error: 'Invalid JSON' });
+        } else {
+          console.error('GitHub proxy error:', err);
+          send(500, { error: 'GitHub Proxy Error' });
+        }
       }
     });
     return true;

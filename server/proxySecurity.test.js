@@ -1,0 +1,117 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  ProxyError,
+  authenticate,
+  corsHeaders,
+  loadAuthConfig,
+  loadProjectCredentials,
+  prepareAiRequest,
+  prepareGitHubRequest,
+} from './proxySecurity.js';
+
+const SHA = 'a'.repeat(40);
+const env = {
+  PROXY_PROJECTS: 'proj-ehi-001,proj-iya-001',
+  PROJ_EHI_001_GITHUB_TOKEN: 'ehi-token',
+  PROJ_EHI_001_GITHUB_REPOS: 'geosan11/EHI-MULTISYSTEMS',
+  PROJ_EHI_001_OPENAI_API_KEY: 'ehi-openai',
+  PROJ_IYA_001_GITHUB_TOKEN: 'iya-token',
+  PROJ_IYA_001_GITHUB_REPOS: 'acme/iya-oil',
+};
+const { projects } = loadProjectCredentials(env);
+const status = (fn) => {
+  try {
+    fn();
+  } catch (e) {
+    assert.ok(e instanceof ProxyError, e);
+    return e.status;
+  }
+  return 200;
+};
+
+test('startup config fails when keys are missing', () => {
+  assert.ok(loadProjectCredentials({}).errors.length > 0);
+  const { errors } = loadProjectCredentials({ PROXY_PROJECTS: 'proj-x-1', PROJ_X_1_GITHUB_REPOS: 'a/b' });
+  assert.deepEqual(errors, ['PROJ_X_1_GITHUB_TOKEN is missing.']);
+  assert.ok(loadAuthConfig({}).errors.length > 0);
+  assert.equal(loadProjectCredentials(env).errors.length, 0);
+});
+
+test('a repo cannot belong to two projects', () => {
+  const { errors } = loadProjectCredentials({ ...env, PROJ_IYA_001_GITHUB_REPOS: 'geosan11/ehi-multisystems' });
+  assert.ok(errors.some((e) => e.includes('assigned to both')));
+});
+
+test('uses the token of the project that owns the repo', () => {
+  const r = prepareGitHubRequest(projects, { endpoint: '/repos/acme/iya-oil' });
+  assert.equal(r.headers.Authorization, 'Bearer iya-token');
+  assert.equal(r.projectId, 'proj-iya-001');
+});
+
+test('unknown repo or mismatched project is refused, never falls back', () => {
+  assert.equal(status(() => prepareGitHubRequest(projects, { endpoint: '/repos/evil/repo' })), 403);
+  assert.equal(status(() => prepareGitHubRequest(projects, { endpoint: '/repos/acme/iya-oil', project_id: 'proj-ehi-001' })), 403);
+  assert.equal(status(() => prepareGitHubRequest(projects, { endpoint: '/repos/acme/iya-oil', project_id: 'proj-nope' })), 403);
+});
+
+test('only allowlisted endpoints and methods pass', () => {
+  const ok = (endpoint, method, body) =>
+    status(() => prepareGitHubRequest(projects, { endpoint, options: { method, body } }));
+  assert.equal(ok('/repos/acme/iya-oil/commits?sha=main&per_page=1', 'GET'), 200);
+  assert.equal(ok(`/repos/acme/iya-oil/git/trees/${SHA}?recursive=1`, 'GET'), 200);
+  assert.equal(ok('/repos/acme/iya-oil/git/blobs', 'POST', { content: 'x' }), 200);
+  assert.equal(ok('/repos/acme/iya-oil/git/refs/heads/main', 'PATCH', { sha: SHA }), 200);
+  assert.equal(ok('/repos/acme/iya-oil', 'DELETE'), 403);
+  assert.equal(ok('/user/repos', 'POST'), 403);
+  assert.equal(ok('/repos/acme/iya-oil/collaborators/bob', 'PUT'), 403);
+  assert.equal(ok('/repos/acme/iya-oil/git/refs/heads/main', 'PATCH', { sha: SHA, force: true }), 403);
+  assert.equal(ok('/repos/acme/iya-oil/commits?access_token=x', 'GET'), 403);
+  assert.equal(ok('/repos/acme/iya-oil/../../user', 'GET'), 403);
+  assert.equal(ok('//evil.example.com/repos/acme/iya-oil', 'GET'), 400);
+});
+
+test('client cannot override Authorization', () => {
+  const r = prepareGitHubRequest(projects, {
+    endpoint: '/repos/acme/iya-oil',
+    options: { headers: { Authorization: 'token stolen', 'X-GitHub-Api-Version': '2022-11-28' } },
+  });
+  assert.equal(r.headers.Authorization, 'Bearer iya-token');
+  assert.equal(r.headers['X-GitHub-Api-Version'], '2022-11-28');
+});
+
+test('AI chat needs a known project with its own provider key', () => {
+  const msgs = [{ role: 'user', content: 'hi' }];
+  assert.equal(prepareAiRequest(projects, { messages: msgs, project_id: 'proj-ehi-001' }).apiKey, 'ehi-openai');
+  assert.equal(status(() => prepareAiRequest(projects, { messages: msgs })), 400);
+  assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-iya-001' })), 403);
+  assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-ehi-001', modelId: 'claude-3-7-sonnet-20250219' })), 403);
+  assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-ehi-001', modelId: 'o1-pro' })), 400);
+  assert.equal(status(() => prepareAiRequest(projects, { messages: [{ role: 'tool', content: 'x' }], project_id: 'proj-ehi-001' })), 400);
+});
+
+test('auth: api key, supabase session, local-dev loopback only', async () => {
+  const apiAuth = loadAuthConfig({ PROXY_API_KEY: 'k3y' });
+  assert.equal((await authenticate(apiAuth, { authorization: 'Bearer k3y' }, '1.2.3.4')).kind, 'api-key');
+  await assert.rejects(authenticate(apiAuth, { authorization: 'Bearer nope' }, '1.2.3.4'), { status: 401 });
+  await assert.rejects(authenticate(apiAuth, {}, '127.0.0.1'), { status: 401 });
+
+  const sbAuth = loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon' });
+  const fakeFetch = async (url, init) => ({
+    ok: init.headers.Authorization === 'Bearer good',
+    json: async () => ({ id: 'u1', email: 'a@b.c' }),
+  });
+  assert.equal((await authenticate(sbAuth, { authorization: 'Bearer good' }, '1.2.3.4', fakeFetch)).id, 'u1');
+  await assert.rejects(authenticate(sbAuth, { authorization: 'Bearer bad' }, '1.2.3.4', fakeFetch), { status: 401 });
+
+  const devAuth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
+  assert.equal((await authenticate(devAuth, {}, '127.0.0.1')).kind, 'local-dev');
+  await assert.rejects(authenticate(devAuth, {}, '10.0.0.5'), { status: 401 });
+});
+
+test('CORS only for listed origins', () => {
+  const auth = loadAuthConfig({ PROXY_API_KEY: 'k', PROXY_ALLOWED_ORIGINS: 'http://localhost:3000' });
+  assert.equal(corsHeaders(auth, 'http://localhost:3000')['Access-Control-Allow-Origin'], 'http://localhost:3000');
+  assert.throws(() => corsHeaders(auth, 'https://evil.example.com'), { status: 403 });
+  assert.deepEqual(corsHeaders(auth, undefined), {});
+});
