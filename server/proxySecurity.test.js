@@ -6,6 +6,7 @@ import {
   authenticate,
   isLoopback,
   corsHeaders,
+  guardGatewayRequest,
   loadAuthConfig,
   loadProjectCredentials,
   prepareAiRequest,
@@ -131,4 +132,35 @@ test('cross-site simple requests are refused', () => {
 test('loopback detection', () => {
   assert.ok(isLoopback('127.0.0.1') && isLoopback('::1') && isLoopback('::ffff:127.0.0.1'));
   assert.ok(!isLoopback('192.168.1.20'));
+});
+
+test('allowed origins pass assertBrowserSafe, Origin: null is refused', () => {
+  const json = { 'content-type': 'application/json' };
+  const listed = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev', PROXY_ALLOWED_ORIGINS: 'https://app.example.com' });
+  assert.doesNotThrow(() => assertBrowserSafe(listed, { ...json, origin: 'https://app.example.com' }));
+  assert.throws(() => assertBrowserSafe(listed, { ...json, origin: 'http://localhost:3000' }), { status: 403 });
+
+  const defaults = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
+  assert.deepEqual(defaults.allowedOrigins, ['http://localhost:3000', 'http://127.0.0.1:3000']);
+  assert.doesNotThrow(() => assertBrowserSafe(defaults, { ...json, origin: 'http://localhost:3000' }));
+  assert.doesNotThrow(() => assertBrowserSafe(defaults, { ...json, origin: 'http://127.0.0.1:3000' }));
+  // Sandboxed iframes and file:// pages send the literal string "null".
+  assert.throws(() => assertBrowserSafe(defaults, { ...json, origin: 'null' }), { status: 403 });
+  assert.throws(() => assertBrowserSafe(defaults, { ...json, origin: 'null' }, ['http://localhost:3000']), { status: 403 });
+});
+
+test('gateway guard (git/sync, github proxy): loopback, then origin + JSON, then auth', async () => {
+  const auth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
+  const req = (remoteAddress, headers) => ({ socket: { remoteAddress }, headers: { host: '127.0.0.1:3000', ...headers } });
+  const json = { 'content-type': 'application/json' };
+
+  assert.equal((await guardGatewayRequest(auth, req('127.0.0.1', json))).kind, 'local-dev');
+  assert.equal((await guardGatewayRequest(auth, req('::1', { ...json, origin: 'http://127.0.0.1:3000' }))).kind, 'local-dev');
+  await assert.rejects(guardGatewayRequest(auth, req('192.168.1.20', json)), { status: 403 });
+  await assert.rejects(guardGatewayRequest(auth, req('127.0.0.1', { 'content-type': 'text/plain', origin: 'https://evil.example.com' })), { status: 403 });
+  await assert.rejects(guardGatewayRequest(auth, req('127.0.0.1', { 'content-type': 'text/plain' })), { status: 415 });
+
+  const keyAuth = loadAuthConfig({ PROXY_API_KEY: 'k3y' });
+  await assert.rejects(guardGatewayRequest(keyAuth, req('127.0.0.1', json)), { status: 401 });
+  assert.equal((await guardGatewayRequest(keyAuth, req('127.0.0.1', { ...json, authorization: 'Bearer k3y' }))).kind, 'api-key');
 });

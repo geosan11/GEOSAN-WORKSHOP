@@ -12,11 +12,10 @@ import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from '.
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
 import {
   ProxyError,
-  assertBrowserSafe,
-  authenticate,
-  isLoopback,
+  guardGatewayRequest,
   loadAuthConfig,
   loadProjectCredentials,
+  ownOrigins,
   prepareGitHubRequest,
 } from './proxySecurity.js';
 
@@ -28,6 +27,39 @@ function getProxySecurity() {
     proxySecurity = { auth, projects, errors: [...auth.errors, ...errors] };
   }
   return proxySecurity;
+}
+
+/**
+ * Shared guard for the gateway's proxy and git sync routes. Answers 503 when
+ * the proxy isn't configured (Demo Mode keeps working: the client falls back
+ * to mock data), otherwise loopback only, then assertBrowserSafe, then
+ * authenticate. Throws ProxyError on refusal.
+ */
+async function guardProxyRoute(req: http.IncomingMessage, what: string) {
+  const security = getProxySecurity();
+  if (security.errors.length > 0) {
+    const err = new ProxyError(503, `${what} is not configured`) as ProxyError & { details?: string[] };
+    err.details = security.errors;
+    throw err;
+  }
+  await guardGatewayRequest(security.auth, req);
+  return security;
+}
+
+function sendProxyError(res: http.ServerResponse, err: any, label: string) {
+  const send = (status: number, payload: unknown) => {
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
+  };
+  if (err instanceof ProxyError) {
+    const details = (err as any).details;
+    send((err as any).status, details ? { error: err.message, details } : { error: err.message });
+  } else if (err instanceof SyntaxError) {
+    send(400, { error: 'Invalid JSON' });
+  } else {
+    console.error(`${label} error:`, err);
+    send(500, { error: `${label} Error` });
+  }
 }
 
 // In-memory server-side knowledge records
@@ -119,10 +151,15 @@ export function handleTelemetryGateway(
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // CORS: no wildcard. The app calls the gateway same-origin, so the allow
+  // header is only ever echoed back for the gateway's own origin.
+  const origin = req.headers.origin;
+  if (origin && ownOrigins(req.headers).includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -194,12 +231,20 @@ export function handleTelemetryGateway(
 
   // 5. Secure Server-Side Git Workflow: POST /api/git/sync or POST /git/sync
   // Keeps GitHub personal access tokens, SSH credentials, and write operations isolated on the server.
+  // Same guard as /api/github/proxy: 503 if unconfigured, loopback only, then
+  // assertBrowserSafe (allowed Origin + JSON), then authenticate.
   if ((pathname === '/api/git/sync' || pathname === '/git/sync') && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
     });
     req.on('end', async () => {
+      try {
+        await guardProxyRoute(req, 'Git sync');
+      } catch (err: any) {
+        sendProxyError(res, err, 'Git sync');
+        return;
+      }
       try {
         const payload = body ? JSON.parse(body) : {};
         const {
@@ -281,24 +326,9 @@ export function handleTelemetryGateway(
       body += chunk;
     });
     req.on('end', async () => {
-      const send = (status: number, payload: unknown) => {
-        res.writeHead(status, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(payload));
-      };
       try {
-        const security = getProxySecurity();
-        if (security.errors.length > 0) {
-          send(503, { error: 'GitHub proxy is not configured', details: security.errors });
-          return;
-        }
         // `npm run dev` binds 0.0.0.0, so only answer callers on this machine.
-        if (!isLoopback(req.socket.remoteAddress)) {
-          send(403, { error: 'GitHub proxy is only available from this machine' });
-          return;
-        }
-        const host = req.headers.host;
-        assertBrowserSafe(security.auth, req.headers, host ? [`http://${host}`, `https://${host}`] : []);
-        await authenticate(security.auth, req.headers, req.socket.remoteAddress);
+        const security = await guardProxyRoute(req, 'GitHub proxy');
         const upstream = prepareGitHubRequest(security.projects, body ? JSON.parse(body) : {});
         const ghRes = await fetch(upstream.url, {
           method: upstream.method,
@@ -311,14 +341,7 @@ export function handleTelemetryGateway(
         });
         res.end(text);
       } catch (err: any) {
-        if (err instanceof ProxyError) {
-          send(err.status, { error: err.message });
-        } else if (err instanceof SyntaxError) {
-          send(400, { error: 'Invalid JSON' });
-        } else {
-          console.error('GitHub proxy error:', err);
-          send(500, { error: 'GitHub Proxy Error' });
-        }
+        sendProxyError(res, err, 'GitHub Proxy');
       }
     });
     return true;

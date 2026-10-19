@@ -85,6 +85,9 @@ export function loadProjectCredentials(env = process.env) {
   return { projects, errors };
 }
 
+// The Vite dev server (port 3000) may be opened as localhost or 127.0.0.1.
+export const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
+
 /**
  * Auth settings. Exactly one mode must be configured:
  *   - Supabase: SUPABASE_URL + SUPABASE_ANON_KEY (or the VITE_ equivalents);
@@ -97,7 +100,8 @@ export function loadAuthConfig(env = process.env) {
   const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '';
   const apiKey = env.PROXY_API_KEY || '';
   const localDev = env.PROXY_AUTH_MODE === 'local-dev';
-  const allowedOrigins = (env.PROXY_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const listed = (env.PROXY_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const allowedOrigins = listed.length ? listed : DEFAULT_ALLOWED_ORIGINS;
   const errors = [];
   if (!(supabaseUrl && supabaseAnonKey) && !apiKey && !localDev) {
     errors.push('No proxy auth configured: set SUPABASE_URL + SUPABASE_ANON_KEY, PROXY_API_KEY, or PROXY_AUTH_MODE=local-dev.');
@@ -161,6 +165,25 @@ export function assertBrowserSafe(auth, headers, ownOrigins = []) {
   }
   const type = String(headers['content-type'] || '').split(';')[0].trim().toLowerCase();
   if (type !== 'application/json') throw new ProxyError(415, 'Content-Type must be application/json');
+}
+
+/** Origins the dev gateway itself is served from, taken from the Host header. */
+export function ownOrigins(headers) {
+  const host = headers.host;
+  return host ? [`http://${host}`, `https://${host}`] : [];
+}
+
+/**
+ * Guard for state-changing or token-using routes on the Vite dev gateway,
+ * which `npm run dev` binds to 0.0.0.0: loopback callers only, then
+ * assertBrowserSafe (allowed Origin + JSON body), then authenticate.
+ * Throws ProxyError (403 / 415 / 401).
+ */
+export async function guardGatewayRequest(auth, req, fetchImpl = fetch) {
+  const remote = req.socket?.remoteAddress;
+  if (!isLoopback(remote)) throw new ProxyError(403, 'This route is only available from this machine');
+  assertBrowserSafe(auth, req.headers, ownOrigins(req.headers));
+  return authenticate(auth, req.headers, remote, fetchImpl);
 }
 
 /** CORS: only listed origins get the allow header; others are refused. */

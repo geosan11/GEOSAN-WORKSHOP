@@ -640,6 +640,7 @@ export async function triggerServerGitSync(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...proxyAuthHeaders(),
       },
       body: JSON.stringify(request),
     });
