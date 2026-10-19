@@ -57,7 +57,7 @@ export const CostCenterScreen: React.FC = () => {
       <SectionCard
         title="Weekly admission cap"
         description="git, lint, format, and replay are not admitted."
-        actions={<ShieldCheck className="w-4 h-4 text-emerald-400" />}
+        actions={<ShieldCheck className="w-4 h-4 text-[color:var(--color-success-text)]" />}
       >
         <div
           className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono text-xs"
@@ -94,15 +94,15 @@ export const CostCenterScreen: React.FC = () => {
             <span className="text-meta">Tiers 60 / 30 / 10</span>
             <div className="flex items-center justify-between text-muted">
               <span>Tier 1 (Coding & Critic):</span>
-              <span className="text-emerald-400 font-bold">60% ($1.80)</span>
+              <span className="text-[color:var(--color-success-text)] font-bold">60% ($1.80)</span>
             </div>
             <div className="flex items-center justify-between text-muted">
               <span>Tier 2 (Telemetry & Data):</span>
-              <span className="text-cyan-400 font-bold">30% ($0.90)</span>
+              <span className="text-[color:var(--color-info-text)] font-bold">30% ($0.90)</span>
             </div>
             <div className="flex items-center justify-between text-muted">
               <span>Tier 3 (Utility / Ops):</span>
-              <span className="text-amber-400 font-bold">10% ($0.30)</span>
+              <span className="text-[color:var(--color-warning-text)] font-bold">10% ($0.30)</span>
             </div>
           </div>
         </div>

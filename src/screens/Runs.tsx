@@ -266,7 +266,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
         <div className="space-y-4">
           <button
             onClick={() => setSelectedRunId(undefined)}
-            className="text-xs font-mono text-emerald-400 hover:underline flex items-center gap-1"
+            className="text-xs font-mono text-[color:var(--color-success-text)] hover:underline flex items-center gap-1"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to Runs List
           </button>
@@ -303,7 +303,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
 
               {selectedRun.status === 'awaiting_approval' && (
                 <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/50 space-y-4">
-                  <div className="flex items-center gap-2 text-amber-400 font-bold uppercase text-xs">
+                  <div className="flex items-center gap-2 text-[color:var(--color-warning-text)] font-bold uppercase text-xs">
                     <ShieldAlert className="w-4 h-4" />
                     Approval gate · write
                   </div>
@@ -323,7 +323,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
 
                     <button
                       onClick={() => handleRejectGate(selectedRun.id)}
-                      className="px-4 py-2.5 rounded-xl border border-rose-500/50 text-rose-400 hover:bg-rose-500/10 font-bold text-xs transition-colors flex items-center gap-1.5"
+                      className="px-4 py-2.5 rounded-xl border border-rose-500/50 text-[color:var(--color-danger-text)] hover:bg-rose-500/10 font-bold text-xs transition-colors flex items-center gap-1.5"
                     >
                       <X className="w-4 h-4" />
                       Reject
@@ -364,7 +364,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
               className={`kpi-tile text-left ${runFilter === 'needs_you' ? 'border-[color:var(--color-primary)]/50' : ''}`}
             >
               <p className="text-meta">Needs you</p>
-              <span className="kpi-tile-value text-amber-300">{needsYou.length}</span>
+              <span className="kpi-tile-value text-[color:var(--color-warning-text)]">{needsYou.length}</span>
             </button>
             <button
               type="button"
@@ -372,7 +372,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
               className={`kpi-tile text-left ${runFilter === 'working' ? 'border-[color:var(--color-primary)]/50' : ''}`}
             >
               <p className="text-meta">Working</p>
-              <span className="kpi-tile-value text-emerald-300">{working.length}</span>
+              <span className="kpi-tile-value text-[color:var(--color-success-text)]">{working.length}</span>
             </button>
             <button
               type="button"

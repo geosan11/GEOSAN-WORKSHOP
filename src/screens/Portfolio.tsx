@@ -95,7 +95,7 @@ export const PortfolioScreen: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Inbox orientation counts">
         <a href="#queue-approvals" className="kpi-tile">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="kpi-tile-icon text-amber-400">
+            <span className="kpi-tile-icon text-[color:var(--color-warning-text)]">
               <Clock className="w-3.5 h-3.5" />
             </span>
             <div className="min-w-0">
@@ -103,12 +103,12 @@ export const PortfolioScreen: React.FC = () => {
               <p className="text-[0.6875rem] text-muted truncate">Waiting on you</p>
             </div>
           </div>
-          <span className="kpi-tile-value text-amber-300">{awaitingTasks.length}</span>
+          <span className="kpi-tile-value text-[color:var(--color-warning-text)]">{awaitingTasks.length}</span>
         </a>
 
         <a href="#queue-findings" className="kpi-tile">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="kpi-tile-icon text-rose-400">
+            <span className="kpi-tile-icon text-[color:var(--color-danger-text)]">
               <ShieldAlert className="w-3.5 h-3.5" />
             </span>
             <div className="min-w-0">
@@ -116,12 +116,12 @@ export const PortfolioScreen: React.FC = () => {
               <p className="text-[0.6875rem] text-muted truncate">Open Verify</p>
             </div>
           </div>
-          <span className="kpi-tile-value text-rose-300">{openP0Findings.length}</span>
+          <span className="kpi-tile-value text-[color:var(--color-danger-text)]">{openP0Findings.length}</span>
         </a>
 
         <a href="#queue-working" className="kpi-tile">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="kpi-tile-icon text-emerald-400">
+            <span className="kpi-tile-icon text-[color:var(--color-success-text)]">
               <PlayCircle className="w-3.5 h-3.5" />
             </span>
             <div className="min-w-0">
@@ -129,7 +129,7 @@ export const PortfolioScreen: React.FC = () => {
               <p className="text-[0.6875rem] text-muted truncate">Live agents</p>
             </div>
           </div>
-          <span className="kpi-tile-value text-emerald-300">{runningTasks.length}</span>
+          <span className="kpi-tile-value text-[color:var(--color-success-text)]">{runningTasks.length}</span>
         </a>
       </div>
 
@@ -249,7 +249,7 @@ export const PortfolioScreen: React.FC = () => {
                     )}
                     <div className="pt-2 border-t border-app flex items-center justify-between text-[10px] font-mono text-muted">
                       <span>{finding.component || 'Regression'}</span>
-                      <span className="text-rose-400 font-bold flex items-center gap-1 uppercase tracking-wide">
+                      <span className="text-[color:var(--color-danger-text)] font-bold flex items-center gap-1 uppercase tracking-wide">
                         Open Verify <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>
@@ -308,10 +308,10 @@ export const PortfolioScreen: React.FC = () => {
                     <p className="text-xs text-muted font-mono line-clamp-2">{task.prompt}</p>
                     <div className="pt-2 border-t border-app flex items-center justify-between text-[10px] font-mono text-muted">
                       <span className="flex items-center gap-1">
-                        <User className="w-3 h-3 text-emerald-400" />
+                        <User className="w-3 h-3 text-[color:var(--color-success-text)]" />
                         {task.assigned_agent || 'Coordinator'}
                       </span>
-                      <span className="text-emerald-400 font-bold flex items-center gap-1 uppercase tracking-wide">
+                      <span className="text-[color:var(--color-success-text)] font-bold flex items-center gap-1 uppercase tracking-wide">
                         View live <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>

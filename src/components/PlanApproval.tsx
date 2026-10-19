@@ -119,7 +119,7 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
       <div className="border border-[#F0B230]/40 bg-[#F0B230]/5 rounded-[10px] p-4 text-xs space-y-3 relative overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-[#FFBD59] font-bold uppercase tracking-wider text-[11px] font-mono">
-            <ShieldAlert className="w-3.5 h-3.5 text-[#F0B230]" />
+            <ShieldAlert className="w-3.5 h-3.5 text-[color:var(--color-gold-text)]" />
             Plan Awaiting Operator Approval
           </div>
           <span className="text-[#8b98a8] font-mono text-[10px]">
@@ -127,12 +127,12 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
           </span>
         </div>
 
-        <p className="text-[#e6edf3] font-sans leading-relaxed whitespace-pre-line bg-[#161b22]/70 p-3 rounded-lg border border-white/5 font-mono text-[11px]">
+        <p className="text-main font-sans leading-relaxed whitespace-pre-line bg-[color:var(--color-surface-1)]/70 p-3 rounded-lg border border-white/5 font-mono text-[11px]">
           {planSummary}
         </p>
 
         {task.run_packet && (
-          <div className="p-3 bg-[#0d1117] border border-white/10 rounded-lg font-mono text-[11px] text-[#8b98a8] space-y-1">
+          <div className="p-3 bg-app border border-white/10 rounded-lg font-mono text-[11px] text-muted space-y-1">
             <div><span className="text-white">Goal:</span> {task.run_packet.goal}</div>
             <div><span className="text-white">done_when:</span> {task.run_packet.done_when.length} condition(s)</div>
             <div><span className="text-white">Worktree:</span> {task.run_packet.worktree}</div>
@@ -141,7 +141,7 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
           </div>
         )}
 
-        <div className="text-[#8b98a8] font-mono text-[10px] bg-[#0d1117]/50 p-2 rounded">
+        <div className="text-muted font-mono text-[10px] bg-[color:var(--bg-app)]/50 p-2 rounded">
           Writes admit only when a model is called. git, lint, format, and replay are not admitted.
         </div>
 
@@ -172,7 +172,7 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
             {linesToRender.map(line => (
               <div key={line.line_id} className="text-[10px] font-mono flex items-start gap-2">
                 <span className="text-[#8b98a8]">{new Date(line.at).toLocaleTimeString()}</span>
-                <span className={line.action === 'approved' ? 'text-emerald-400' : 'text-red-400'}>[{line.action.toUpperCase()}]</span>
+                <span className={line.action === 'approved' ? 'text-[color:var(--color-success-text)]' : 'text-red-400'}>[{line.action.toUpperCase()}]</span>
                 <span className="text-white">{line.actor}</span>
                 {line.reason && <span className="text-[#8b98a8] italic truncate">- {line.reason}</span>}
               </div>

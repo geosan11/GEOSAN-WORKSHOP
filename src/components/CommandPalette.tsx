@@ -257,12 +257,12 @@ export const CommandPalette: React.FC = () => {
       onClick={() => setIsOpen(false)}
     >
       <div
-        className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-[#161b22] sm:border sm:border-white/10 sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col font-mono text-xs"
+        className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-[color:var(--color-surface-1)] sm:border sm:border-white/10 sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col font-mono text-xs"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
-        <div className="p-4 border-b border-white/5 bg-[#0d1117] flex items-center gap-3">
-          <Search className="w-4 h-4 text-[#F0B230] shrink-0" />
+        <div className="p-4 border-b border-white/5 bg-app flex items-center gap-3">
+          <Search className="w-4 h-4 text-[color:var(--color-gold-text)] shrink-0" />
           <input
             ref={inputRef}
             type="text"
@@ -271,7 +271,7 @@ export const CommandPalette: React.FC = () => {
             onKeyDown={handleKeyDown}
             placeholder="Jump to a vertical, run, lesson, or probe"
             aria-label="Jump to a vertical, run, lesson, or probe"
-            className="flex-1 bg-transparent text-[#e6edf3] placeholder:text-slate-500 focus:outline-none text-xs font-mono"
+            className="flex-1 bg-transparent text-main placeholder:text-slate-500 focus:outline-none text-xs font-mono"
           />
           <button
             type="button"
@@ -314,13 +314,13 @@ export const CommandPalette: React.FC = () => {
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full text-left p-3 rounded-xl flex items-center justify-between gap-3 transition-colors ${isSelected
-                    ? 'bg-[#1c2333] border border-emerald-500/40 text-slate-100'
+                    ? 'bg-[color:var(--color-surface-2)] border border-[color:var(--color-success-text)]/40 text-main'
                     : 'bg-transparent text-slate-400 hover:text-slate-100'
                     } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center gap-3 truncate">
                     <div
-                      className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-emerald-950 text-emerald-300' : 'bg-white/5 text-slate-400'
+                      className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-[color:var(--color-success-tint)] text-[color:var(--color-success-text)]' : 'bg-white/5 text-slate-400'
                         }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -328,17 +328,17 @@ export const CommandPalette: React.FC = () => {
 
                     <div className="truncate">
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold truncate ${isSelected ? 'text-emerald-400' : 'text-slate-200'}`}>
+                        <span className={`font-bold truncate ${isSelected ? 'text-[color:var(--color-success-text)]' : 'text-slate-200'}`}>
                           {item.title}
                         </span>
                         {item.hint && (
                           <span
                             className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${item.hint === 'Waiting on you'
-                              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                              ? 'bg-amber-500/20 text-[color:var(--color-warning-text)] border border-amber-500/30'
                               : item.hint === 'Working'
-                                ? 'bg-emerald-950 text-emerald-400 border border-emerald-500/30'
+                                ? 'bg-[color:var(--color-success-tint)] text-[color:var(--color-success-text)] border border-emerald-500/30'
                                 : item.hint === 'Failed'
-                                  ? 'bg-rose-950 text-rose-400 border border-rose-500/30'
+                                  ? 'bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger-text)] border border-rose-500/30'
                                   : 'bg-slate-800 text-slate-400'
                               }`}
                           >
@@ -352,7 +352,7 @@ export const CommandPalette: React.FC = () => {
                         </span>
                       )}
                       {item.disabledReason && (
-                        <span className="text-[10px] text-rose-400 italic block">
+                        <span className="text-[10px] text-[color:var(--color-danger-text)] italic block">
                           {item.disabledReason}
                         </span>
                       )}
@@ -363,7 +363,7 @@ export const CommandPalette: React.FC = () => {
                     <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-white/5">
                       {item.category}
                     </span>
-                    {isSelected && <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />}
+                    {isSelected && <ArrowRight className="w-3.5 h-3.5 text-[color:var(--color-success-text)]" />}
                   </div>
                 </button>
               );
@@ -372,7 +372,7 @@ export const CommandPalette: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2.5 border-t border-white/5 bg-[#0d1117] flex items-center justify-between text-[10px] text-slate-400">
+        <div className="px-4 py-2.5 border-t border-white/5 bg-app flex items-center justify-between text-[10px] text-slate-400">
           <div className="flex items-center gap-3">
             <span>↑↓ Navigate</span>
             <span>↵ Select</span>

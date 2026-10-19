@@ -26,6 +26,15 @@
   --color-warning: #B45309;
   --color-info: #0E7490;
 
+  /* Foreground tones for small text / numbers on cream (AA on cream + tints) */
+  --color-gold-text: #8A5A00;
+  --color-success-text: #047857;
+  --color-warning-text: #92400E;
+  --color-info-text: #0E7490;
+  --color-danger-text: #B91C1C;
+  --color-success-tint: #D1FAE5;
+  --color-danger-tint: #FEE2E2;
+
   --bg-app: var(--color-cream);
   --bg-card: var(--color-cream-card);
   --bg-card-elevated: #FFFFFF;
@@ -83,6 +92,15 @@ html.dark {
   --color-error: #EF4444;
   --color-warning: #F59E0B;
   --color-info: #06B6D4;
+
+  /* Dark foreground tones = the Tailwind shades previously hardcoded in TSX */
+  --color-gold-text: var(--color-gold);
+  --color-success-text: oklch(76.5% 0.177 163.223); /* emerald-400 */
+  --color-warning-text: oklch(82.8% 0.189 84.429); /* amber-400 */
+  --color-info-text: oklch(78.9% 0.154 211.53); /* cyan-400 */
+  --color-danger-text: oklch(71.2% 0.194 13.428); /* rose-400 */
+  --color-success-tint: oklch(26.2% 0.051 172.552); /* emerald-950 */
+  --color-danger-tint: oklch(27.1% 0.105 12.094); /* rose-950 */
 
   --bg-app: #0d1117;
   --bg-card: #161b22;
@@ -232,7 +250,7 @@ html.dark .btn-ghost:hover {
 
 .btn-quiet:hover {
   border-color: rgba(240, 178, 48, 0.55);
-  color: var(--color-primary);
+  color: var(--color-gold-text);
 }
 
 .btn-pill {
@@ -282,7 +300,7 @@ html.dark .btn-ghost:hover {
 .stamp-primary {
   border-color: rgba(240, 178, 48, 0.45);
   background: var(--color-primary-container);
-  color: var(--color-primary);
+  color: var(--color-gold-text);
 }
 
 .stamp-success {
@@ -319,7 +337,7 @@ html.dark .btn-ghost:hover {
 }
 
 .text-primary {
-  color: var(--color-primary);
+  color: var(--color-gold-text);
 }
 
 .bg-primary {
@@ -395,7 +413,7 @@ html.dark .btn-ghost:hover {
 
 .nav-item-active {
   background: var(--color-primary-container);
-  color: var(--color-primary);
+  color: var(--color-gold-text);
   border-left: 2px solid var(--color-primary);
   font-weight: 700;
 }
@@ -504,7 +522,7 @@ html.dark .filter-chip:hover {
 .filter-chip[aria-selected='true'],
 .filter-chip-active {
   background: var(--color-primary-container);
-  color: var(--color-primary);
+  color: var(--color-gold-text);
   border-color: rgba(240, 178, 48, 0.4);
 }
 
