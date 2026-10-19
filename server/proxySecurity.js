@@ -117,7 +117,7 @@ function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-function isLoopback(addr = '') {
+export function isLoopback(addr = '') {
   return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 }
 
@@ -147,6 +147,20 @@ export async function authenticate(auth, headers, remoteAddress, fetchImpl = fet
   if (!token && auth.localDev && isLoopback(remoteAddress)) return { kind: 'local-dev' };
 
   throw new ProxyError(401, 'Sign in required');
+}
+
+/**
+ * Blocks cross-site requests from browsers. A page on another site can send a
+ * "simple" text/plain POST to localhost without a CORS preflight, so we also
+ * require a JSON body and an allowed (or absent) Origin.
+ */
+export function assertBrowserSafe(auth, headers, ownOrigins = []) {
+  const origin = headers.origin;
+  if (origin && !ownOrigins.includes(origin) && !auth.allowedOrigins.includes(origin)) {
+    throw new ProxyError(403, 'Origin not allowed');
+  }
+  const type = String(headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (type !== 'application/json') throw new ProxyError(415, 'Content-Type must be application/json');
 }
 
 /** CORS: only listed origins get the allow header; others are refused. */

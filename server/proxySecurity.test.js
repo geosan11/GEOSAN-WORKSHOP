@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ProxyError,
+  assertBrowserSafe,
   authenticate,
+  isLoopback,
   corsHeaders,
   loadAuthConfig,
   loadProjectCredentials,
@@ -114,4 +116,19 @@ test('CORS only for listed origins', () => {
   assert.equal(corsHeaders(auth, 'http://localhost:3000')['Access-Control-Allow-Origin'], 'http://localhost:3000');
   assert.throws(() => corsHeaders(auth, 'https://evil.example.com'), { status: 403 });
   assert.deepEqual(corsHeaders(auth, undefined), {});
+});
+
+test('cross-site simple requests are refused', () => {
+  const auth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
+  const json = { 'content-type': 'application/json' };
+  assert.doesNotThrow(() => assertBrowserSafe(auth, json));
+  assert.doesNotThrow(() => assertBrowserSafe(auth, { ...json, origin: 'http://localhost:3000' }, ['http://localhost:3000']));
+  assert.throws(() => assertBrowserSafe(auth, { ...json, origin: 'https://evil.example.com' }), { status: 403 });
+  assert.throws(() => assertBrowserSafe(auth, { 'content-type': 'text/plain' }), { status: 415 });
+  assert.throws(() => assertBrowserSafe(auth, {}), { status: 415 });
+});
+
+test('loopback detection', () => {
+  assert.ok(isLoopback('127.0.0.1') && isLoopback('::1') && isLoopback('::ffff:127.0.0.1'));
+  assert.ok(!isLoopback('192.168.1.20'));
 });

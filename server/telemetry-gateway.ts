@@ -12,7 +12,9 @@ import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from '.
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
 import {
   ProxyError,
+  assertBrowserSafe,
   authenticate,
+  isLoopback,
   loadAuthConfig,
   loadProjectCredentials,
   prepareGitHubRequest,
@@ -289,6 +291,13 @@ export function handleTelemetryGateway(
           send(503, { error: 'GitHub proxy is not configured', details: security.errors });
           return;
         }
+        // `npm run dev` binds 0.0.0.0, so only answer callers on this machine.
+        if (!isLoopback(req.socket.remoteAddress)) {
+          send(403, { error: 'GitHub proxy is only available from this machine' });
+          return;
+        }
+        const host = req.headers.host;
+        assertBrowserSafe(security.auth, req.headers, host ? [`http://${host}`, `https://${host}`] : []);
         await authenticate(security.auth, req.headers, req.socket.remoteAddress);
         const upstream = prepareGitHubRequest(security.projects, body ? JSON.parse(body) : {});
         const ghRes = await fetch(upstream.url, {

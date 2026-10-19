@@ -2,6 +2,7 @@ import express from 'express';
 import 'dotenv/config';
 import {
   ProxyError,
+  assertBrowserSafe,
   authenticate,
   corsHeaders,
   loadAuthConfig,
@@ -43,6 +44,7 @@ app.use((req, res, next) => {
 // Every /api route requires a signed-in caller.
 app.use('/api', async (req, res, next) => {
   try {
+    assertBrowserSafe(auth, req.headers);
     req.user = await authenticate(auth, req.headers, req.socket.remoteAddress);
     next();
   } catch (err) {
