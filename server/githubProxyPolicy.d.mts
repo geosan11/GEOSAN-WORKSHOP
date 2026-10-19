@@ -11,6 +11,7 @@ export interface ProxyRejected {
   error: string;
 }
 export function allowedOrigins(env?: Record<string, string | undefined>): string[];
+export function isLoopback(address: string | undefined | null): boolean;
 export function isOriginAllowed(origin: string | undefined | null, env?: Record<string, string | undefined>): boolean;
 export function checkGitHubProxyRequest(
   endpoint: unknown,

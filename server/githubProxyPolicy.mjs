@@ -8,14 +8,21 @@
 
 const SEGMENT = '[A-Za-z0-9_.-]+';
 const REPO = `/repos/${SEGMENT}/${SEGMENT}`;
+const SHA = '[0-9a-f]{40}';
+const BRANCH = '[A-Za-z0-9_./%-]+';
 
-/** Method + path pairs the GitHubClient in src/lib/github.ts uses. */
+/** Exactly the method + path pairs the GitHubClient in src/lib/github.ts uses. */
 const ALLOWED_ROUTES = [
-  { method: 'GET', pattern: new RegExp(`^${REPO}(/.*)?$`) },
+  { method: 'GET', pattern: new RegExp(`^${REPO}$`) },
+  { method: 'GET', pattern: new RegExp(`^${REPO}/commits$`) },
+  { method: 'GET', pattern: new RegExp(`^${REPO}/git/(trees|blobs|commits)/${SHA}$`) },
+  { method: 'GET', pattern: new RegExp(`^${REPO}/git/refs/heads/${BRANCH}$`) },
   { method: 'POST', pattern: new RegExp(`^${REPO}/git/(blobs|trees|commits)$`) },
-  { method: 'PATCH', pattern: new RegExp(`^${REPO}/git/refs/heads/.+$`) },
-  { method: 'POST', pattern: new RegExp(`^${REPO}/pulls$`) },
+  { method: 'PATCH', pattern: new RegExp(`^${REPO}/git/refs/heads/${BRANCH}$`) },
 ];
+
+/** Query parameters the client sends; anything else is refused. */
+const ALLOWED_QUERY = new Set(['sha', 'per_page', 'recursive']);
 
 const FORWARDED_HEADERS = ['accept', 'x-github-api-version', 'content-type'];
 
@@ -28,6 +35,11 @@ export function allowedOrigins(env = process.env) {
 }
 
 /** True when the request comes from a page we serve, or has no Origin (same-origin / server-to-server). */
+/** True for requests from this machine. The Vite dev server listens on 0.0.0.0, so the gateway checks this itself. */
+export function isLoopback(address) {
+  return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
 export function isOriginAllowed(origin, env = process.env) {
   if (!origin) return true;
   return allowedOrigins(env).includes(origin);
@@ -59,6 +71,13 @@ export function checkGitHubProxyRequest(endpoint, options = {}, env = process.en
     return { ok: false, status: 403, error: `GitHub call not allowed by proxy policy: ${method} ${path}` };
   }
 
+  const query = new URLSearchParams(endpoint.includes('?') ? endpoint.slice(endpoint.indexOf('?') + 1) : '');
+  for (const key of query.keys()) {
+    if (!ALLOWED_QUERY.has(key)) {
+      return { ok: false, status: 403, error: `Query parameter not allowed by proxy policy: ${key}` };
+    }
+  }
+
   const repos = repoAllowlist(env);
   if (repos) {
     const [, , owner, repo] = path.split('/');
@@ -81,6 +100,17 @@ export function checkGitHubProxyRequest(endpoint, options = {}, env = process.en
   let body;
   if (options?.body !== undefined && options?.body !== null && method !== 'GET') {
     body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+  }
+  if (method === 'PATCH' && body) {
+    let parsedBody;
+    try {
+      parsedBody = JSON.parse(body);
+    } catch {
+      return { ok: false, status: 400, error: 'Invalid request body' };
+    }
+    if (parsedBody && parsedBody.force) {
+      return { ok: false, status: 403, error: 'Force-updating a branch is not allowed by proxy policy' };
+    }
   }
 
   return { ok: true, url: `https://api.github.com${endpoint}`, method, headers, body };

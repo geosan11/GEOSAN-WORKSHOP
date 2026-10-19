@@ -8,7 +8,7 @@
  */
 
 import http from 'http';
-import { checkGitHubProxyRequest, isOriginAllowed } from './githubProxyPolicy.mjs';
+import { checkGitHubProxyRequest, isLoopback, isOriginAllowed } from './githubProxyPolicy.mjs';
 import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from './budgetLedger.ts';
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
 
@@ -264,6 +264,13 @@ export function handleTelemetryGateway(
         if (!isOriginAllowed(req.headers.origin)) {
           res.writeHead(403, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Origin not allowed' }));
+          return;
+        }
+        // `npm run dev` binds 0.0.0.0, so without this anyone on the network
+        // could use the server's GitHub token through the dev proxy.
+        if (!isLoopback(req.socket.remoteAddress)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'GitHub proxy is only available from this machine' }));
           return;
         }
 
