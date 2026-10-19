@@ -148,7 +148,10 @@ export async function authenticate(auth, headers, remoteAddress, fetchImpl = fet
     }
   }
 
-  if (!token && auth.localDev && isLoopback(remoteAddress)) return { kind: 'local-dev' };
+  // local-dev already admits tokenless loopback callers, so a token that isn't
+  // a valid key or session (e.g. the UI's offline "staff operator" session,
+  // src/lib/auth.tsx) must not make a loopback caller worse off than no token.
+  if (auth.localDev && isLoopback(remoteAddress)) return { kind: 'local-dev' };
 
   throw new ProxyError(401, 'Sign in required');
 }

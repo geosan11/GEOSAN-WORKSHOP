@@ -113,6 +113,9 @@ test('auth: api key, supabase session, local-dev loopback only', async () => {
   const devAuth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
   assert.equal((await authenticate(devAuth, {}, '127.0.0.1')).kind, 'local-dev');
   await assert.rejects(authenticate(devAuth, {}, '10.0.0.5'), { status: 401 });
+  // The UI's offline operator session sends a non-Supabase bearer token.
+  assert.equal((await authenticate(devAuth, { authorization: 'Bearer ehi-operator-123' }, '127.0.0.1')).kind, 'local-dev');
+  await assert.rejects(authenticate(devAuth, { authorization: 'Bearer ehi-operator-123' }, '10.0.0.5'), { status: 401 });
 });
 
 test('CORS only for listed origins', () => {
