@@ -125,6 +125,21 @@ export function isLoopback(addr = '') {
   return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 }
 
+// Behind a tunnel or reverse proxy every caller's socket is loopback, so a
+// request carrying forwarding headers never gets loopback trust.
+const FORWARD_HEADERS = ['forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-real-ip'];
+export const viaProxy = (h = {}) => FORWARD_HEADERS.some((k) => h[k] !== undefined);
+
+/**
+ * Throws ProxyError(403) unless the Host header names this machine
+ * (PROXY_ALLOWED_HOSTS, default localhost,127.0.0.1,[::1]; port ignored).
+ */
+export function assertLocalHost(headers, allowed = (process.env.PROXY_ALLOWED_HOSTS || 'localhost,127.0.0.1,[::1]').split(',').map((s) => s.trim().toLowerCase())) {
+  const raw = String(headers.host || '').toLowerCase();
+  const host = raw.startsWith('[') ? raw.slice(0, raw.indexOf(']') + 1) : raw.replace(/:\d+$/, '');
+  if (!allowed.includes(host)) throw new ProxyError(403, 'Host not allowed');
+}
+
 const sessionCache = new Map();
 const SESSION_TTL_MS = 60_000;
 
@@ -151,7 +166,9 @@ export async function authenticate(auth, headers, remoteAddress, fetchImpl = fet
   // local-dev already admits tokenless loopback callers, so a token that isn't
   // a valid key or session (e.g. the UI's offline "staff operator" session,
   // src/lib/auth.tsx) must not make a loopback caller worse off than no token.
-  if (auth.localDev && isLoopback(remoteAddress)) return { kind: 'local-dev' };
+  // A forwarded request (tunnel / reverse proxy) is not a local caller even
+  // though its socket is loopback, so it must authenticate normally.
+  if (auth.localDev && isLoopback(remoteAddress) && !viaProxy(headers)) return { kind: 'local-dev' };
 
   throw new ProxyError(401, 'Sign in required');
 }
@@ -178,13 +195,18 @@ export function ownOrigins(headers) {
 
 /**
  * Guard for state-changing or token-using routes on the Vite dev gateway,
- * which `npm run dev` binds to 0.0.0.0: loopback callers only, then
+ * which `npm run dev` binds to 0.0.0.0: loopback callers only (and not
+ * relayed through a proxy, see viaProxy), then
  * assertBrowserSafe (allowed Origin + JSON body), then authenticate.
  * Throws ProxyError (403 / 415 / 401).
  */
 export async function guardGatewayRequest(auth, req, fetchImpl = fetch) {
   const remote = req.socket?.remoteAddress;
-  if (!isLoopback(remote)) throw new ProxyError(403, 'This route is only available from this machine');
+  // A loopback socket with forwarding headers is a tunnel or reverse proxy
+  // relaying someone else, not a caller on this machine.
+  if (!isLoopback(remote) || viaProxy(req.headers)) {
+    throw new ProxyError(403, 'This route is only available from this machine');
+  }
   assertBrowserSafe(auth, req.headers, ownOrigins(req.headers));
   return authenticate(auth, req.headers, remote, fetchImpl);
 }

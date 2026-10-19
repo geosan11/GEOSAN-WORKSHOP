@@ -3,6 +3,7 @@ import 'dotenv/config';
 import {
   ProxyError,
   assertBrowserSafe,
+  assertLocalHost,
   authenticate,
   corsHeaders,
   loadAuthConfig,
@@ -44,6 +45,7 @@ app.use((req, res, next) => {
 // Every /api route requires a signed-in caller.
 app.use('/api', async (req, res, next) => {
   try {
+    assertLocalHost(req.headers);
     assertBrowserSafe(auth, req.headers);
     req.user = await authenticate(auth, req.headers, req.socket.remoteAddress);
     next();

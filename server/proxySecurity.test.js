@@ -6,6 +6,7 @@ import {
   authenticate,
   isLoopback,
   addLearningRecord,
+  assertLocalHost,
   corsHeaders,
   guardGatewayRequest,
   loadLearningLimits,
@@ -215,4 +216,27 @@ test('learning store keeps at most maxRecords, dropping the oldest', () => {
   for (let i = 0; i < 600; i++) addLearningRecord(records, { id: `n${i}` });
   assert.equal(records.length, 500);
   assert.equal(records[0].id, 'n599');
+});
+
+test('local-dev: forwarded loopback requests get no loopback trust', async () => {
+  const devAuth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
+  await assert.rejects(authenticate(devAuth, { 'x-forwarded-for': '203.0.113.5' }, '127.0.0.1'), { status: 401 });
+  for (const h of ['forwarded', 'x-forwarded-host', 'x-real-ip']) {
+    await assert.rejects(authenticate(devAuth, { [h]: 'x' }, '::1'), { status: 401 });
+  }
+  const keyAuth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev', PROXY_API_KEY: 'k3y' });
+  assert.equal((await authenticate(keyAuth, { 'x-forwarded-for': '203.0.113.5', authorization: 'Bearer k3y' }, '127.0.0.1')).kind, 'api-key');
+  // The dev gateway refuses relayed requests outright.
+  const req = { socket: { remoteAddress: '127.0.0.1' }, headers: { host: '127.0.0.1:3000', 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.5' } };
+  await assert.rejects(guardGatewayRequest(devAuth, req), { status: 403 });
+});
+
+test('assertLocalHost only accepts this machine', () => {
+  assert.throws(() => assertLocalHost({ host: 'evil.example:3001' }), { status: 403 });
+  assert.throws(() => assertLocalHost({ host: 'localhost.evil.example' }), { status: 403 });
+  assert.throws(() => assertLocalHost({}), { status: 403 });
+  for (const host of ['localhost:3001', '127.0.0.1:3001', '[::1]:3001', 'LOCALHOST', '127.0.0.1']) {
+    assert.doesNotThrow(() => assertLocalHost({ host }), host);
+  }
+  assert.doesNotThrow(() => assertLocalHost({ host: 'proxy.example.com:443' }, ['proxy.example.com']));
 });
