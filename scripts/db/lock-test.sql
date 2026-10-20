@@ -66,10 +66,10 @@ begin
   raise notice 'PASS structure: 7 owner-only policies, no open policies, RLS enabled+forced on the 7 app tables, app_owner RLS on (not forced) with FK to auth.users, anon has no grants';
 end $$;
 
--- Objects created later by postgres must not be granted to the API roles.
+-- Objects created later by postgres must not be reachable by the API roles.
 create table public.zz_future_table (id int);
 create sequence public.zz_future_seq;
-create function public.zz_future_fn() returns int language sql as 'select 1';
+create function public.zz_future_fn() returns int language sql as 'select 42';
 do $$ begin
   if has_table_privilege('anon', 'public.zz_future_table', 'select')
      or has_table_privilege('authenticated', 'public.zz_future_table', 'select') then
@@ -78,16 +78,39 @@ do $$ begin
   if has_sequence_privilege('anon', 'public.zz_future_seq', 'usage') then
     raise exception 'FAIL: new sequences are still auto-granted to anon';
   end if;
-  if exists (select 1 from pg_proc p, aclexplode(p.proacl) a
-             where p.oid = 'public.zz_future_fn()'::regprocedure
-               and a.grantee in ('anon'::regrole, 'authenticated'::regrole)) then
-    raise exception 'FAIL: new functions are still explicitly granted to anon/authenticated';
+  -- has_function_privilege includes what anon inherits from PUBLIC.
+  if has_function_privilege('anon', 'public.zz_future_fn()', 'execute') then
+    raise exception 'FAIL: a new postgres-created function is executable by anon';
+  end if;
+  if has_function_privilege('authenticated', 'public.zz_future_fn()', 'execute') then
+    raise exception 'FAIL: a new postgres-created function is executable by authenticated';
   end if;
   if not has_function_privilege('authenticated', 'public.is_app_owner()', 'execute') then
     raise exception 'FAIL: authenticated lost execute on is_app_owner()';
   end if;
-  raise notice 'PASS default privileges: new tables not granted to anon/authenticated, new sequences not to anon, new functions get no explicit anon/authenticated grant; is_app_owner() still executable by authenticated';
+  if has_function_privilege('anon', 'public.is_app_owner()', 'execute') then
+    raise exception 'FAIL: anon can execute is_app_owner()';
+  end if;
 end $$;
+-- ...and really calling it as anon / a signed-in user fails.
+begin;
+set local role anon;
+do $$ begin
+  begin perform public.zz_future_fn();
+    raise exception 'FAIL: anon called a new postgres-created function';
+  exception when insufficient_privilege then null; end;
+end $$;
+rollback;
+begin;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222"}', true);
+do $$ begin
+  begin perform public.zz_future_fn();
+    raise exception 'FAIL: authenticated called a new postgres-created function';
+  exception when insufficient_privilege then null; end;
+  raise notice 'PASS default privileges: new postgres-created tables not granted to anon/authenticated, sequences not to anon, functions NOT callable by anon or authenticated (PUBLIC revoked); is_app_owner() executable by authenticated only';
+end $$;
+rollback;
 drop function public.zz_future_fn();
 drop sequence public.zz_future_seq;
 drop table public.zz_future_table;
@@ -176,13 +199,17 @@ do $$ declare n int; t text; begin
   get diagnostics n = row_count;
   if n <> 0 then raise exception 'FAIL: non-owner deleted % rows', n; end if;
 
+  begin truncate public.qa_findings;
+    raise exception 'FAIL: non-owner could truncate (RLS does not filter TRUNCATE)';
+  exception when insufficient_privilege then null; end;
+
   begin perform 1 from public.app_owner;
     raise exception 'FAIL: non-owner could read app_owner';
   exception when insufficient_privilege then null; end;
   begin insert into public.app_owner (user_id) values ('22222222-2222-2222-2222-222222222222');
     raise exception 'FAIL: non-owner could add themselves to app_owner';
   exception when insufficient_privilege then null; end;
-  raise notice 'PASS non-owner: 0 rows on all 7 tables, insert rejected by RLS, update/delete touch 0 rows, cannot read or join app_owner';
+  raise notice 'PASS non-owner: 0 rows on all 7 tables, insert rejected by RLS, update/delete touch 0 rows, TRUNCATE denied, cannot read or join app_owner';
 end $$;
 rollback;
 
@@ -252,5 +279,8 @@ do $$ begin
   raise notice 'PASS deleting the account cascades to app_owner';
 end $$;
 rollback;
+
+-- The "Rule for new tables" (scripts/db/protect-new-table.sql) is tested
+-- from run-lock-test.sh, because it must run as the table owner.
 
 \echo ALL LOCK TESTS PASSED

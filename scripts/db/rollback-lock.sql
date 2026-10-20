@@ -29,4 +29,6 @@ alter default privileges in schema public grant all on tables to authenticated;
 alter default privileges in schema public grant all on functions to anon;
 alter default privileges in schema public grant all on functions to authenticated;
 alter default privileges in schema public grant all on sequences to anon;
+-- added after the second review (global PUBLIC execute default for postgres):
+alter default privileges for role postgres grant execute on functions to public;
 commit;

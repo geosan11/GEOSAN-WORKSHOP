@@ -25,6 +25,10 @@ alter default privileges for role postgres in schema public
   grant all on functions to anon, authenticated, service_role;
 alter default privileges for role postgres in schema public
   grant all on sequences to anon, authenticated, service_role;
+-- Hosted Supabase sets the same defaults for supabase_admin, which this
+-- migration (run as postgres) cannot change.
+alter default privileges for role supabase_admin in schema public
+  grant all on tables to anon, authenticated, service_role;
 
 -- auth.uid(), same definition Supabase uses: reads the JWT "sub" claim that
 -- PostgREST puts in request.jwt.claims for each request.

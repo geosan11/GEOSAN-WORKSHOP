@@ -86,31 +86,10 @@ revoke all on function public.is_app_owner() from public;
 revoke all on function public.is_app_owner() from anon;
 grant execute on function public.is_app_owner() to authenticated;
 
--- Guard: is_app_owner() must be able to see the rows of app_owner. That is
--- true when the function's owner owns the (non-forced) table, or has
--- BYPASSRLS, or is a superuser. Otherwise it would always return false and
--- lock the owner out, so stop here, before any table is locked.
-do $$
-declare
-  fn_owner oid;
-  tbl_owner oid;
-  tbl_forced boolean;
-  can_bypass boolean;
-begin
-  select proowner into fn_owner from pg_proc where oid = 'public.is_app_owner()'::regprocedure;
-  select relowner, relforcerowsecurity into tbl_owner, tbl_forced
-    from pg_class where oid = 'public.app_owner'::regclass;
-  select rolbypassrls or rolsuper into can_bypass from pg_roles where oid = fn_owner;
-
-  if not (can_bypass or (fn_owner = tbl_owner and not tbl_forced)) then
-    raise exception
-      'lock_db_to_owner: is_app_owner() is owned by "%", which neither owns public.app_owner (with RLS not forced) nor has BYPASSRLS; it could never see the owner row. Run this migration as postgres.',
-      pg_get_userbyid(fn_owner);
-  end if;
-end
-$$;
-
--- 3. Lock every app table -------------------------------------------------
+-- 3. Guard, lock and future defaults: ONE block ----------------------------
+-- Everything below runs as a single DO block, so it is atomic even when the
+-- file is run with plain `psql -f` (no ON_ERROR_STOP, no transaction): if
+-- the guard fails, no table is locked and no default privilege changes.
 do $$
 declare
   t text;
@@ -124,20 +103,60 @@ declare
     'project_budgets',
     'prompt_versions'
   ];
+  fn_owner oid;
+  fn_owner_name text;
+  tbl_owner oid;
+  tbl_forced boolean;
+  can_bypass boolean;
+  problems text[] := '{}';
 begin
+  -- 3a. Guard. is_app_owner() runs as its owner, so that role must be able
+  --     to (1) see app_owner's rows despite RLS: own the non-forced table,
+  --     or have BYPASSRLS, or be superuser; (2) SELECT app_owner; (3) use
+  --     the public and auth schemas and EXECUTE auth.uid(). If any of these
+  --     fail, is_app_owner() would always be false (or error) and lock the
+  --     owner out, so stop before anything is locked.
+  select proowner into fn_owner from pg_proc where oid = 'public.is_app_owner()'::regprocedure;
+  fn_owner_name := pg_get_userbyid(fn_owner);
+  select relowner, relforcerowsecurity into tbl_owner, tbl_forced
+    from pg_class where oid = 'public.app_owner'::regclass;
+  select rolbypassrls or rolsuper into can_bypass from pg_roles where oid = fn_owner;
+
+  if not (can_bypass or (fn_owner = tbl_owner and not tbl_forced)) then
+    problems := array_append(problems, 'neither owns public.app_owner (with RLS not forced) nor has BYPASSRLS, so it could never see the owner row');
+  end if;
+  if not has_table_privilege(fn_owner, 'public.app_owner', 'select') then
+    problems := array_append(problems, 'has no SELECT on public.app_owner');
+  end if;
+  if not has_schema_privilege(fn_owner, 'public', 'usage') then
+    problems := array_append(problems, 'has no USAGE on schema public');
+  end if;
+  if not has_schema_privilege(fn_owner, 'auth', 'usage') then
+    problems := array_append(problems, 'has no USAGE on schema auth');
+  end if;
+  if not has_function_privilege(fn_owner, 'auth.uid()', 'execute') then
+    problems := array_append(problems, 'has no EXECUTE on auth.uid()');
+  end if;
+  if cardinality(problems) > 0 then
+    raise exception
+      'lock_db_to_owner: nothing was locked. is_app_owner() is owned by "%", which %. Run this migration as postgres.',
+      fn_owner_name, array_to_string(problems, '; and ');
+  end if;
+
+  -- 3b. Lock every app table.
   foreach t in array app_tables loop
     if to_regclass(format('public.%I', t)) is null then
       raise notice 'lock_db_to_owner: table public.% does not exist yet, skipped (re-run this migration after creating it)', t;
       continue;
     end if;
 
-    -- 3a. Drop the open policies created by supabase/schema.sql.
+    -- Drop the open policies created by older versions of supabase/schema.sql.
     execute format('drop policy if exists %I on public.%I', 'Public read ' || t, t);
     execute format('drop policy if exists %I on public.%I', 'Public write ' || t, t);
 
-    -- 3b. Permissive policies are OR-ed together, so any other leftover
-    --     policy (for example one added by hand in the dashboard) could
-    --     re-open the table. Drop everything except our own policy.
+    -- Permissive policies are OR-ed together, so any other leftover policy
+    -- (for example one added by hand in the dashboard) could re-open the
+    -- table. Drop everything except our own policy.
     for p in
       select policyname from pg_policies
       where schemaname = 'public' and tablename = t
@@ -147,18 +166,19 @@ begin
       execute format('drop policy if exists %I on public.%I', p.policyname, t);
     end loop;
 
-    -- 3c. RLS on, and forced so even the table owner goes through policies
-    --     (roles with BYPASSRLS, like postgres/service_role, still bypass).
+    -- RLS on, and forced so even the table owner goes through policies
+    -- (roles with BYPASSRLS, like postgres/service_role, still bypass).
     execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I force row level security', t);
 
-    -- 3d. No anon access at all; signed-in users get the table privileges
-    --     back, and the policy below decides whether they see any rows.
+    -- No anon access at all. Signed-in users get back only select, insert,
+    -- update and delete (not TRUNCATE, which RLS cannot filter), and the
+    -- policy below decides whether they see any rows.
     execute format('revoke all on table public.%I from anon', t);
     execute format('revoke all on table public.%I from authenticated', t);
     execute format('grant select, insert, update, delete on table public.%I to authenticated', t);
 
-    -- 3e. The single owner-only policy (recreated so re-runs stay in sync).
+    -- The single owner-only policy (recreated so re-runs stay in sync).
     execute format('drop policy if exists %I on public.%I', 'Owner only ' || t, t);
     execute format(
       'create policy %I on public.%I as permissive for all to authenticated '
@@ -166,20 +186,29 @@ begin
       'Owner only ' || t, t
     );
   end loop;
+
+  -- 3c. Future objects. Supabase grants the API roles full privileges on
+  --     new tables, functions and sequences in `public`. Stop doing that
+  --     for objects created later by the role running this migration
+  --     (normally postgres).
+  alter default privileges in schema public revoke all on tables from anon;
+  alter default privileges in schema public revoke all on tables from authenticated;
+  alter default privileges in schema public revoke all on functions from anon;
+  alter default privileges in schema public revoke all on functions from authenticated;
+  alter default privileges in schema public revoke all on sequences from anon;
+
+  --     Functions are executable by PUBLIC by default, and anon/authenticated
+  --     inherit that, so the two function revokes above do nothing on their
+  --     own. A per-schema ("in schema public") revoke from PUBLIC is a no-op
+  --     too: Postgres only adds per-schema defaults on top of the global
+  --     one. So this one is global. It applies to functions postgres creates
+  --     in ANY schema later, including by CREATE EXTENSION, so grant EXECUTE
+  --     explicitly where a function must be callable through the API.
+  --     is_app_owner() is unaffected: it already exists and keeps its
+  --     explicit grant to authenticated.
+  alter default privileges for role postgres revoke execute on functions from public;
+  --     Tables, functions and sequences created by other roles (for
+  --     example supabase_admin) are not covered at all. See "Rule for new
+  --     tables" in docs/SECURITY-DB.md.
 end
 $$;
-
--- 4. Future objects ------------------------------------------------------
--- Supabase grants the API roles full privileges on new tables, functions
--- and sequences in `public` by default. Stop doing that for objects created
--- later by the role running this migration, so nothing new is reachable by
--- accident. (is_app_owner() keeps its explicit grant above.)
--- This cannot cover objects created by other roles (e.g. supabase_admin),
--- and functions are still executable via PUBLIC unless revoked per function.
--- Rule: every new table needs RLS plus an owner-only policy, see
--- docs/SECURITY-DB.md.
-alter default privileges in schema public revoke all on tables from anon;
-alter default privileges in schema public revoke all on tables from authenticated;
-alter default privileges in schema public revoke all on functions from anon;
-alter default privileges in schema public revoke all on functions from authenticated;
-alter default privileges in schema public revoke all on sequences from anon;
