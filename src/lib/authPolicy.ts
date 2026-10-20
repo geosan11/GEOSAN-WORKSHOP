@@ -5,7 +5,8 @@
  *   fails) only works in local demo mode: VITE_DEMO_MODE=true AND the page is
  *   on localhost / 127.0.0.1 / [::1]. Anywhere else a failed sign-in is an error.
  * - If VITE_OWNER_USER_ID is set, any other account is signed straight back
- *   out. VITE_OWNER_EMAILS is an optional fallback used only when no id is
+ *   out. With no owner id and no owner email configured (empty or only
+ *   spaces/commas counts as unset), every account is refused (fail closed). VITE_OWNER_EMAILS is an optional fallback used only when no id is
  *   set; like every VITE_* value it ends up in the public JS bundle, so prefer
  *   the id. This is defence in depth only: the database rules
  *   (supabase/migrations, docs/SECURITY-DB.md) are the real lock.
@@ -32,6 +33,8 @@ export interface AuthSession {
 export type AuthEnv = Record<string, string | boolean | undefined>;
 
 export const OWNER_LOCK_MESSAGE = 'This app is locked to its owner.';
+export const OWNER_NOT_CONFIGURED_MESSAGE =
+  'Sign-in is locked: no owner is configured. Set VITE_OWNER_USER_ID to your Supabase user id and redeploy.';
 export const FALLBACK_REFUSED_MESSAGE = 'Sign-in failed. Check your email and password and try again.';
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
@@ -55,9 +58,13 @@ function viteEnv(): AuthEnv {
     VITE_DEMO_MODE: readVar(() => import.meta.env.VITE_DEMO_MODE),
     VITE_OWNER_USER_ID: readVar(() => import.meta.env.VITE_OWNER_USER_ID),
     // Emails are only a fallback for when no owner id is set. Written as a
-    // static ternary so that, when VITE_OWNER_USER_ID is set, Vite folds it
-    // away and the owner's email never reaches the public bundle.
-    VITE_OWNER_EMAILS: readVar(() => (import.meta.env.VITE_OWNER_USER_ID ? undefined : import.meta.env.VITE_OWNER_EMAILS)),
+    // static expression so that, when VITE_OWNER_USER_ID is set, Vite folds it
+    // away and the owner's email never reaches the public bundle. An id of
+    // only spaces/commas counts as unset, exactly as in readOwnerConfig
+    // (removing commas and trimming leaves text iff the comma list has an entry).
+    VITE_OWNER_EMAILS: readVar(() =>
+      import.meta.env.VITE_OWNER_USER_ID?.replaceAll(',', '').trim() ? undefined : import.meta.env.VITE_OWNER_EMAILS,
+    ),
   };
 }
 
@@ -87,21 +94,29 @@ const list = (v: unknown) =>
 
 /**
  * VITE_OWNER_USER_ID (comma-separated ids, preferred) and VITE_OWNER_EMAILS
- * (comma-separated, optional, public in the bundle; ignored when an id is set).
+ * (comma-separated, optional, public in the bundle; ignored when an id is
+ * set). Each entry is trimmed and empty entries dropped, so ' ', ' , ' and
+ * the like count as unset.
  */
 export function readOwnerConfig(env: AuthEnv = viteEnv()): OwnerConfig {
+  const userIds = list(env.VITE_OWNER_USER_ID);
   return {
-    userIds: list(env.VITE_OWNER_USER_ID),
-    emails: list(env.VITE_OWNER_EMAILS).map((e) => e.toLowerCase()),
+    userIds,
+    emails: userIds.length ? [] : list(env.VITE_OWNER_EMAILS).map((e) => e.toLowerCase()),
   };
 }
 
+export function isOwnerConfigured(config: OwnerConfig): boolean {
+  return config.userIds.length > 0 || config.emails.length > 0;
+}
+
 /**
- * True when no owner is configured, or the user is the owner: by id when
- * VITE_OWNER_USER_ID is set (emails are then ignored), else by email.
+ * True only for the owner: by id when VITE_OWNER_USER_ID is set (emails are
+ * then ignored), else by email. With no owner configured nobody passes
+ * (fail closed).
  */
 export function isOwner(user: { id?: string; email?: string } | null | undefined, config: OwnerConfig): boolean {
-  if (!config.userIds.length && !config.emails.length) return true;
+  if (!isOwnerConfigured(config)) return false;
   if (!user) return false;
   if (config.userIds.length) return Boolean(user.id && config.userIds.includes(user.id));
   return Boolean(user.email && config.emails.includes(user.email.toLowerCase()));
@@ -160,9 +175,10 @@ export async function signInWithPolicy(email: string, password: string, opts: Po
       const accessToken: string | undefined = data?.session?.access_token ?? data?.access_token;
       if (!error && accessToken && data?.user) {
         const user = toAuthUser(data.user, email, 'owner');
-        if (!isOwner(user, readOwnerConfig(env))) {
+        const owners = readOwnerConfig(env);
+        if (!isOwner(user, owners)) {
           await opts.client.auth.signOut();
-          return { session: null, error: new Error(OWNER_LOCK_MESSAGE) };
+          return { session: null, error: new Error(isOwnerConfigured(owners) ? OWNER_LOCK_MESSAGE : OWNER_NOT_CONFIGURED_MESSAGE) };
         }
         // The client has already stored the full session (with refresh token).
         return { session: { user, access_token: accessToken }, error: null };
@@ -216,9 +232,10 @@ export async function restoreSessionWithPolicy(opts: PolicyOptions): Promise<Pol
 /** Owner check for a Supabase session (sign-in, restore, or refresh). */
 export async function checkOwner(sbSession: any, client: AuthClient, env: AuthEnv = viteEnv()): Promise<PolicyResult> {
   const user = toAuthUser(sbSession.user);
-  if (!isOwner(user, readOwnerConfig(env))) {
+  const owners = readOwnerConfig(env);
+  if (!isOwner(user, owners)) {
     await client.auth.signOut();
-    return { session: null, error: new Error(OWNER_LOCK_MESSAGE) };
+    return { session: null, error: new Error(isOwnerConfigured(owners) ? OWNER_LOCK_MESSAGE : OWNER_NOT_CONFIGURED_MESSAGE) };
   }
   return { session: { user, access_token: sbSession.access_token }, error: null };
 }

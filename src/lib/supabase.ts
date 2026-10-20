@@ -27,6 +27,14 @@ const REPEATED_REFRESH_WINDOW_MS = 30_000;
 export const FALLBACK_TOKEN_LIFETIME_SECONDS = 5 * 60;
 /** navigator.locks name that serialises refreshes across tabs. */
 export const REFRESH_LOCK_NAME = 'ehi_auth_refresh';
+/**
+ * Auth requests (refresh, sign-out revoke) are aborted after this long. A
+ * timed-out refresh counts as a network error: the session is kept and the
+ * refresh retried with backoff. It also bounds how long a tab holds the lock.
+ */
+export const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+/** Give up waiting for another tab's refresh lock after this long (treated as a temporary failure). */
+export const REFRESH_LOCK_WAIT_MS = 20_000;
 /** How long sign-out waits for the pre-sign-out hook (proxy cache drop) before revoking. */
 const SIGN_OUT_HOOK_TIMEOUT_MS = 2_000;
 
@@ -304,8 +312,24 @@ export interface AuthEventSource {
 
 /** The part of navigator.locks we use. */
 export interface RefreshLockManager {
-  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+  request<T>(name: string, options: { signal?: AbortSignal }, callback: () => Promise<T>): Promise<T>;
 }
+
+/** fetch that aborts after timeoutMs; the body is read under the same deadline. */
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs = AUTH_REQUEST_TIMEOUT_MS): Promise<{ res: Response; json: any }> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  (timer as any)?.unref?.();
+  try {
+    const res = await fetch(url, controller ? { ...init, signal: controller.signal } : init);
+    const json = await res.json().catch(() => null);
+    return { res, json };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+class LockWaitTimeout extends Error {}
 
 export interface ClientOptions {
   /** Defaults to window when there is one. Pass null to listen to nothing. */
@@ -426,16 +450,15 @@ export class ProductionSupabaseClient implements AccessTokenSource {
         // if ours has expired (the new session is used only to revoke).
         try {
           if (!token && saved && isJwt(saved.access_token) && saved.refresh_token) {
-            const res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+            const { res, json } = await fetchJsonWithTimeout(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
               method: 'POST',
               headers: { apikey: this.apikey, 'Content-Type': 'application/json' },
               body: JSON.stringify({ refresh_token: saved.refresh_token }),
             });
-            const json = await res.json().catch(() => null);
             if (res.ok && isJwt(json?.access_token)) token = json.access_token;
           }
           if (token) {
-            await fetch(`${this.url}/auth/v1/logout`, {
+            await fetchJsonWithTimeout(`${this.url}/auth/v1/logout`, {
               method: 'POST',
               headers: { apikey: this.apikey, Authorization: `Bearer ${token}` },
             });
@@ -597,20 +620,49 @@ export class ProductionSupabaseClient implements AccessTokenSource {
       return Promise.resolve(current && isJwt(current.access_token) && !isSessionExpired(current) ? current : null);
     }
     const before = readStoredSession();
-    this.refreshing = this.withRefreshLock(() => this.refreshLocked(before)).finally(() => {
-      this.refreshing = null;
-    });
+    this.refreshing = this.withRefreshLock(() => this.refreshLocked(before))
+      .catch(() => {
+        // Lock wait timed out, or something unexpected threw: never sign out
+        // for that; keep the session and retry with backoff.
+        const current = readStoredSession();
+        return current?.refresh_token ? this.refreshFailed(current) : this.discarded();
+      })
+      .finally(() => {
+        this.refreshing = null;
+      });
     return this.refreshing;
   }
 
-  /** Run fn under the cross-tab refresh lock, or directly when locks are unavailable. */
+  /**
+   * Run fn under the cross-tab refresh lock, or directly when locks are
+   * unavailable. The lock is held only while fn runs, and fn always settles
+   * (its requests time out after AUTH_REQUEST_TIMEOUT_MS), so the lock is
+   * always released. Waiting for the lock gives up after REFRESH_LOCK_WAIT_MS
+   * (e.g. a tab frozen while holding it).
+   */
   private withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
     if (!this.locks) return fn();
+    let started = false;
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const waitTimer = controller ? setTimeout(() => controller.abort(), REFRESH_LOCK_WAIT_MS) : null;
+    (waitTimer as any)?.unref?.();
+    const run = () => {
+      started = true;
+      if (waitTimer) clearTimeout(waitTimer);
+      return fn();
+    };
+    let granted: Promise<T>;
     try {
-      return this.locks.request(REFRESH_LOCK_NAME, fn);
+      granted = this.locks.request(REFRESH_LOCK_NAME, controller ? { signal: controller.signal } : {}, run);
     } catch {
+      if (waitTimer) clearTimeout(waitTimer);
       return fn();
     }
+    return granted.catch((err) => {
+      if (waitTimer) clearTimeout(waitTimer);
+      if (started) throw err;
+      throw new LockWaitTimeout('Timed out waiting for the refresh lock');
+    });
   }
 
   private async refreshLocked(before: StoredSession | null): Promise<StoredSession | null> {
@@ -637,12 +689,13 @@ export class ProductionSupabaseClient implements AccessTokenSource {
     let res: Response;
     let json: any = null;
     try {
-      res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+      // Aborted after AUTH_REQUEST_TIMEOUT_MS: a hung request counts as a
+      // network error (kept session, backoff) and releases the lock.
+      ({ res, json } = await fetchJsonWithTimeout(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
         method: 'POST',
         headers: { apikey: this.apikey, 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: sentRefreshToken }),
-      });
-      json = await res.json().catch(() => null);
+      }));
     } catch {
       return stale() ? this.discarded() : this.refreshFailed(current);
     }

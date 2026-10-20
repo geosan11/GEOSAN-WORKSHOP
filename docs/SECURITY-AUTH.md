@@ -9,10 +9,16 @@ second layer and the session handling around it.
 - **Owner only.** Set `VITE_OWNER_USER_ID` to your Supabase user id (Supabase
   dashboard > Authentication > Users > UID). Any other account is signed
   straight back out with "This app is locked to its owner."
+- **Fails closed.** Both settings are trimmed and split on commas, and an
+  empty, whitespace-only or commas-only value (`' '`, `' , '`) counts as
+  unset. With no owner id and no owner email left, *every* account is refused
+  ("Sign-in is locked: no owner is configured"). The localhost demo mode
+  (`VITE_DEMO_MODE=true`) is unaffected.
 - `VITE_OWNER_EMAILS` is optional and only used when no owner id is set.
   When `VITE_OWNER_USER_ID` is set, the email is left out of the build
-  entirely (`import.meta.env.VITE_OWNER_USER_ID ? undefined :
-  import.meta.env.VITE_OWNER_EMAILS`, which Vite folds away). When only the
+  entirely (`import.meta.env.VITE_OWNER_USER_ID?.replaceAll(',', '').trim() ?
+  undefined : import.meta.env.VITE_OWNER_EMAILS`, which Vite folds away; a
+  blank id counts as unset here too). When only the
   email is set, **it is in the public JS bundle** and anyone who opens the
   site can read it. Prefer the id. A test builds the app with sentinel values
   and checks this.
@@ -49,6 +55,15 @@ the existing `ehi_auth_session` localStorage key.
   saved, with a conservative 5 min local expiry.
 - An expired access token is never sent; the request goes out with the anon
   key only.
+- **15 s request timeout.** Refresh and sign-out requests to Supabase are
+  aborted after 15 s. A timed-out refresh counts as a network error (session
+  kept, retried with backoff), and it bounds how long a tab can hold the
+  refresh lock. A tab waiting for the lock gives up after 20 s (e.g. another
+  tab was frozen while holding it), also without signing out.
+- **Token lifetimes under about 10 s are not supported well.** We never
+  refresh more than once per 5 s and refresh at half the lifetime, so tokens
+  that short may expire between refreshes (requests then go out signed out
+  until the next refresh). Supabase's default is 3600 s.
 - **We sign out only when Supabase definitively rejects the refresh token**
   (400/401 with `invalid_grant`, or `refresh_token_not_found`,
   `refresh_token_already_used`, `session_not_found`, `session_expired`,
@@ -66,6 +81,15 @@ the existing `ehi_auth_session` localStorage key.
   tab has already stored a newer, valid token, it adopts it and makes no
   network call. If Supabase rejects our refresh token but storage now holds a
   different (newer) refresh token, we adopt that instead of signing out.
+- **Remaining race without Web Locks.** `navigator.locks` exists only in
+  secure contexts (HTTPS, or `http://localhost`) on current browsers. On older
+  browsers, and on **plain-http pages opened by LAN address** (e.g.
+  `http://192.168.1.5:3000`), there is no lock: two tabs can still refresh at
+  the same moment with the same refresh token. The losing tab then adopts the
+  winner's token from storage, *if* the winner has saved it by the time the
+  rejection arrives. If not, the losing tab signs out (the other tab stays
+  signed in). Supabase's refresh-token reuse interval (10 s by default) makes
+  this rare.
 - **A sign-out always wins over an in-flight refresh.** Each sign-in,
   sign-out and cross-tab change bumps a session generation. A refresh result
   is saved only if the generation is unchanged and the stored refresh token
@@ -95,6 +119,15 @@ the existing `ehi_auth_session` localStorage key.
   token can still be accepted for **up to 10 s**, and only by a proxy process
   that cached it.
 
+## After deploying this change
+
+- **Everyone signs in once more.** Sessions saved by older builds either have
+  no refresh token or no local expiry (`expiresAtLocal`); the first can't be
+  refreshed and the app no longer trusts the JWT `exp` against the device
+  clock, so expect one extra sign-in per browser after deploy.
+- Set `VITE_OWNER_USER_ID` **before** deploying: without it nobody can sign
+  in (fail closed).
+
 ## Known trade-off: refresh token in localStorage
 
 The refresh token is kept in localStorage so the session survives reloads
@@ -103,8 +136,9 @@ a short-lived access token but a long-lived refresh token that can mint new
 ones until it is revoked. We accept this for now. The mitigations, and where
 each one stands today:
 
-- **Content-Security-Policy.** *Not set yet* (`vercel.json` has no headers).
-  Follow-up: add a CSP header in `vercel.json` with `script-src 'self'`, no
+- **Content-Security-Policy.** *Not set yet.* On `main`, `vercel.json` now has
+  `headers` (Cache-Control for `/assets/*`, `/index.html` and `/`), but still
+  no CSP. Follow-up: add a CSP header there with `script-src 'self'`, no
   `unsafe-inline`/`unsafe-eval`, and `connect-src 'self'` plus the Supabase
   project URL. Google Fonts would need `style-src`/`font-src` entries.
 - **No third-party scripts.** In place: `index.html` loads only our own

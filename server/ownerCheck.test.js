@@ -37,3 +37,16 @@ test('API-key and local-dev callers are not Supabase users and pass through', ()
   assert.deepEqual(assertOwner(cfg, { kind: 'api-key' }), { kind: 'api-key' });
   assert.deepEqual(assertOwner(cfg, { kind: 'local-dev' }), { kind: 'local-dev' });
 });
+
+test('blank owner settings (" ", " , ", tabs) count as unset: startup error and every user refused', () => {
+  for (const blank of [' ', ' , ', '', '\t,\n']) {
+    const cfg = loadOwnerConfig({ ...supa, OWNER_USER_ID: blank, ALLOWED_USER_IDS: blank });
+    assert.deepEqual(cfg.userIds, [], JSON.stringify(blank));
+    assert.equal(cfg.errors.length, 1, JSON.stringify(blank));
+    assert.throws(() => assertOwner(cfg, { kind: 'supabase', id: OWNER }), OwnerCheckError);
+  }
+  // An id with spaces around it is trimmed and works.
+  const cfg = loadOwnerConfig({ ...supa, OWNER_USER_ID: `   ${OWNER}   ` });
+  assert.deepEqual(cfg.errors, []);
+  assert.ok(assertOwner(cfg, { kind: 'supabase', id: OWNER }));
+});

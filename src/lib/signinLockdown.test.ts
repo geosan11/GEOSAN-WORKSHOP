@@ -13,19 +13,19 @@ const store = new Map<string, string>();
   removeItem: (k: string) => void store.delete(k),
 };
 
-type Call = { url: string; method: string; headers: Record<string, string>; body?: any };
+type Call = { url: string; method: string; headers: Record<string, string>; body?: any; signal?: AbortSignal };
 let calls: Call[] = [];
 type Reply = { status: number; body: any };
 let respond: (c: Call) => Reply | Promise<Reply> = () => ({ status: 200, body: [] });
 (globalThis as any).fetch = async (url: string, init: any = {}) => {
-  const c: Call = { url, method: init.method || 'GET', headers: init.headers || {}, body: init.body ? JSON.parse(init.body) : undefined };
+  const c: Call = { url, method: init.method || 'GET', headers: init.headers || {}, body: init.body ? JSON.parse(init.body) : undefined, signal: init.signal };
   calls.push(c);
   const r = await respond(c);
   return new Response(JSON.stringify(r.body), { status: r.status });
 };
 
 const { ProductionSupabaseClient, SESSION_STORAGE_KEY, isRefreshRejected } = await import('./supabase.ts');
-const { signInWithPolicy, restoreSessionWithPolicy, OWNER_LOCK_MESSAGE, isStaffFallbackAllowed } = await import('./authPolicy.ts');
+const { signInWithPolicy, restoreSessionWithPolicy, readOwnerConfig, isOwner, OWNER_LOCK_MESSAGE, OWNER_NOT_CONFIGURED_MESSAGE, isStaffFallbackAllowed } = await import('./authPolicy.ts');
 
 const ANON = 'anon-key';
 const OWNER_ID = 'owner-uuid';
@@ -51,6 +51,8 @@ const newClient = (events: any = null, locks: any = null) => {
   return c;
 };
 const owner = { id: OWNER_ID, email: 'sanni@example.com' };
+/** The owner is configured (sign-in fails closed without one). */
+const OWNER_ENV = { VITE_OWNER_USER_ID: OWNER_ID };
 const tokenResponse = (expIn = 3600, user = owner, tag = 'new') => ({
   access_token: jwt(expIn, user.id, tag),
   refresh_token: `rt-${tag}`,
@@ -121,7 +123,7 @@ test('a saved demo staff session is dropped on reload outside local demo mode', 
 test('sign-in keeps the refresh token in the existing storage key', async () => {
   respond = (c) => (isTokenCall(c) ? { status: 200, body: tokenResponse() } : { status: 200, body: [] });
   const c = newClient();
-  const r = await signInWithPolicy('sanni@example.com', 'pw', { client: c, env: {}, hostname: 'app.vercel.app' });
+  const r = await signInWithPolicy('sanni@example.com', 'pw', { client: c, env: OWNER_ENV, hostname: 'app.vercel.app' });
   assert.equal(r.error, null);
   assert.equal(saved().refresh_token, 'rt-new');
   assert.equal(typeof saved().expiresAtLocal, 'number');
@@ -283,7 +285,7 @@ test('a non-owner is signed out (VITE_OWNER_EMAILS), even in local demo mode', a
 
 test('the owner gets in by id or by email', async () => {
   respond = (c) => (isTokenCall(c) ? { status: 200, body: tokenResponse() } : { status: 200, body: {} });
-  for (const env of [{ VITE_OWNER_USER_ID: `other, ${OWNER_ID}` }, { VITE_OWNER_EMAILS: 'SANNI@example.com' }, {}]) {
+  for (const env of [{ VITE_OWNER_USER_ID: `other, ${OWNER_ID}` }, { VITE_OWNER_EMAILS: 'SANNI@example.com' }]) {
     store.clear();
     const r = await signInWithPolicy('sanni@example.com', 'pw', { client: newClient(), env, hostname: 'app.vercel.app' });
     assert.equal(r.error, null, JSON.stringify(env));
@@ -476,7 +478,7 @@ test('offline after expiry: no sign-out, expired token not sent, retried on the 
   assert.equal(restCalls()[0].headers.Authorization, `Bearer ${ANON}`);
   assert.equal(saved().access_token, expired, 'session kept');
   assert.deepEqual(seen, []);
-  const restored = await restoreSessionWithPolicy({ client: c, env: {}, hostname: 'app.vercel.app' });
+  const restored = await restoreSessionWithPolicy({ client: c, env: OWNER_ENV, hostname: 'app.vercel.app' });
   assert.ok(restored.session, 'still signed in after a reload while offline');
 
   offline = false;
@@ -630,13 +632,30 @@ test('a refresh whose refresh token was replaced meanwhile is discarded', async 
 const makeLocks = () => {
   let tail: Promise<unknown> = Promise.resolve();
   const names: string[] = [];
+  let held = 0;
   return {
     names,
-    request<T>(name: string, cb: () => Promise<T>): Promise<T> {
+    held: () => held,
+    request<T>(name: string, opts: { signal?: AbortSignal }, cb: () => Promise<T>): Promise<T> {
       names.push(name);
-      const run = tail.then(() => cb());
+      let granted = false;
+      const run = tail.then(async () => {
+        if (opts?.signal?.aborted) throw new DOMException('lock request aborted', 'AbortError');
+        granted = true;
+        held++;
+        try {
+          return await cb();
+        } finally {
+          held--;
+        }
+      });
       tail = run.catch(() => {});
-      return run;
+      if (!opts?.signal) return run;
+      // Like navigator.locks: aborting before the lock is granted rejects at once.
+      return new Promise<T>((resolve, reject) => {
+        opts.signal!.addEventListener('abort', () => !granted && reject(new DOMException('lock request aborted', 'AbortError')));
+        run.then(resolve, reject);
+      });
     },
   };
 };
@@ -771,4 +790,159 @@ test('built bundle: the owner email is left out when VITE_OWNER_USER_ID is set',
   assert.ok(!withId.includes('SENTINEL_UNRELATED'), 'unrelated VITE_ vars must not be in the bundle');
   const emailOnly = build({ VITE_OWNER_USER_ID: '', VITE_OWNER_EMAILS: 'sentinel-owner@example.com' });
   assert.ok(emailOnly.includes('sentinel-owner@example.com'), 'email fallback still works when no id is set');
+  // A blank id (' , ') counts as unset here too, so the email fallback is kept.
+  const blankId = build({ VITE_OWNER_USER_ID: ' , ', VITE_OWNER_EMAILS: 'sentinel-owner@example.com' });
+  assert.ok(blankId.includes('sentinel-owner@example.com'), 'a blank id does not drop the email fallback');
+});
+
+// --- 15. Hung refresh: timeout, lock always released ----------------------------
+/** A request that never answers until it is aborted. */
+const hang = (c: Call) =>
+  new Promise<Reply>((_, reject) => {
+    c.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')));
+  });
+
+test('a hung refresh times out after 15 s: lock released, the other tab proceeds, session kept', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: SERVER_START });
+  try {
+    save({ ...live(60), refresh_token: 'rt-old', user: owner }); // inside the 60 s margin
+    let n = 0;
+    respond = (c) => (isRefresh(c) ? (++n === 1 ? hang(c) : { status: 200, body: tokenResponse() }) : { status: 200, body: [] });
+    const locks = makeLocks();
+    const a = newClient(null, locks);
+    const b = newClient(null, locks);
+    const seen: string[] = [];
+    a.auth.onAuthStateChange((e) => seen.push(`a:${e}`));
+    b.auth.onAuthStateChange((e) => seen.push(`b:${e}`));
+
+    const pa = Promise.resolve(a.from('p').select());
+    await flush();
+    const pb = Promise.resolve(b.from('p').select());
+    await flush();
+    assert.equal(calls.filter(isRefresh).length, 1, "tab A's refresh hangs, tab B waits for the lock");
+    assert.equal(locks.held(), 1);
+
+    mock.timers.tick(14_999);
+    await flush();
+    assert.equal(calls.filter(isRefresh).length, 1, 'not aborted early');
+    mock.timers.tick(1);
+    await flush();
+    assert.ok(calls.filter(isRefresh)[0].signal?.aborted, 'the hung request was aborted');
+    await Promise.all([pa, pb]);
+    assert.equal(locks.held(), 0, 'lock released');
+    assert.equal(calls.filter(isRefresh).length, 2, 'tab B refreshed after A gave up');
+    assert.equal(saved()?.refresh_token, 'rt-new', 'session kept and refreshed');
+    assert.ok(!seen.some((e) => e.endsWith('SIGNED_OUT')), seen.join());
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('a hung refresh in a single tab counts as a network error: session kept, retried with backoff', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: SERVER_START });
+  try {
+    save({ ...live(-5), refresh_token: 'rt-old', user: owner });
+    let n = 0;
+    respond = (c) => (isRefresh(c) ? (++n === 1 ? hang(c) : { status: 200, body: tokenResponse() }) : { status: 200, body: [] });
+    const c = newClient(null, makeLocks());
+    const seen: string[] = [];
+    c.auth.onAuthStateChange((e) => seen.push(e));
+    const pending = Promise.resolve(c.auth.refreshSession());
+    await flush();
+    mock.timers.tick(15_000);
+    await flush();
+    const r = await pending;
+    assert.equal(r.data.session, null, 'no live token yet');
+    assert.equal(saved()?.refresh_token, 'rt-old', 'session kept');
+    assert.deepEqual(seen, []);
+    mock.timers.tick(5_000); // backoff retry
+    await flush();
+    assert.equal(calls.filter(isRefresh).length, 2);
+    assert.equal(saved().refresh_token, 'rt-new');
+    assert.deepEqual(seen, ['TOKEN_REFRESHED']);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('waiting for a lock that is never released gives up after 20 s without signing out', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: SERVER_START });
+  try {
+    save({ ...live(30), refresh_token: 'rt-old', user: owner });
+    respond = (c) => (isRefresh(c) ? { status: 200, body: tokenResponse() } : { status: 200, body: [] });
+    const locks = makeLocks();
+    void locks.request('ehi_auth_refresh', {}, () => new Promise(() => {})); // a frozen tab holds it forever
+    const c = newClient(null, locks);
+    const seen: string[] = [];
+    c.auth.onAuthStateChange((e) => seen.push(e));
+    const pending = Promise.resolve(c.from('p').select());
+    await flush();
+    mock.timers.tick(20_000);
+    await flush();
+    await pending;
+    assert.equal(calls.filter(isRefresh).length, 0, 'never refreshed without the lock');
+    assert.equal(restCalls()[0].headers.Authorization, `Bearer ${saved().access_token}`, 'the still-valid token was used');
+    assert.equal(saved().refresh_token, 'rt-old');
+    assert.deepEqual(seen, []);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('sign-out with a hung revoke still finishes (15 s timeout)', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: SERVER_START });
+  try {
+    save({ ...live(3600), refresh_token: 'rt', user: owner });
+    respond = (c) => (c.url.endsWith('/logout') ? hang(c) : { status: 200, body: {} });
+    let done = false;
+    const pending = newClient().auth.signOut().then(() => (done = true));
+    await flush();
+    assert.equal(saved(), null, 'signed out locally at once');
+    mock.timers.tick(15_000);
+    await flush();
+    await pending;
+    assert.equal(done, true);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+// --- 16. Owner config: whitespace and fail closed --------------------------------
+test('owner settings are trimmed and comma-split; blank counts as unset', () => {
+  for (const blank of [' ', ' , ', '', ',,', '\t, \n']) {
+    assert.deepEqual(readOwnerConfig({ VITE_OWNER_USER_ID: blank }).userIds, [], JSON.stringify(blank));
+    // A blank id does not hide the email fallback.
+    assert.deepEqual(readOwnerConfig({ VITE_OWNER_USER_ID: blank, VITE_OWNER_EMAILS: ' Sanni@Example.com , ' }).emails, ['sanni@example.com']);
+  }
+  assert.deepEqual(readOwnerConfig({ VITE_OWNER_USER_ID: `  ${OWNER_ID}  ` }).userIds, [OWNER_ID]);
+  assert.deepEqual(readOwnerConfig({ VITE_OWNER_USER_ID: ` a , ${OWNER_ID} ,` }).userIds, ['a', OWNER_ID]);
+  assert.equal(isOwner(owner, readOwnerConfig({ VITE_OWNER_USER_ID: ` ${OWNER_ID} ` })), true);
+});
+
+test('with no owner configured (unset, a space, " , "), every account is refused', async () => {
+  respond = (c) => (isTokenCall(c) ? { status: 200, body: tokenResponse() } : { status: 200, body: {} });
+  for (const env of [{}, { VITE_OWNER_USER_ID: ' ' }, { VITE_OWNER_USER_ID: ' , ' }, { VITE_OWNER_USER_ID: ' ', VITE_OWNER_EMAILS: ' , ' }]) {
+    store.clear();
+    calls = [];
+    const r = await signInWithPolicy('sanni@example.com', 'pw', { client: newClient(), env, hostname: 'app.vercel.app' });
+    assert.equal(r.session, null, JSON.stringify(env));
+    assert.equal(r.error?.message, OWNER_NOT_CONFIGURED_MESSAGE);
+    assert.equal(saved(), null, 'signed straight back out');
+    assert.ok(calls.some((c) => c.url.endsWith('/auth/v1/logout')), 'refresh token revoked');
+  }
+  // On reload too.
+  save({ ...tokenResponse(), expiresAtLocal: Date.now() + 3600_000 });
+  const restored = await restoreSessionWithPolicy({ client: newClient(), env: { VITE_OWNER_USER_ID: ' ' }, hostname: 'app.vercel.app' });
+  assert.equal(restored.session, null);
+  assert.equal(saved(), null);
+  // An id with spaces around it still lets the owner in.
+  store.clear();
+  const ok = await signInWithPolicy('sanni@example.com', 'pw', { client: newClient(), env: { VITE_OWNER_USER_ID: `  ${OWNER_ID}  ` }, hostname: 'app.vercel.app' });
+  assert.equal(ok.error, null);
+});
+
+test('the localhost demo fallback is unchanged with no owner configured', async () => {
+  const r = await signInWithPolicy('op@x.com', 'p', { client: failingClient, env: { VITE_DEMO_MODE: 'true' }, hostname: 'localhost' });
+  assert.equal(r.error, null);
+  assert.equal(r.session?.local_demo, true);
 });
