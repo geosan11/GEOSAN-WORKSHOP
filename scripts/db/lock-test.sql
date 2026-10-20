@@ -8,6 +8,12 @@
 \set owner_claims '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}'
 \set other_claims '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}'
 
+-- Two accounts exist in Auth: Sanni (owner) and a stranger.
+insert into auth.users (id, email) values
+  (:'owner_id', 'sanni@example.com'),
+  (:'other_id', 'stranger@example.com')
+on conflict (id) do nothing;
+
 -- ---------------------------------------------------------------- structure
 do $$
 declare n int;
@@ -24,9 +30,18 @@ begin
   if n <> 7 then raise exception 'FAIL: expected 7 owner policies, found %', n; end if;
 
   select count(*) into n from pg_class c join pg_namespace s on s.oid = c.relnamespace
-   where s.nspname = 'public' and c.relkind = 'r'
+   where s.nspname = 'public' and c.relkind = 'r' and c.relname <> 'app_owner'
      and not (c.relrowsecurity and c.relforcerowsecurity);
-  if n <> 0 then raise exception 'FAIL: % public tables without RLS enabled+forced', n; end if;
+  if n <> 0 then raise exception 'FAIL: % app tables without RLS enabled+forced', n; end if;
+
+  if not exists (select 1 from pg_class where oid = 'public.app_owner'::regclass
+                 and relrowsecurity and not relforcerowsecurity) then
+    raise exception 'FAIL: app_owner should have RLS enabled but not forced';
+  end if;
+  if not exists (select 1 from pg_constraint where conrelid = 'public.app_owner'::regclass
+                 and contype = 'f' and confrelid = 'auth.users'::regclass and confdeltype = 'c') then
+    raise exception 'FAIL: app_owner.user_id does not reference auth.users on delete cascade';
+  end if;
 
   select count(*) into n from information_schema.role_table_grants
    where table_schema = 'public' and grantee = 'anon';
@@ -48,17 +63,33 @@ begin
                  and proconfig @> array['search_path=""']) then
     raise exception 'FAIL: is_app_owner() search_path not pinned';
   end if;
-  raise notice 'PASS structure: 7 owner-only policies, no open policies, RLS enabled+forced on all public tables, anon has no grants';
+  raise notice 'PASS structure: 7 owner-only policies, no open policies, RLS enabled+forced on the 7 app tables, app_owner RLS on (not forced) with FK to auth.users, anon has no grants';
 end $$;
 
--- A table created later by postgres must not be granted to anon.
+-- Objects created later by postgres must not be granted to the API roles.
 create table public.zz_future_table (id int);
+create sequence public.zz_future_seq;
+create function public.zz_future_fn() returns int language sql as 'select 1';
 do $$ begin
-  if has_table_privilege('anon', 'public.zz_future_table', 'select') then
-    raise exception 'FAIL: new tables are still auto-granted to anon';
+  if has_table_privilege('anon', 'public.zz_future_table', 'select')
+     or has_table_privilege('authenticated', 'public.zz_future_table', 'select') then
+    raise exception 'FAIL: new tables are still auto-granted to anon/authenticated';
   end if;
-  raise notice 'PASS default privileges: new tables are not granted to anon';
+  if has_sequence_privilege('anon', 'public.zz_future_seq', 'usage') then
+    raise exception 'FAIL: new sequences are still auto-granted to anon';
+  end if;
+  if exists (select 1 from pg_proc p, aclexplode(p.proacl) a
+             where p.oid = 'public.zz_future_fn()'::regprocedure
+               and a.grantee in ('anon'::regrole, 'authenticated'::regrole)) then
+    raise exception 'FAIL: new functions are still explicitly granted to anon/authenticated';
+  end if;
+  if not has_function_privilege('authenticated', 'public.is_app_owner()', 'execute') then
+    raise exception 'FAIL: authenticated lost execute on is_app_owner()';
+  end if;
+  raise notice 'PASS default privileges: new tables not granted to anon/authenticated, new sequences not to anon, new functions get no explicit anon/authenticated grant; is_app_owner() still executable by authenticated';
 end $$;
+drop function public.zz_future_fn();
+drop sequence public.zz_future_seq;
 drop table public.zz_future_table;
 
 -- ------------------------------------------- owner not registered yet: denied
@@ -71,6 +102,14 @@ do $$ declare n int; begin
   raise notice 'PASS before owner is registered: even Sanni''s account sees 0 rows';
 end $$;
 rollback;
+
+-- app_owner only accepts real accounts.
+do $$ begin
+  begin insert into public.app_owner (user_id) values ('99999999-9999-9999-9999-999999999999');
+    raise exception 'FAIL: app_owner accepted an id that is not in auth.users';
+  exception when foreign_key_violation then null; end;
+  raise notice 'PASS app_owner rejects ids that are not in auth.users';
+end $$;
 
 -- Register the owner (what Sanni does once in the SQL editor).
 insert into public.app_owner (user_id) values (:'owner_id') on conflict (user_id) do nothing;
@@ -202,6 +241,15 @@ do $$ declare n int; begin
   select count(*) into n from public.project_registry;
   if n <> 4 then raise exception 'FAIL: service_role saw % rows', n; end if;
   raise notice 'PASS service_role: bypasses RLS (4 rows) as expected for the secret key';
+end $$;
+rollback;
+
+-- Deleting the owner's account removes the owner row (cascade).
+begin;
+delete from auth.users where id = :'owner_id';
+do $$ begin
+  if exists (select 1 from public.app_owner) then raise exception 'FAIL: owner row survived account deletion'; end if;
+  raise notice 'PASS deleting the account cascades to app_owner';
 end $$;
 rollback;
 

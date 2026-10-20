@@ -6,7 +6,7 @@ manual steps needed to switch it on.
 
 ## What was wrong
 
-`supabase/schema.sql` created two policies on every table:
+`supabase/schema.sql` used to create two policies on every table:
 
 ```sql
 create policy "Public read <table>"  ... for select using (true);
@@ -21,33 +21,50 @@ these 7 tables:
 `project_registry`, `agent_tasks`, `cost_events`, `qa_runs`, `qa_findings`,
 `project_budgets`, `prompt_versions`.
 
+The live database still has those 14 policies until the lock migration
+below is applied.
+
 ## What the fix does
 
-`supabase/migrations/20261020000000_lock_db_to_owner.sql`:
+**`supabase/schema.sql`** no longer creates any policies. It still switches
+RLS on for every table, so run on its own it leaves every table closed to
+the API. Re-running it is now safe: it can't re-open anything.
 
-1. Creates `public.app_owner (user_id uuid primary key)`, a list of the
-   accounts allowed in. RLS is on and forced, it has no policies and no
-   grants to `anon`/`authenticated`, so it can't be read or changed through
-   the API at all, only from the SQL editor.
+**`supabase/migrations/20261020000000_lock_db_to_owner.sql`**:
+
+1. Creates `public.app_owner (user_id uuid primary key references
+   auth.users(id) on delete cascade)`, the list of accounts allowed in.
+   Only real accounts can be added, and deleting an account removes its
+   entry. RLS is on with no policies and no grants to `anon` or
+   `authenticated`, so it can't be read or changed through the API, only
+   from the SQL editor. RLS is deliberately **not forced** on this table
+   (see the guard in step 3).
 2. Creates `public.is_app_owner()`, which returns true only when the
    signed-in user's `auth.uid()` is in `app_owner`. It is `SECURITY DEFINER`
-   (so it can read `app_owner`) with `search_path` pinned to `''`.
-3. On every app table: drops the 14 open policies (and any other leftover
+   (so it can read `app_owner`) with `search_path` pinned to `''`. Only
+   `authenticated` may call it.
+3. **Guard:** stops with an error, before any table is locked, unless the
+   function's owner can actually see `app_owner`'s rows. That is the case
+   when it owns the (non-forced) table, or has `BYPASSRLS`, or is a
+   superuser. On Supabase it runs as `postgres`, which passes both ways.
+   Without the guard, a wrong owner would make `is_app_owner()` always false
+   and lock you out.
+4. On every app table: drops the 14 open policies (and any other leftover
    policy, which would otherwise re-open the table), enables and forces RLS,
    revokes everything from `anon`, and adds a single policy:
    `for all to authenticated using (is_app_owner()) with check (is_app_owner())`.
-4. Stops Supabase from automatically granting `anon` access to tables
-   created later in `public`.
+5. Changes the default privileges for objects created later in `public` by
+   the role running the migration: new tables get no `anon`/`authenticated`
+   grants, new functions get no `anon`/`authenticated` grants, and new
+   sequences get no `anon` grants.
 
 Nothing is left public. Demo mode doesn't use Supabase (see below), so no
 table has to stay readable for it.
 
 The migration is safe to run more than once and doesn't delete or change
-any data rows. The old `supabase/schema.sql` is left as it was.
-
-> **Careful:** re-running `supabase/schema.sql` re-creates the open
-> policies. If you ever run it again, run the lock migration straight
-> after it.
+any project data. The one exception: if `app_owner` already exists from an
+earlier draft, ids with no matching account are removed before the foreign
+key is added.
 
 Who can do what after the lock:
 
@@ -58,23 +75,77 @@ Who can do what after the lock:
 | Sanni's account (listed in `app_owner`) | Full read and write |
 | Supabase SQL editor / `service_role` secret key | Full access (they bypass RLS by design; keep the secret key off the browser) |
 
-## Steps for Sanni
+## Rule for new tables
 
-Do these in order. Until step 3 is done, nobody, including you, can read
-data through the app. That's expected.
+Default privileges only cover objects created by the role that ran the
+migration (normally `postgres`). Tables created by other roles, such as
+`supabase_admin` (some dashboard and extension paths), still get Supabase's
+default grants to `anon`. New functions are also still executable through
+`PUBLIC` unless you revoke that. So for **every new table** in `public`:
+
+```sql
+alter table public.<new_table> enable row level security;
+alter table public.<new_table> force row level security;
+revoke all on table public.<new_table> from anon;
+grant select, insert, update, delete on table public.<new_table> to authenticated;
+create policy "Owner only <new_table>" on public.<new_table>
+  as permissive for all to authenticated
+  using (public.is_app_owner()) with check (public.is_app_owner());
+```
+
+Or add the table name to the list in the lock migration and run it again.
+For a new function, run `revoke execute on function public.<fn>(...) from public, anon;`
+unless the API should be able to call it.
+
+## Steps for Sanni
 
 ### 1. Make sure your account exists
 
 Supabase dashboard → **Authentication → Users**. If your email isn't
 listed, use **Add user → Create new user** and give it a password.
 
-### 2. Apply the migration
+### 2. Apply the lock and register yourself in one go (recommended)
 
-Pick one:
+This does both in a single transaction. If the email doesn't match an
+account, nothing at all is changed, so you can't end up locked out.
 
-- **SQL editor (simplest):** dashboard → **SQL Editor** → New query → paste
-  the whole contents of
-  `supabase/migrations/20261020000000_lock_db_to_owner.sql` → **Run**.
+Dashboard → **SQL Editor** → New query → paste, in this order:
+
+1. `begin;`
+2. the whole contents of
+   `supabase/migrations/20261020000000_lock_db_to_owner.sql`
+3. the block below, with your sign-in email in place of
+   `<YOUR_ACCOUNT_EMAIL>` (this is also in
+   `scripts/db/register-owner-by-email.sql`)
+4. `commit;`
+
+```sql
+-- Register the owner by email. Replace <YOUR_ACCOUNT_EMAIL> with the email
+-- you sign in with. If no account has that email, this raises an error, and
+-- inside the rollout transaction (docs/SECURITY-DB.md) that undoes the
+-- whole migration, so you can never end up locked out.
+do $$
+declare
+  owner_email constant text := '<YOUR_ACCOUNT_EMAIL>';
+  uid uuid;
+begin
+  select id into uid from auth.users where lower(email) = lower(owner_email);
+  if uid is null then
+    raise exception 'No Supabase account with email %; nothing was changed', owner_email;
+  end if;
+  insert into public.app_owner (user_id) values (uid) on conflict (user_id) do nothing;
+  raise notice 'Owner registered: % (%)', owner_email, uid;
+end
+$$;
+```
+
+Then **Run**. You should see `Owner registered: ...`. Skip to step 4.
+
+### 3. Or: apply the migration and register yourself separately
+
+**3a. Apply the migration.** Pick one:
+
+- **SQL editor:** paste the whole migration file → **Run**.
 - **Supabase CLI:** from the repo root:
 
   ```bash
@@ -89,14 +160,14 @@ Pick one:
 If the tables don't exist yet, run `supabase/schema.sql` first, then the
 migration.
 
-### 3. Register yourself as the owner
+Until 3b is done, nobody (you included) can read data through the app.
+That's expected.
 
-Find your user id: dashboard → **Authentication → Users** → click your
-account → copy the **User UID** (it looks like
-`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). You can also run
-`select id, email from auth.users;` in the SQL editor.
-
-Then run this in the SQL editor, with your id in place of the placeholder:
+**3b. Register yourself as the owner.** Find your user id: dashboard →
+**Authentication → Users** → click your account → copy the **User UID** (it
+looks like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). You can also run
+`select id, email from auth.users;` in the SQL editor. Then run this, with
+your id in place of the placeholder:
 
 ```sql
 insert into public.app_owner (user_id)
@@ -136,6 +207,52 @@ select id, name from public.project_registry;
 rollback;
 ```
 
+## If something goes wrong
+
+**Locked out, but the lock itself is fine** (for example you registered the
+wrong account): don't roll back. Just fix the owner row from the SQL editor
+with step 3b.
+
+**Rollback (by DevOps).** This is DevOps's rollback from the PR #5 review,
+extended to also restore the extra default privileges the revised migration
+changes. It's in `scripts/db/rollback-lock.sql`. **It re-opens all data to
+anyone with the anon key**, so only use it if the lock itself is broken.
+
+```sql
+-- ROLLBACK of supabase/migrations/20261020000000_lock_db_to_owner.sql.
+-- Written by DevOps in the PR #5 review (rollback.sql); extended for the
+-- revised migration: the extra default-privilege revokes are restored too.
+--
+-- WARNING: this RE-OPENS all 7 tables to anyone holding the anon key.
+-- Prefer the break-glass fix (insert your uid into public.app_owner) unless
+-- the lock itself is broken. Run in the SQL editor (postgres role).
+begin;
+do $$
+declare t text;
+begin
+  foreach t in array array['project_registry','agent_tasks','cost_events','qa_runs','qa_findings','project_budgets','prompt_versions'] loop
+    if to_regclass(format('public.%I', t)) is null then continue; end if;
+    execute format('drop policy if exists %I on public.%I', 'Owner only ' || t, t);
+    execute format('alter table public.%I no force row level security', t);
+    execute format('alter table public.%I enable row level security', t);
+    execute format('grant all on table public.%I to anon, authenticated', t);   -- Supabase default ACL
+    execute format('drop policy if exists %I on public.%I', 'Public read ' || t, t);
+    execute format('drop policy if exists %I on public.%I', 'Public write ' || t, t);
+    execute format('create policy %I on public.%I for select using (true)', 'Public read ' || t, t);
+    execute format('create policy %I on public.%I for all using (true)', 'Public write ' || t, t);
+  end loop;
+end $$;
+drop function if exists public.is_app_owner();
+drop table if exists public.app_owner;
+alter default privileges in schema public grant all on tables to anon;
+-- added for the revised migration:
+alter default privileges in schema public grant all on tables to authenticated;
+alter default privileges in schema public grant all on functions to anon;
+alter default privileges in schema public grant all on functions to authenticated;
+alter default privileges in schema public grant all on sequences to anon;
+commit;
+```
+
 ## Demo mode still works
 
 When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` aren't set (and none are
@@ -165,11 +282,24 @@ contacts Supabase, so this lock doesn't affect it.
 
 ## How this was tested
 
-`scripts/db/run-lock-test.sh` starts a throwaway local Postgres, adds a
-small Supabase stand-in (`scripts/db/supabase-stub.sql`: the `anon`,
-`authenticated`, `service_role` and BYPASSRLS `postgres` roles, Supabase's
-default grants, and `auth.uid()` reading the JWT `sub` claim), applies
-`schema.sql` and the lock migration, and runs `scripts/db/lock-test.sql`.
-That script checks that signed-out users are denied, other signed-in users
-are denied, and the owner can read and write. It never touches a real
-Supabase project.
+All on throwaway local Postgres. Nothing touches a real Supabase project.
+
+- `scripts/db/run-lock-test.sh` adds a small Supabase stand-in
+  (`scripts/db/supabase-stub.sql`), then:
+  - applies the pre-lock `schema.sql` (14 open policies, as live today) and
+    the lock migration;
+  - checks that signed-out users are denied, other signed-in users are
+    denied, and the owner can read and write;
+  - checks that re-running the current `schema.sql` doesn't re-open
+    anything;
+  - checks that the guard refuses an owner setup that couldn't work.
+
+  The stand-in provides the `anon`, `authenticated`, `service_role` and
+  BYPASSRLS `postgres` roles, Supabase's default grants, `auth.users`, and
+  `auth.uid()` reading the JWT `sub` claim.
+- `scripts/db/run-rollout-rollback-test.sh` covers:
+  - the one-transaction rollout, both with an unknown email (nothing
+    applied) and with the right one;
+  - DevOps's rollback round trip;
+  - upgrading from the first draft of the migration.
+- DevOps's independent `verify.sh` from the PR #5 review.

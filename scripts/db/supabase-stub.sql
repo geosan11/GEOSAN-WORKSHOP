@@ -39,3 +39,10 @@ as $$
   )::uuid
 $$;
 grant execute on function auth.uid() to public;
+
+-- auth.users, reduced to the columns used here. On hosted Supabase the
+-- postgres role has ALL on auth tables (supabase/postgres migration
+-- 20211115181400_update-auth-permissions.sql), which includes REFERENCES,
+-- so app_owner can have a foreign key to it.
+create table auth.users (id uuid primary key, email text);
+grant all on table auth.users to postgres;
