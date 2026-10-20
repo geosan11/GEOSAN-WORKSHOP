@@ -12,6 +12,7 @@ import { PageHeader, SectionCard } from '../components/ui';
 import { AgentTask } from '../lib/types';
 import { formatRelative } from '../lib/format';
 import { Clock, ShieldAlert, PlayCircle, ArrowRight, User, RefreshCw } from 'lucide-react';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 const QUEUE_PREVIEW = 5;
 
@@ -218,14 +219,17 @@ export const PortfolioScreen: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {visibleFindings.map((finding) => {
+                // No fallback project: a finding without one is shown but can't open Verify.
                 const targetProjectId =
-                  finding.project_id || (finding as { projectId?: string }).projectId || 'proj-aero-003';
+                  finding.project_id || (finding as { projectId?: string }).projectId || '';
                 const project = projects.find((p) => p.id === targetProjectId);
                 return (
                   <button
                     key={finding.id}
                     type="button"
+                    disabled={!targetProjectId}
                     onClick={() =>
+                      targetProjectId &&
                       navigate({
                         kind: 'project',
                         projectId: targetProjectId,
@@ -236,7 +240,7 @@ export const PortfolioScreen: React.FC = () => {
                   >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-main font-mono">
-                        {project?.name.split(' (')[0] || targetProjectId}
+                        {project?.name.split(' (')[0] || targetProjectId || 'No project'}
                       </span>
                       <span className="stamp stamp-danger">P0</span>
                     </div>
@@ -341,8 +345,13 @@ export const PortfolioScreen: React.FC = () => {
         onReject={rejectTask}
         onCancel={cancelTask}
         onRetry={async (id) => {
-          await retryTask(id);
-          setSelectedTask(null);
+          try {
+            await retryTask(id);
+            setSelectedTask(null);
+          } catch (err) {
+            // A missing budget is already reported by useTasks with a clear message.
+            if (!isProjectBudgetBlocked(err)) throw err;
+          }
         }}
       />
     </div>

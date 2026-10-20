@@ -2,13 +2,15 @@
  * Demo Session Fixtures
  *
  * Provides realistic, clean session data for AetherOrch:
- * - One running task ('Working') and one awaiting-approval task ('Approve plan') on demo project 'proj-ehi-001'
+ * - Demo-mode only. One running task ('Working') and one awaiting-approval task ('Approve plan') on the EHI client project (CLIENT_PROJECT_IDS.ehi)
  * - Complete chronological worklog events: plan, edit (3 files), shell (2 commands), qa (1 finding), approval (1 wait)
  * - Read-only shell commands (e.g. `npm run lint`, `git status --short`) with zero secret leakage
  * - Task threads with numbered plan steps and status dots
  */
 
 import { AgentTask, QAFinding } from '../lib/types';
+import { DEFAULT_WORKSPACE_ID } from '../lib/workspace';
+import { CLIENT_PROJECT_IDS } from './clientProjects';
 
 export interface SessionPlanStep {
   number: number;
@@ -70,8 +72,8 @@ export interface SessionMessage {
 export const DEMO_SESSION_TASKS: AgentTask[] = [
   {
     id: 'task-session-running-01',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.ehi,
     parent_task_id: null,
     task_type: 'BUILD_FEATURE',
     prompt: 'Implement bilateral netting engine for Kano Hub settlement\nEnsure strict integer arithmetic for kobo precision and generate verifiable settlement receipts.',
@@ -98,8 +100,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-approval-02',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.ehi,
     parent_task_id: null,
     task_type: 'PLAN',
     prompt: 'Audit and patch floating-point arithmetic across fee settlement ledger\nMigrate legacy IEEE-754 calculations to BigInt micro-units.',
@@ -120,8 +122,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-queued-03',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.ehi,
     parent_task_id: 'task-session-approval-02',
     task_type: 'FIX_BUG',
     prompt: 'Execute integer currency migration in src/settlement/ledgerNetting.ts and verify against test suite',
@@ -138,8 +140,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-proposed-04',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-iyanu-002',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.iyanuoluwa,
     parent_task_id: null,
     task_type: 'PLAN',
     prompt: 'Add offline outbox queue for weighbridge truck tickets\nSupport 4-hour satellite internet blackout without dropping intake weights.',
@@ -156,8 +158,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-blocked-05',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-aviation-003',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.aviation,
     parent_task_id: null,
     task_type: 'QA_SECURITY',
     prompt: 'Validate RSA-4096 cryptographic signature envelope on captain pilot logs\nMissing staging certificate key from Flight Operations authority.',
@@ -174,8 +176,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-done-06',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-edgepoint-004',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     parent_task_id: null,
     task_type: 'BUILD_FEATURE',
     prompt: 'Implement sub-45ms MQTT binary frame ingestion parser for edge telemetry nodes',
@@ -192,8 +194,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-failed-07',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.ehi,
     parent_task_id: null,
     task_type: 'FIX_BUG',
     prompt: 'Attempt automated upgrade of legacy bcrypt library across microservices',
@@ -210,8 +212,8 @@ export const DEMO_SESSION_TASKS: AgentTask[] = [
   },
   {
     id: 'task-session-cancelled-08',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-iyanu-002',
+    org_id: DEFAULT_WORKSPACE_ID,
+    project_id: CLIENT_PROJECT_IDS.iyanuoluwa,
     parent_task_id: null,
     task_type: 'DEPLOY',
     prompt: 'Deploy experimental Bluetooth scale simulator to staging tablet fleet',

@@ -19,7 +19,7 @@ const DEMO_USER: AuthUser = {
   id: 'usr-operator-001',
   email: 'operator@ehi-multisystems.com',
   user_metadata: {
-    org_id: 'org-ehi-global',
+    org_id: 'org-geosan',
     org_role: 'owner',
     full_name: 'Lead Orchestrator'
   }
@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
-  const orgId = session?.user?.user_metadata?.org_id || 'org-ehi-global';
+  const orgId = session?.user?.user_metadata?.org_id || 'org-geosan';
 
   return (
     <AuthContext.Provider

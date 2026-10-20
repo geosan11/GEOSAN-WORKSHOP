@@ -3,6 +3,7 @@
  * Shared weekly ledger: default 400 calls, $3.00 USD, 60/30/10 distribution across tiers.
  * Communicates with POST /budget/admit and GET /budget/status.
  */
+import { checkProjectBudget, type BudgetSource } from './projectBudgetGuard';
 
 export interface TierAllocation {
   tier: 1 | 2 | 3;
@@ -125,7 +126,40 @@ export async function fetchBudgetStatus(): Promise<WeeklyLedgerState> {
 }
 
 /**
- * Request admission to execute a task under a specific tier
+ * Admission for AI work on one project. Fails closed: a project with no
+ * budget (see projectBudgetGuard) is refused here, before the weekly ledger
+ * is asked or charged.
+ */
+export async function requestProjectBudgetAdmit(
+  project: BudgetSource | null | undefined,
+  tier: 1 | 2 | 3 = 1,
+  costUsd: number = 0.0075
+): Promise<AdmitResult> {
+  const check = checkProjectBudget(project);
+  if (!check.ok) {
+    const ledger = demoLedger;
+    const t = ledger.tiers[tier];
+    return {
+      admitted: false,
+      reason: check.reason,
+      tier,
+      weekKey: ledger.weekKey,
+      tierRequestsUsed: t.usedRequests,
+      tierRequestsCap: t.maxRequests,
+      tierUsdUsed: t.usedUsd,
+      tierUsdCap: t.maxUsd,
+      totalRequestsUsed: ledger.usedRequests,
+      totalRequestsCap: ledger.totalCapRequests,
+      totalUsdUsed: ledger.usedUsd,
+      totalUsdCap: ledger.totalCapUsd,
+    };
+  }
+  return requestBudgetAdmit(tier, costUsd);
+}
+
+/**
+ * Request admission to execute a task under a specific tier (weekly ledger
+ * only; for project work use requestProjectBudgetAdmit).
  */
 export async function requestBudgetAdmit(
   tier: 1 | 2 | 3 = 1,

@@ -6,6 +6,8 @@
  * so operators and external LLMs can ingest past lessons and prevent recurring bugs.
  */
 
+import { CLIENT_PROJECT_IDS } from '../data/clientProjects';
+
 export type IssueCategory =
   | 'FINANCIAL_INVARIANT'
   | 'SECURITY_RLS'
@@ -35,7 +37,7 @@ export interface LearningRecord {
 export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
   {
     id: 'learn-001-float-drift',
-    projectId: 'proj-ehi-001',
+    projectId: CLIENT_PROJECT_IDS.ehi,
     projectName: 'EHI Multisystems',
     category: 'FINANCIAL_INVARIANT',
     title: 'IEEE-754 Floating-Point Precision Drift in Transaction Reconciliation',
@@ -56,7 +58,7 @@ export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
   },
   {
     id: 'learn-002-import-meta',
-    projectId: 'proj-edgepoint-004',
+    projectId: CLIENT_PROJECT_IDS.edgepoint,
     projectName: 'EdgePoint',
     category: 'RUNTIME_BUNDLER',
     title: 'Unhandled TypeError on import.meta.env Outside Bundled Vite Context',
@@ -77,7 +79,7 @@ export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
   },
   {
     id: 'learn-003-rls-bypass',
-    projectId: 'proj-ehi-001',
+    projectId: CLIENT_PROJECT_IDS.ehi,
     projectName: 'EHI Multisystems',
     category: 'SECURITY_RLS',
     title: 'Cross-Tenant Ledger Leak Prevention via Database Row Level Security',
@@ -98,7 +100,7 @@ export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
   },
   {
     id: 'learn-004-upstream-ttl',
-    projectId: 'proj-edgepoint-004',
+    projectId: CLIENT_PROJECT_IDS.edgepoint,
     projectName: 'EdgePoint',
     category: 'PERFORMANCE_LATENCY',
     title: 'Upstream Polling Storm & Hourly Cache Rate-Limit Shield',
@@ -119,7 +121,7 @@ export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
   },
   {
     id: 'learn-005-offline-queue',
-    projectId: 'proj-iyanu-002',
+    projectId: CLIENT_PROJECT_IDS.iyanuoluwa,
     projectName: 'Iyanuoluwa Vegetable Oil',
     category: 'OFFLINE_SYNC',
     title: 'Industrial Weighbridge Scale Disconnection During Bulk Tanker Dispatch',
@@ -140,7 +142,7 @@ export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
   },
   {
     id: 'learn-006-model-routing',
-    projectId: 'proj-aviation-003',
+    projectId: CLIENT_PROJECT_IDS.aviation,
     projectName: 'Aviation Log Entry',
     category: 'AI_GATEWAY_ROUTING',
     title: 'Underpowered Model Selection for FAA Weight & Balance Invariants',

@@ -37,6 +37,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { PageHeader, SectionCard } from '../components/ui';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 interface ProjectDetailProps {
   projectId: string;
@@ -83,7 +84,8 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
     loadProjectDiscovery(projectId)
   );
 
-  const project = projects.find((p) => p.id === projectId) || projects[0];
+  // No fallback to another project: an unknown id shows the not-found state below.
+  const project = projects.find((p) => p.id === projectId);
 
   // Filter tasks for this project
   const projectTasks = useMemo(() => {
@@ -133,8 +135,9 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
       setActiveTaskId(created.id);
       setOpenWorkspace(true);
       await tRefetch();
-    } catch {
-      toast.error('Failed to dispatch task');
+    } catch (err) {
+      // A missing budget is already reported by useTasks with a clear message.
+      if (!isProjectBudgetBlocked(err)) toast.error('Failed to dispatch task');
     }
   };
 
@@ -149,8 +152,8 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
       });
       setDispatchedFixIds((prev) => ({ ...prev, [finding.id]: true }));
       toast.success(`Fix queued for ${finding.id}`);
-    } catch {
-      toast.error('Failed to dispatch fix task');
+    } catch (err) {
+      if (!isProjectBudgetBlocked(err)) toast.error('Failed to dispatch fix task');
     }
   };
 
@@ -646,8 +649,12 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
         onReject={rejectTask}
         onCancel={cancelTask}
         onRetry={async (id) => {
-          await retryTask(id);
-          setSelectedTask(null);
+          try {
+            await retryTask(id);
+            setSelectedTask(null);
+          } catch (err) {
+            if (!isProjectBudgetBlocked(err)) throw err;
+          }
         }}
       />
 

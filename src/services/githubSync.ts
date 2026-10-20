@@ -27,49 +27,6 @@ export function parseGitHubRepoUrl(url: string): { owner: string; repo: string }
 }
 
 /**
- * Fallback commit hashes deterministically generated for simulation / offline or rate-limited cases
- */
-const KNOWN_PROJECT_REPO_STATES: Record<
-  string,
-  {
-    repoHash: string;
-    branch: string;
-    commitsAhead: number;
-    commitsBehind: number;
-    driftSummary?: string;
-  }
-> = {
-  'proj-ehi-001': {
-    repoHash: '8f2d91c',
-    branch: 'main',
-    commitsAhead: 2, // Local IDE has unpushed commits
-    commitsBehind: 0,
-    driftSummary: 'Local workspace has 2 unpushed commits (Kano Hub syncClient patch)'
-  },
-  'proj-iya-002': {
-    repoHash: 'e4a110b',
-    branch: 'main',
-    commitsAhead: 0,
-    commitsBehind: 0,
-    driftSummary: 'Local workspace is clean and in sync with origin/main'
-  },
-  'proj-aero-003': {
-    repoHash: 'c71b04a',
-    branch: 'develop',
-    commitsAhead: 0,
-    commitsBehind: 3, // Remote has 3 commits not pulled into local IDE
-    driftSummary: 'Remote origin/develop has 3 updates (fuel dispatch telemetry fixes)'
-  },
-  'proj-edge-004': {
-    repoHash: '93c04ff',
-    branch: 'main',
-    commitsAhead: 0,
-    commitsBehind: 0,
-    driftSummary: 'Local workspace matches origin/main production tag'
-  }
-};
-
-/**
  * Fetches latest commit information and assesses drift between local workspace state and remote GitHub repository
  */
 export async function fetchGitHubRepoSync(
@@ -78,7 +35,15 @@ export async function fetchGitHubRepoSync(
   localCommitHash: string
 ): Promise<RepoSyncStatus> {
   const parsed = parseGitHubRepoUrl(githubRepoUrl);
-  const fallback = KNOWN_PROJECT_REPO_STATES[projectId] || {
+  // Offline / rate-limited fallback: assume the local commit is current. No
+  // per-project fixtures, so any project id behaves the same.
+  const fallback: {
+    repoHash: string;
+    branch: string;
+    commitsAhead: number;
+    commitsBehind: number;
+    driftSummary?: string;
+  } = {
     repoHash: localCommitHash,
     branch: 'main',
     commitsAhead: 0,

@@ -50,6 +50,8 @@ export interface Project {
   name: string;
   slug: string;
   vertical: string;
+  /** Design-kit preset id (UI/UX preset registry), e.g. 'ledger-debt-line'. Optional. */
+  design_kit?: string;
   repo_url: string | null;
   vercel_deployment_url: string | null;
   status: ProjectStatus;

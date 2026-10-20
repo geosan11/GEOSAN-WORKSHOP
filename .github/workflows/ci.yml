@@ -48,6 +48,9 @@ jobs:
       - name: Full system invariants
         run: npx tsx scripts/full-system-test.ts
 
+      - name: Unit tests
+        run: npx tsx --test "src/**/*.test.ts"
+
       - name: Design / slop critic lint
         run: npx tsx scripts/design-lint.ts
 

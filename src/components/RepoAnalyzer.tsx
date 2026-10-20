@@ -35,6 +35,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 interface RepoAnalyzerProps {
   project: Project;
@@ -154,7 +155,8 @@ export const RepoAnalyzer: React.FC<RepoAnalyzerProps> = ({ project, onTaskDispa
         onTaskDispatched(newTask.id);
       }
     } catch (err: any) {
-      toast.error(`Failed to dispatch task: ${err?.message || 'Unknown error'}`);
+      // A missing budget is already reported by useTasks with a clear message.
+      if (!isProjectBudgetBlocked(err)) toast.error(`Failed to dispatch task: ${err?.message || 'Unknown error'}`);
     }
   };
 

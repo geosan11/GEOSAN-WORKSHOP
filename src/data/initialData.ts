@@ -1,5 +1,5 @@
+import { CLIENT_PROJECT_IDS, CLIENT_PROJECT_BUDGETS } from './clientProjects';
 import {
-  ProjectRegistry,
   AgentTask,
   AgentResult,
   CostEvent,
@@ -84,121 +84,12 @@ export const INITIAL_MODEL_PRICING: ModelPricing[] = [
   }
 ];
 
-export const INITIAL_PROJECTS: ProjectRegistry[] = [
-  {
-    id: 'proj-ehi-001',
-    name: 'EHI Multisystems (Cargo Hubs & Waybills)',
-    vertical: 'logistics',
-    supabase_project_url: 'https://ehi-cargo-core.supabase.co',
-    supabase_anon_key_masked: 'sb_anon_••••••••••••ehi92',
-    vercel_deployment_url: 'https://ehi-cargo-hub.vercel.app',
-    github_repo_url: 'https://github.com/ehi-logistics/cargo-platform-v2',
-    status: 'testing',
-    last_commit_hash: 'd4f892a',
-    deployment_status: 'degraded',
-    repo_sync: {
-      state: 'drifted',
-      remote_commit_hash: '8f2d91c',
-      remote_branch: 'main',
-      commits_ahead: 2,
-      commits_behind: 0,
-      last_synced_at: '2026-09-28T17:15:00Z',
-      drift_summary: '2 local commits ahead (Kano Hub syncClient patch not yet pushed)'
-    },
-    monthly_budget_usd: 600.00,
-    current_spend_usd: 142.86,
-    health: 'warning',
-    created_at: '2026-08-15T09:00:00Z',
-    updated_at: '2026-09-28T16:15:00Z',
-    description: 'Autonomous freight intake, barcode sorting, and waybill payment reconciliation across Kano, Lagos, and Abuja transit hubs.'
-  },
-  {
-    id: 'proj-iya-002',
-    name: 'Iyanuoluwa Vegetable Oil (AgroSupply & Silos)',
-    vertical: 'agriculture',
-    supabase_project_url: 'https://iyanuoluwa-agro.supabase.co',
-    supabase_anon_key_masked: 'sb_anon_••••••••••••iya44',
-    vercel_deployment_url: 'https://iyanu-agro.vercel.app',
-    github_repo_url: 'https://github.com/iyanu-agrik/silo-monitoring-engine',
-    status: 'production',
-    last_commit_hash: 'e4a110b',
-    deployment_status: 'live',
-    repo_sync: {
-      state: 'synced',
-      remote_commit_hash: 'e4a110b',
-      remote_branch: 'main',
-      commits_ahead: 0,
-      commits_behind: 0,
-      last_synced_at: '2026-09-28T17:20:00Z',
-      drift_summary: 'Local IDE is clean and in sync with GitHub origin/main'
-    },
-    monthly_budget_usd: 450.00,
-    current_spend_usd: 78.40,
-    health: 'healthy',
-    created_at: '2026-07-10T12:00:00Z',
-    updated_at: '2026-09-28T14:30:00Z',
-    description: 'IoT telemetry aggregation for grain moisture, vegetable oil processing, bulk payout dispatch, and warehouse receipt tokenization.'
-  },
-  {
-    id: 'proj-aero-003',
-    name: 'Aviation Log Entry (AeroOps Turnaround)',
-    vertical: 'aviation',
-    supabase_project_url: 'https://aeroops-ground.supabase.co',
-    supabase_anon_key_masked: 'sb_anon_••••••••••••aero77',
-    vercel_deployment_url: 'https://aeroops-dispatch.vercel.app',
-    github_repo_url: 'https://github.com/aero-ground/turnaround-orchestrator',
-    status: 'building',
-    last_commit_hash: 'a19bc32',
-    deployment_status: 'deploying',
-    repo_sync: {
-      state: 'drifted',
-      remote_commit_hash: 'c71b04a',
-      remote_branch: 'develop',
-      commits_ahead: 0,
-      commits_behind: 3,
-      last_synced_at: '2026-09-28T17:00:00Z',
-      drift_summary: 'Remote origin/develop has 3 commits not pulled into local IDE'
-    },
-    monthly_budget_usd: 800.00,
-    current_spend_usd: 310.25,
-    health: 'healthy',
-    created_at: '2026-09-01T08:30:00Z',
-    updated_at: '2026-09-28T17:05:00Z',
-    description: 'Electronic flight log entries, turnaround management, fuel bowser dispatch, baggage allocation, and runway ramp telemetry.'
-  },
-  {
-    id: 'proj-edge-004',
-    name: 'EdgePoint (Cross-Border Settlement)',
-    vertical: 'fintech',
-    supabase_project_url: 'https://edgepoint-treasury.supabase.co',
-    supabase_anon_key_masked: 'sb_anon_••••••••••••edge11',
-    vercel_deployment_url: 'https://edgepoint-treasury.vercel.app',
-    github_repo_url: 'https://github.com/edgepoint-core/settlement-ledger',
-    status: 'production',
-    last_commit_hash: '93c04ff',
-    deployment_status: 'deployed',
-    repo_sync: {
-      state: 'synced',
-      remote_commit_hash: '93c04ff',
-      remote_branch: 'main',
-      commits_ahead: 0,
-      commits_behind: 0,
-      last_synced_at: '2026-09-28T17:22:00Z',
-      drift_summary: 'Clean working tree matching origin/main'
-    },
-    monthly_budget_usd: 1200.00,
-    current_spend_usd: 540.90,
-    health: 'healthy',
-    created_at: '2026-06-20T11:20:00Z',
-    updated_at: '2026-09-28T15:45:00Z',
-    description: 'Multi-currency correspondent debt clearance, end-of-day ledger locking, FX collateral reserves, and SWIFT gpi webhook verification.'
-  }
-];
+// Client project records live in ./clientProjects.ts (the single seed source).
 
 export const INITIAL_TASKS: AgentTask[] = [
   {
     id: 'task-ehi-901',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_type: 'FIX_BUG',
     prompt: 'Fix receipt_mode vs payment_mode inconsistency causing failed cargo reconciliation at Kano Hub terminal when offline sync replays.',
     status: 'awaiting_approval',
@@ -250,7 +141,7 @@ export const INITIAL_TASKS: AgentTask[] = [
   },
   {
     id: 'task-ehi-902',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_type: 'QA_EXPLORE',
     prompt: 'Autonomously explore the entire Kano freight intake workflow as Hub Attendant role. Parse DOM tree, check every button, verify waybill generation and receipt PDF export.',
     status: 'done',
@@ -279,7 +170,7 @@ export const INITIAL_TASKS: AgentTask[] = [
   },
   {
     id: 'task-edge-903',
-    project_id: 'proj-edge-004',
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     task_type: 'BUILD_FEATURE',
     prompt: 'Implement bilateral debt clearance engine for multi-party invoice netting with atomic EOD settlement locking.',
     status: 'done',
@@ -308,7 +199,7 @@ export const INITIAL_TASKS: AgentTask[] = [
   },
   {
     id: 'task-aero-904',
-    project_id: 'proj-aero-003',
+    project_id: CLIENT_PROJECT_IDS.aviation,
     task_type: 'QA_SECURITY',
     prompt: 'Verify strict role isolation between Apron Ramp Agent, Fuel Bowser Dispatcher, and Airside Supervisor.',
     status: 'running',
@@ -407,7 +298,7 @@ export const INITIAL_RESULTS: AgentResult[] = [
 export const INITIAL_COST_EVENTS: CostEvent[] = [
   {
     id: 'cost-001',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-901',
     provider: 'google',
     model: 'gemini-3.5-flash',
@@ -421,7 +312,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
   },
   {
     id: 'cost-002',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-901',
     provider: 'google',
     model: 'gemini-3.5-flash',
@@ -435,7 +326,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
   },
   {
     id: 'cost-003',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-901',
     provider: 'anthropic',
     model: 'claude-sonnet-4',
@@ -449,7 +340,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
   },
   {
     id: 'cost-004',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-902',
     provider: 'google',
     model: 'gemini-3.5-flash',
@@ -463,7 +354,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
   },
   {
     id: 'cost-005',
-    project_id: 'proj-edge-004',
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     task_id: 'task-edge-903',
     provider: 'google',
     model: 'gemini-3.5-flash',
@@ -477,7 +368,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
   },
   {
     id: 'cost-006',
-    project_id: 'proj-edge-004',
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     task_id: 'task-edge-903',
     provider: 'openai',
     model: 'o3-mini',
@@ -491,7 +382,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
   },
   {
     id: 'cost-007',
-    project_id: 'proj-aero-003',
+    project_id: CLIENT_PROJECT_IDS.aviation,
     task_id: 'task-aero-904',
     provider: 'xai',
     model: 'grok-4',
@@ -508,7 +399,7 @@ export const INITIAL_COST_EVENTS: CostEvent[] = [
 export const INITIAL_QA_RUNS: QARun[] = [
   {
     id: 'qa-run-801',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-902',
     run_type: 'explore',
     target_url: 'https://ehi-cargo-hub.vercel.app/cargo/intake',
@@ -525,7 +416,7 @@ export const INITIAL_QA_RUNS: QARun[] = [
   },
   {
     id: 'qa-run-802',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-901',
     run_type: 'replay',
     target_url: 'https://ehi-cargo-hub.vercel.app/cargo/reconciliation',
@@ -542,7 +433,7 @@ export const INITIAL_QA_RUNS: QARun[] = [
   },
   {
     id: 'qa-run-803',
-    project_id: 'proj-edge-004',
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     task_id: 'task-edge-903',
     run_type: 'targeted',
     target_url: 'https://edgepoint-treasury.vercel.app/api/settlement/eod',
@@ -559,7 +450,7 @@ export const INITIAL_QA_RUNS: QARun[] = [
   },
   {
     id: 'qa-run-804',
-    project_id: 'proj-aero-003',
+    project_id: CLIENT_PROJECT_IDS.aviation,
     task_id: 'task-aero-904',
     run_type: 'security',
     target_url: 'https://aeroops-dispatch.vercel.app/ramp/fuel',
@@ -580,7 +471,7 @@ export const INITIAL_QA_FINDINGS: QAFinding[] = [
   {
     id: 'find-001',
     run_id: 'qa-run-801',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     severity: 'critical',
     title: 'Hub intake form serializes receipt_mode instead of payment_mode',
     description: 'During offline package intake at Kano Hub, selecting "Direct Cash" sets payload.receipt_mode = "CASH". Backend API expects payload.payment_mode, causing failed sync and stranded waybills.',
@@ -599,7 +490,7 @@ export const INITIAL_QA_FINDINGS: QAFinding[] = [
   {
     id: 'find-002',
     run_id: 'qa-run-801',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     severity: 'low',
     title: 'Barcode preview modal causes 4px horizontal layout shift on mobile viewports',
     description: 'When rendering the thermal barcode tag preview on 375px screens, the canvas container exceeds viewport boundary causing layout shift.',
@@ -616,7 +507,7 @@ export const INITIAL_QA_FINDINGS: QAFinding[] = [
   {
     id: 'find-003',
     run_id: 'qa-run-804',
-    project_id: 'proj-aero-003',
+    project_id: CLIENT_PROJECT_IDS.aviation,
     severity: 'high',
     title: 'Apron agent token can view gate re-allocation queue before supervisor approval',
     description: 'API endpoint GET /api/v1/gates/unassigned returns pending schedule locks to apron ramp agents without supervisor authorization header.',
@@ -635,7 +526,7 @@ export const INITIAL_QA_FINDINGS: QAFinding[] = [
 export const INITIAL_INSTRUCTIONS: AgentInstruction[] = [
   {
     id: 'inst-01',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     instruction_type: 'coding_standard',
     content: 'All cargo waybill state transitions MUST emit an append-only audit record in waybill_events before acknowledging client responses. Never perform destructive updates on financial ledgers.',
     active: true,
@@ -643,7 +534,7 @@ export const INITIAL_INSTRUCTIONS: AgentInstruction[] = [
   },
   {
     id: 'inst-02',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     instruction_type: 'qa_policy',
     content: 'DOM-first testing is mandatory. Every pull request touching cargo intake must execute the zero-inference replay script (qa/replays/kano_intake.yaml) at 30x speed before merge.',
     active: true,
@@ -651,7 +542,7 @@ export const INITIAL_INSTRUCTIONS: AgentInstruction[] = [
   },
   {
     id: 'inst-03',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     instruction_type: 'cost_limit',
     content: 'Hard cap of $5.00 per individual autonomous feature task. If estimated token spend exceeds 80,000 tokens, request approval before spawning subagents.',
     active: true,
@@ -659,7 +550,7 @@ export const INITIAL_INSTRUCTIONS: AgentInstruction[] = [
   },
   {
     id: 'inst-04',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     instruction_type: 'deployment_rule',
     content: 'Do not deploy to Vercel production unless zero critical or high QA findings remain open in qa_findings.',
     active: true,
@@ -960,49 +851,17 @@ export const INITIAL_PROMPT_VERSIONS: PromptVersion[] = [
   }
 ];
 
-export const INITIAL_PROJECT_BUDGETS: ProjectBudget[] = [
-  {
-    id: 'bud-01',
-    project_id: 'proj-ehi-001',
-    monthly_limit_usd: 150.00,
-    alert_threshold_pct: 80,
-    hard_stop: true,
-    period_start: '2026-09-01T00:00:00Z',
-    current_spend_usd: 48.65
-  },
-  {
-    id: 'bud-02',
-    project_id: 'proj-iya-002',
-    monthly_limit_usd: 100.00,
-    alert_threshold_pct: 85,
-    hard_stop: false,
-    period_start: '2026-09-01T00:00:00Z',
-    current_spend_usd: 19.32
-  },
-  {
-    id: 'bud-03',
-    project_id: 'proj-aero-003',
-    monthly_limit_usd: 250.00,
-    alert_threshold_pct: 75,
-    hard_stop: true,
-    period_start: '2026-09-01T00:00:00Z',
-    current_spend_usd: 34.18
-  },
-  {
-    id: 'bud-04',
-    project_id: 'proj-edge-004',
-    monthly_limit_usd: 500.00,
-    alert_threshold_pct: 90,
-    hard_stop: true,
-    period_start: '2026-09-01T00:00:00Z',
-    current_spend_usd: 142.80
-  }
-];
+export const INITIAL_PROJECT_BUDGETS: ProjectBudget[] = CLIENT_PROJECT_BUDGETS.map((b, i) => ({
+  id: `bud-${String(i + 1).padStart(2, '0')}`,
+  ...b,
+  period_start: '2026-09-01T00:00:00Z',
+  current_spend_usd: 0
+}));
 
 export const INITIAL_APP_HEALTH_CHECKS: AppHealthCheck[] = [
   {
     id: 'hc-01',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     url: 'https://ehi-cargo-hub.vercel.app/api/health',
     expected_status: 200,
     check_interval_seconds: 60,
@@ -1014,7 +873,7 @@ export const INITIAL_APP_HEALTH_CHECKS: AppHealthCheck[] = [
   },
   {
     id: 'hc-02',
-    project_id: 'proj-iya-002',
+    project_id: CLIENT_PROJECT_IDS.iyanuoluwa,
     url: 'https://iyanu-agro.vercel.app/healthz',
     expected_status: 200,
     check_interval_seconds: 300,
@@ -1026,7 +885,7 @@ export const INITIAL_APP_HEALTH_CHECKS: AppHealthCheck[] = [
   },
   {
     id: 'hc-03',
-    project_id: 'proj-aero-003',
+    project_id: CLIENT_PROJECT_IDS.aviation,
     url: 'https://aeroops-dispatch.vercel.app/api/ping',
     expected_status: 200,
     check_interval_seconds: 120,
@@ -1038,7 +897,7 @@ export const INITIAL_APP_HEALTH_CHECKS: AppHealthCheck[] = [
   },
   {
     id: 'hc-04',
-    project_id: 'proj-edge-004',
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     url: 'https://edgepoint-treasury.vercel.app/status',
     expected_status: 200,
     check_interval_seconds: 60,
@@ -1054,7 +913,7 @@ export const INITIAL_NOTIFICATIONS: NotificationAlert[] = [
   {
     id: 'notif-01',
     org_id: 'org-geo-001',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     task_id: 'task-ehi-901',
     severity: 'warning' as const,
     title: 'Approval Required: Kano Hub Sync Fix',
@@ -1066,7 +925,7 @@ export const INITIAL_NOTIFICATIONS: NotificationAlert[] = [
   {
     id: 'notif-02',
     org_id: 'org-geo-001',
-    project_id: 'proj-ehi-001',
+    project_id: CLIENT_PROJECT_IDS.ehi,
     severity: 'critical' as const,
     title: 'QA Finding: Offline Sync Mode Divergence',
     body: 'Kano Hub intake form serializes receipt_mode instead of payment_mode, stranding waybills.',
@@ -1077,7 +936,7 @@ export const INITIAL_NOTIFICATIONS: NotificationAlert[] = [
   {
     id: 'notif-03',
     org_id: 'org-geo-001',
-    project_id: 'proj-edge-004',
+    project_id: CLIENT_PROJECT_IDS.edgepoint,
     severity: 'info' as const,
     title: 'Deployment Complete: Settlement Netting Engine',
     body: 'Vercel production build deployed with bilateral cycle netting algorithm.',

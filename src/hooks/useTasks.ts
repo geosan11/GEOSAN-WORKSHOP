@@ -3,8 +3,28 @@ import { AgentTask, TaskType } from '../lib/types';
 import { useToast } from '../components/Toast';
 import { MOCK_TASKS } from '../lib/mockData';
 import { DEMO_SESSION_TASKS } from '../data/sessionFixtures';
+import { isDemoMode } from '../lib/supabase';
+import { findStoredProject } from './useProjects';
+import { assertProjectBudget, isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
-const SEED_TASKS: AgentTask[] = MOCK_TASKS.length > 0 ? [...MOCK_TASKS] : [...DEMO_SESSION_TASKS];
+/**
+ * Fail closed: throws ProjectBudgetBlockedError if the project has no budget.
+ * Runs before a task is created, or moved to running / queued.
+ */
+export function guardAiWork(projectId: string, saved?: string | null): void {
+  const project = saved === undefined ? findStoredProject(projectId) : findStoredProject(projectId, saved);
+  assertProjectBudget(project, { projectId });
+}
+
+/** Statuses that start or queue AI work. */
+const AI_WORK_STATUSES: ReadonlyArray<AgentTask['status']> = ['running', 'queued'];
+export function statusStartsAiWork(status: AgentTask['status']): boolean {
+  return AI_WORK_STATUSES.includes(status);
+}
+
+// Demo session tasks sit on the client projects, so they are seeded in demo mode only.
+const SEED_TASKS: AgentTask[] =
+  MOCK_TASKS.length > 0 ? [...MOCK_TASKS] : isDemoMode ? [...DEMO_SESSION_TASKS] : [];
 const SEED_FLAG = 'geosan_tasks_seeded_v1';
 
 function readStoredTasks(): AgentTask[] | null {
@@ -64,6 +84,7 @@ export function useTasks(projectId?: string) {
       constraints?: string[];
       done_when?: string[];
     }) => {
+      guardAiWork(params.project_id);
       const allTasks = await getTasks();
       const newTask: AgentTask = {
         id: `task-${Date.now()}`,
@@ -97,18 +118,20 @@ export function useTasks(projectId?: string) {
       const awaiting = variables.status === 'awaiting_approval';
       toast.success(awaiting ? 'Plan proposed — awaiting operator approval' : 'Task dispatched to coordinator');
     },
-    onError: () => toast.error('Failed to create task')
+    onError: (err) => toast.error(isProjectBudgetBlocked(err) ? err.message : 'Failed to create task')
   });
   const updateTaskStatus = useMutation({
     mutationFn: async ({ taskId, status }: { taskId: string, status: AgentTask['status'] }) => {
       const allTasks = await getTasks();
       const idx = allTasks.findIndex(t => t.id === taskId);
+      if (idx >= 0 && statusStartsAiWork(status)) guardAiWork(allTasks[idx].project_id);
       if (idx >= 0) {
         allTasks[idx] = { ...allTasks[idx], status };
         saveTasks(allTasks);
       }
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+    onError: (err) => { if (isProjectBudgetBlocked(err)) toast.error(err.message); }
   });
 
   return {
