@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig, loadEnv, Plugin } from 'vite';
 import { handleTelemetryGateway } from './server/telemetry-gateway.ts';
 
 const telemetryPlugin = (): Plugin => ({
@@ -13,7 +13,13 @@ const telemetryPlugin = (): Plugin => ({
   },
 });
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  // The dev gateway (server/telemetry-gateway.ts) reads its proxy settings from
+  // process.env, but Vite only exposes VITE_* vars to the client and never puts
+  // .env values into process.env. Load .env* for the gateway; shell vars win.
+  for (const [key, value] of Object.entries(loadEnv(mode, process.cwd(), ''))) {
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
   return {
     plugins: [react(), tailwindcss(), telemetryPlugin()],
     resolve: {

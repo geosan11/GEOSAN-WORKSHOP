@@ -1,3 +1,4 @@
+import { proxyAuthHeaders } from './proxyAuth';
 /**
  * GitHub REST API Client Module
  *
@@ -240,11 +241,12 @@ export class GitHubClient {
     try {
       response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...proxyAuthHeaders() },
         body: JSON.stringify({
           endpoint,
           options: {
-            ...options,
+            method: options.method,
+            body: typeof options.body === 'string' ? JSON.parse(options.body) : undefined,
             headers
           }
         })
@@ -638,6 +640,7 @@ export async function triggerServerGitSync(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...proxyAuthHeaders(),
       },
       body: JSON.stringify(request),
     });

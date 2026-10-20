@@ -59,29 +59,29 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: () => void }> = ({ t
   }, [onDismiss]);
 
   const borderColors = {
-    success: 'border-emerald-500/50 bg-[#161b22]/95 text-emerald-300',
-    error: 'border-red-500/50 bg-[#161b22]/95 text-red-300',
-    info: 'border-cyan-500/50 bg-[#161b22]/95 text-cyan-300'
+    success: 'border-success/50',
+    error: 'border-error/50',
+    info: 'border-info/50'
   };
 
   const icons = {
-    success: <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />,
-    error: <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />,
-    info: <Info className="w-4 h-4 text-cyan-400 shrink-0" />
+    success: <CheckCircle2 className="w-4 h-4 text-[color:var(--color-success-text)] shrink-0" />,
+    error: <AlertCircle className="w-4 h-4 text-[color:var(--color-danger-text)] shrink-0" />,
+    info: <Info className="w-4 h-4 text-[color:var(--color-info-text)] shrink-0" />
   };
 
   return (
     <div
-      className={`pointer-events-auto flex items-center justify-between gap-3 w-full max-w-sm px-4 py-3 rounded-lg border shadow-xl backdrop-blur-md text-xs font-medium transition-all animate-in fade-in slide-in-from-bottom-2 ${borderColors[toast.type]}`}
+      className={`pointer-events-auto flex items-center justify-between gap-3 w-full max-w-sm px-4 py-3 rounded-[var(--radius-card)] border bg-[color-mix(in_srgb,var(--bg-card)_95%,transparent)] text-main shadow-xl backdrop-blur-md text-xs font-medium transition-all animate-in fade-in slide-in-from-bottom-2 ${borderColors[toast.type]}`}
       role="alert"
     >
       <div className="flex items-center gap-2.5">
         {icons[toast.type]}
-        <span className="text-[#e6edf3]">{toast.message}</span>
+        <span className="text-main">{toast.message}</span>
       </div>
       <button
         onClick={onDismiss}
-        className="text-[#8b98a8] hover:text-[#e6edf3] p-1 rounded transition-colors"
+        className="text-muted hover:text-main p-1 rounded-[var(--radius-stamp)] transition-colors"
         aria-label="Dismiss toast"
       >
         <X className="w-3.5 h-3.5" />

@@ -8,23 +8,23 @@ interface SeverityBadgeProps {
 export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
   const config = {
     critical: {
-      bg: 'bg-red-500/15 border-red-500/50 text-red-400',
-      icon: <AlertOctagon className="w-3 h-3 text-red-400" />,
+      bg: 'stamp-danger',
+      icon: <AlertOctagon className="w-3 h-3" />,
       label: 'CRITICAL'
     },
     high: {
-      bg: 'bg-orange-500/15 border-orange-500/50 text-orange-400',
-      icon: <AlertTriangle className="w-3 h-3 text-orange-400" />,
+      bg: 'stamp-warn',
+      icon: <AlertTriangle className="w-3 h-3" />,
       label: 'HIGH'
     },
     medium: {
-      bg: 'bg-[#F0B230]/15 border-[#F0B230]/40 text-[#FFBD59]',
-      icon: <AlertCircle className="w-3 h-3 text-[#F0B230]" />,
+      bg: 'stamp-primary',
+      icon: <AlertCircle className="w-3 h-3" />,
       label: 'MEDIUM'
     },
     low: {
-      bg: 'bg-slate-800/90 border-slate-700 text-slate-300',
-      icon: <Info className="w-3 h-3 text-slate-400" />,
+      bg: '',
+      icon: <Info className="w-3 h-3" />,
       label: 'LOW'
     }
   };
@@ -33,7 +33,7 @@ export const SeverityBadge: React.FC<SeverityBadgeProps> = ({ severity }) => {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] border text-[10px] font-mono font-bold tracking-wider ${bg}`}
+      className={`stamp ${bg}`}
       role="status"
       aria-label={`Severity: ${severity}`}
     >
