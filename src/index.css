@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* `dark:` follows the app toggle (html.dark), not prefers-color-scheme */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   /* Futur × GEOSAN — cream default (see docs/DESIGN_SYSTEM.md) */
   --color-gold: #F0B230;
@@ -28,12 +31,14 @@
 
   /* Foreground tones for small text / numbers on cream (AA on cream + tints) */
   --color-gold-text: #8A5A00;
-  --color-success-text: #047857;
+  --color-success-text: #046C4E; /* 4.5:1+ inside .stamp-success on cream */
   --color-warning-text: #92400E;
   --color-info-text: #0E7490;
   --color-danger-text: #B91C1C;
   --color-success-tint: #D1FAE5;
   --color-danger-tint: #FEE2E2;
+  --color-warning-tint: #FEF3C7;
+  --color-info-tint: #CFFAFE;
 
   --bg-app: var(--color-cream);
   --bg-card: var(--color-cream-card);
@@ -101,6 +106,8 @@ html.dark {
   --color-danger-text: oklch(71.2% 0.194 13.428); /* rose-400 */
   --color-success-tint: oklch(26.2% 0.051 172.552); /* emerald-950 */
   --color-danger-tint: oklch(27.1% 0.105 12.094); /* rose-950 */
+  --color-warning-tint: oklch(27.9% 0.077 45.635); /* amber-950 */
+  --color-info-tint: oklch(30.2% 0.056 229.695); /* cyan-950 */
 
   --bg-app: #0d1117;
   --bg-card: #161b22;
@@ -306,19 +313,19 @@ html.dark .btn-ghost:hover {
 .stamp-success {
   border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
   background: color-mix(in srgb, var(--color-success) 12%, transparent);
-  color: var(--color-success);
+  color: var(--color-success-text);
 }
 
 .stamp-warn {
   border-color: color-mix(in srgb, var(--color-warning) 45%, transparent);
   background: color-mix(in srgb, var(--color-warning) 12%, transparent);
-  color: var(--color-warning);
+  color: var(--color-warning-text);
 }
 
 .stamp-danger {
   border-color: color-mix(in srgb, var(--color-error) 45%, transparent);
   background: color-mix(in srgb, var(--color-error) 12%, transparent);
-  color: var(--color-error);
+  color: var(--color-danger-text);
 }
 
 .rule {
@@ -704,13 +711,15 @@ html.light body {
   color: var(--text-main) !important;
 }
 
-/* Structural Shell & Cards in Light Mode */
+/* Structural Shell & Cards in Light Mode
+   Legacy Obsidian hex -> Cream tokens (TaskWorkspace, ProjectWizardModal,
+   MultiAccountComponentHub still rely on these). */
 html.light .bg-\[\#0d1117\],
 html.light .bg-\[\#090d16\],
 html.light .bg-\[\#040914\],
 html.light .bg-slate-950 {
-  background-color: #F4F6F9 !important;
-  color: #0A1420 !important;
+  background-color: var(--bg-app) !important;
+  color: var(--text-main) !important;
 }
 
 html.light .bg-\[\#161b22\],
@@ -720,23 +729,22 @@ html.light .bg-\[\#060c1a\],
 html.light .bg-\[\#050b18\],
 html.light .bg-\[\#081022\],
 html.light .bg-\[\#071022\] {
-  background-color: #FFFFFF !important;
-  border-color: rgba(15, 23, 42, 0.09) !important;
-  color: #0A1420 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-app) !important;
+  color: var(--text-main) !important;
 }
 
 html.light .bg-\[\#1c2333\],
 html.light .bg-slate-800,
 html.light .bg-\[\#070e1c\] {
-  background-color: #F8FAFC !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
-  color: #0A1420 !important;
+  background-color: var(--bg-card-elevated) !important;
+  border-color: var(--border-app) !important;
+  color: var(--text-main) !important;
 }
 
 html.light .bg-white\/5,
 html.light .bg-white\/10 {
-  background-color: rgba(15, 23, 42, 0.04) !important;
+  background-color: rgba(17, 17, 17, 0.04) !important;
 }
 
 html.light .border-white\/5,
@@ -747,72 +755,65 @@ html.light .border-slate-800,
 html.light .border-slate-800\/80,
 html.light .border-slate-800\/90,
 html.light .border-slate-700 {
-  border-color: rgba(15, 23, 42, 0.09) !important;
+  border-color: var(--border-app) !important;
 }
 
 /* Text Readability in Light Mode */
 html.light .text-\[\#e6edf3\],
 html.light .text-slate-100,
 html.light .text-slate-200,
+html.light .text-slate-300,
 html.light .text-white {
-  color: #0A1420 !important;
+  color: var(--text-main) !important;
 }
 
 html.light .text-\[\#8b98a8\],
 html.light .text-slate-400,
 html.light .text-slate-500 {
-  color: #526071 !important;
+  color: var(--text-muted) !important;
 }
 
-html.light .text-slate-300 {
-  color: #1E293B !important;
-}
-
-/* Header & Navigation Bar in Light Mode */
+/* Legacy translucent headers (e.g. Header.tsx bg-slate-950/90) -> cream card.
+   <nav> is not forced: MobileNavBar already uses bg-card/95. */
 html.light header {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  border-bottom-color: rgba(15, 23, 42, 0.09) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  background-color: color-mix(in srgb, var(--bg-card) 95%, transparent) !important;
+  border-bottom-color: var(--border-app) !important;
 }
 
-html.light nav {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(15, 23, 42, 0.09) !important;
+/* Raw inputs without .field: cream surface, token border, gold focus.
+   .field owns its own styling, so it is excluded. */
+html.light input:not(.field),
+html.light select:not(.field),
+html.light textarea:not(.field) {
+  background-color: var(--bg-card-elevated) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-app) !important;
 }
 
-/* Inputs, Selects, and Textareas in Light Mode */
-html.light input,
-html.light select,
-html.light textarea {
-  background-color: #FFFFFF !important;
-  color: #0A1420 !important;
-  border-color: #CBD5E1 !important;
-}
-
-html.light input:focus,
-html.light select:focus,
-html.light textarea:focus {
-  border-color: #D97706 !important;
-  outline-color: #D97706 !important;
+html.light input:not(.field):focus,
+html.light select:not(.field):focus,
+html.light textarea:not(.field):focus {
+  border-color: var(--color-primary) !important;
+  outline-color: var(--color-primary) !important;
 }
 
 /* Gold Accents with High Contrast in Light Mode */
 html.light .text-\[\#F0B230\],
 html.light .text-\[\#FFBD59\],
 html.light .text-\[\#d97706\] {
-  color: #B45309 !important;
+  color: var(--color-gold-text) !important;
 }
 
 html.light .border-\[\#F0B230\],
 html.light .border-\[\#d97706\] {
-  border-color: #D97706 !important;
+  border-color: var(--color-primary) !important;
 }
 
 html.light .bg-\[\#F0B230\]\/10,
 html.light .bg-\[\#F0B230\]\/15,
 html.light .bg-\[\#F0B230\]\/20 {
-  background-color: #FEF3C7 !important;
-  color: #92400E !important;
+  background-color: var(--color-primary-container) !important;
+  color: var(--color-gold-text) !important;
 }
 
 /* Code, Pre, and Terminals in Light Mode */
