@@ -123,7 +123,14 @@ on conflict (id) do update set
   supabase_project_url = excluded.supabase_project_url,
   updated_at = now();
 
--- 9. Row Level Security (RLS) - Allow public access with anon key for this applet
+-- 9. Row Level Security (RLS)
+-- RLS is switched on for every table. This file deliberately creates NO
+-- policies, so on its own it leaves every table closed to the API.
+-- Access is granted only by the owner-only lock migration:
+--   supabase/migrations/20261020000000_lock_db_to_owner.sql
+-- (see docs/SECURITY-DB.md). Run that migration after this file.
+-- The old "Public read/write" policies (using (true)) were removed because
+-- they let anyone holding the anon key read and write all data.
 alter table public.project_registry enable row level security;
 alter table public.agent_tasks enable row level security;
 alter table public.cost_events enable row level security;
@@ -131,24 +138,3 @@ alter table public.qa_runs enable row level security;
 alter table public.qa_findings enable row level security;
 alter table public.project_budgets enable row level security;
 alter table public.prompt_versions enable row level security;
-
-create policy "Public read project_registry" on public.project_registry for select using (true);
-create policy "Public write project_registry" on public.project_registry for all using (true);
-
-create policy "Public read agent_tasks" on public.agent_tasks for select using (true);
-create policy "Public write agent_tasks" on public.agent_tasks for all using (true);
-
-create policy "Public read cost_events" on public.cost_events for select using (true);
-create policy "Public write cost_events" on public.cost_events for all using (true);
-
-create policy "Public read qa_runs" on public.qa_runs for select using (true);
-create policy "Public write qa_runs" on public.qa_runs for all using (true);
-
-create policy "Public read qa_findings" on public.qa_findings for select using (true);
-create policy "Public write qa_findings" on public.qa_findings for all using (true);
-
-create policy "Public read project_budgets" on public.project_budgets for select using (true);
-create policy "Public write project_budgets" on public.project_budgets for all using (true);
-
-create policy "Public read prompt_versions" on public.prompt_versions for select using (true);
-create policy "Public write prompt_versions" on public.prompt_versions for all using (true);

@@ -9,6 +9,23 @@ export interface SupabaseResponse<T = any> {
   error: Error | null;
 }
 
+/**
+ * The signed-in user's Supabase access token (a JWT), if there is one.
+ * The database only lets the owner account read or write (see
+ * docs/SECURITY-DB.md), so table requests must carry the user's token, not
+ * just the anon key. Non-JWT placeholder tokens are ignored.
+ */
+function getStoredAccessToken(): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const saved = JSON.parse(localStorage.getItem('ehi_auth_session') || 'null');
+    const token = saved?.access_token;
+    return typeof token === 'string' && token.split('.').length === 3 ? token : null;
+  } catch {
+    return null;
+  }
+}
+
 export class PostgrestQueryBuilder {
   private url: string;
   private apikey: string;
@@ -81,7 +98,7 @@ export class PostgrestQueryBuilder {
       const endpoint = `${this.url}/rest/v1/${this.table}?${this.queryParams.toString()}`;
       const headers: Record<string, string> = {
         apikey: this.apikey,
-        Authorization: `Bearer ${this.apikey}`,
+        Authorization: `Bearer ${getStoredAccessToken() || this.apikey}`,
         'Content-Type': 'application/json',
         Prefer: this.httpMethod === 'POST' ? 'return=representation' : 'count=none',
       };
