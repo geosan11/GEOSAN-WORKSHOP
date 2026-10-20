@@ -207,3 +207,100 @@ test('two old per-project keys, no canonical one: the most recently updated is k
   assert.equal(s.json('aetherorch_discovery_proj-iya-002').projectId, 'proj-iya-002');
   assert.deepEqual(Object.keys(s.dump()), ['aetherorch_discovery_proj-iya-002']);
 });
+
+// --- Single winner and one merge order (same rule as the SQL migration) ---
+// Order: latest updated date, then latest created date, then lowest old id.
+// A missing / unreadable date counts as oldest. The winner is kept whole.
+
+const names = (s: MemoryStorage) => s.json('geosan_projects').map((p: { name: string }) => p.name);
+
+test('single winner (reviewer case): project fields and monthly_budget_usd come from the same record', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'iya-001', monthly_budget_usd: 333, updated_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'iyanu-002', monthly_budget_usd: 777, updated_at: '2026-10-15T00:00:00Z', created_at: '2026-08-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(s.json('geosan_projects'), [
+    { id: 'proj-iya-002', name: 'iyanu-002', monthly_budget_usd: 777, updated_at: '2026-10-15T00:00:00Z', created_at: '2026-08-01T00:00:00Z' }
+  ]);
+});
+
+test('tie-break: same updated date -> the later created date wins (not list order)', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iyanu-002', name: 'created earlier', monthly_budget_usd: 777, updated_at: '2026-10-01T00:00:00Z', created_at: '2026-08-01T00:00:00Z' },
+      { id: 'proj-iya-001', name: 'created later', monthly_budget_usd: 333, updated_at: '2026-10-01T00:00:00Z', created_at: '2026-09-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(names(s), ['created later']);
+  assert.equal(s.json('geosan_projects')[0].monthly_budget_usd, 333);
+});
+
+test('tie-break: same updated and created dates -> the lowest old id wins, whatever the list order', () => {
+  for (const order of [['proj-iyanu-002', 'proj-iya-001'], ['proj-iya-001', 'proj-iyanu-002']]) {
+    const s = new MemoryStorage({
+      geosan_projects: order.map((id) => ({ id, name: `was ${id}`, updated_at: '2026-10-01T00:00:00Z', created_at: '2026-08-01T00:00:00Z' }))
+    });
+    migrateLegacyProjectIds(s);
+    assert.deepEqual(names(s), ['was proj-iya-001'], `order ${order.join(',')}`);
+  }
+  // no dates at all is also a full tie
+  const s = new MemoryStorage({ geosan_projects: [{ id: 'proj-iyanu-002', name: 'b' }, { id: 'proj-iya-001', name: 'a' }] });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(names(s), ['a']);
+});
+
+test('recency uses the LATEST readable updated date, not the first field that parses', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      // updated_at is older, but lastUpdated (also an updated date) is the newest of all
+      { id: 'proj-iyanu-002', name: 'latest via lastUpdated', updated_at: '2026-01-01T00:00:00Z', lastUpdated: '2026-10-10T00:00:00Z' },
+      { id: 'proj-iya-001', name: 'middle', updated_at: '2026-05-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(names(s), ['latest via lastUpdated']);
+
+  // an unreadable value is skipped, the readable one counts
+  const t = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'readable older', updated_at: '2026-05-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'unreadable + newer', updated_at: 'not a date', updatedAt: '2026-10-10T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(t);
+  assert.deepEqual(names(t), ['unreadable + newer']);
+});
+
+test('a missing updated date counts as oldest; created date only breaks a tie', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'no updated, new created', created_at: '2026-10-19T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'old updated', updated_at: '2026-01-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(names(s), ['old updated']);
+});
+
+test('object keyed by old ids: same tie-break (lowest old id on a full tie)', () => {
+  const s = new MemoryStorage({
+    aetherorch_learning_vault: [{ id: 'l1', byProject: { 'proj-iyanu-002': { v: 'b' }, 'proj-iya-001': { v: 'a' } } }]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(s.json('aetherorch_learning_vault')[0].byProject, { 'proj-iya-002': { v: 'a' } });
+});
+
+test('per-project keys: same tie-break (lowest old id on a full tie, not first found)', () => {
+  const s = new MemoryStorage({
+    'aetherorch_discovery_proj-iyanu-002': { projectId: 'proj-iyanu-002', lastUpdated: '2026-10-10T00:00:00Z', v: 'b' },
+    'aetherorch_discovery_proj-iya-001': { projectId: 'proj-iya-001', lastUpdated: '2026-10-10T00:00:00Z', v: 'a' }
+  });
+  const report = migrateLegacyProjectIds(s);
+  assert.equal(s.json('aetherorch_discovery_proj-iya-002').v, 'a');
+  assert.deepEqual(report.droppedKeys, ['aetherorch_discovery_proj-iyanu-002']);
+  assert.deepEqual(Object.keys(s.dump()), ['aetherorch_discovery_proj-iya-002']);
+});

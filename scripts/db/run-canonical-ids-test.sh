@@ -93,6 +93,14 @@ run_case unlocked nolock t_unlocked
 echo "== 1b. no canonical proj-iya-002, two old-id rows (unlocked)"
 run_case unlocked-nc nolock t_unlocked_nc "$NC_FIX" "$NC_TEST"
 
+echo "== 1c. single winner: project row and budget from the same old row; tie-breaks"
+as supabase_admin -c "create database t_single_winner owner postgres"
+DB=t_single_winner as supabase_admin -c "alter schema public owner to postgres"
+DB=t_single_winner as postgres -f "$WORK/schema-before.sql"
+PGOPTIONS= psql -X -q -v ON_ERROR_STOP=1 -v mig="$MIG" -h "$WORK" -p "$PORT" -U postgres -d t_single_winner \
+  -f "$ROOT/scripts/db/canonical-ids-test-single-winner.sql" 2>&1 | sed -n 's/.*NOTICE:  //p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [single-winner] /"
+test "${PIPESTATUS[0]}" -eq 0
+
 if [ -f "$LOCK" ]; then
   echo "== 2. on top of PR #5's owner-only lock"
   run_case locked lock t_locked

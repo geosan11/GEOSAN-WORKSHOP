@@ -15,14 +15,20 @@
 --
 -- MERGE RULE (pending Sanni's confirmation). proj-iya-001 and proj-iyanu-002
 -- both map to proj-iya-002, so up to three rows can describe one project.
--- For project_registry and project_budgets, one row is kept per project:
---   1. if a row with the canonical id (proj-iya-002) exists, it is kept as is;
---   2. otherwise the most recently updated old-id row is kept (updated_at,
---      then created_at; a missing value counts as oldest; final tie: old id);
---   3. the other old-id rows are removed. Child rows (tasks, costs, QA) are
---      never dropped: all of them move to the canonical id.
--- The browser-side remap (src/lib/projectIdMigration.ts) uses the same rule.
---
+-- One row is kept per project, and the project and its budget always come
+-- from the SAME row:
+--   1. if a project_registry row with the canonical id (proj-iya-002) exists,
+--      it is kept as is, and so is its budget (if it has none, the old-id
+--      budget that ranks first by the order below is moved onto it);
+--   2. otherwise ONE winning old-id project_registry row is picked, and both
+--      the project row and the budget are taken from it. The losing rows'
+--      values (registry and budget) are dropped, never merged; if the winner
+--      has no budget row, proj-iya-002 gets none.
+--   3. Child rows (tasks, costs, QA) are never dropped: all of them move to
+--      the canonical id, whichever row won.
+-- ORDER / TIE-BREAK (the same in src/lib/projectIdMigration.ts):
+--   latest updated_at, then latest created_at, then lowest old id (plain
+--   byte order, collate "C"). A missing or unreadable date counts as oldest.
 -- Also adds the optional project_registry.design_kit column and fills it for
 -- the four client projects where it is still empty.
 --
@@ -61,23 +67,27 @@ begin
 
   alter table public.project_registry add column if not exists design_kit text;
 
-  -- 1. Make sure the canonical registry row exists (merge rule above): keep an
-  --    existing canonical row; otherwise copy the most recently updated old
-  --    row (every column except id). Children can then be moved before the
-  --    old rows are removed.
+  -- 1. Pick the single winning old row per canonical id (merge rule above),
+  --    only where no canonical registry row exists. Picked before anything is
+  --    inserted, so the project row (here) and the budget (below) both come
+  --    from it. Then copy the winner (every column except id). Children can
+  --    then be moved before the old rows are removed.
+  create temporary table _project_winner (new_id text primary key, old_id text not null) on commit drop;
+  insert into _project_winner (new_id, old_id)
+  select distinct on (m.new_id) m.new_id, m.old_id
+  from public.project_registry r
+  join _project_id_map m on m.old_id = r.id
+  where not exists (select 1 from public.project_registry c where c.id = m.new_id)
+  order by m.new_id,
+           (to_jsonb(r) ->> 'updated_at')::timestamptz desc nulls last,
+           (to_jsonb(r) ->> 'created_at')::timestamptz desc nulls last,
+           m.old_id collate "C";
+
   insert into public.project_registry
   select (jsonb_populate_record(null::public.project_registry,
-            to_jsonb(k.r) || jsonb_build_object('id', k.new_id, 'updated_at', now()))).*
-  from (
-    select distinct on (m.new_id) m.new_id, r
-    from public.project_registry r
-    join _project_id_map m on m.old_id = r.id
-    where not exists (select 1 from public.project_registry c where c.id = m.new_id)
-    order by m.new_id,
-             (to_jsonb(r) ->> 'updated_at')::timestamptz desc nulls last,
-             (to_jsonb(r) ->> 'created_at')::timestamptz desc nulls last,
-             m.old_id
-  ) k
+            to_jsonb(r) || jsonb_build_object('id', w.new_id, 'updated_at', now()))).*
+  from _project_winner w
+  join public.project_registry r on r.id = w.old_id
   on conflict (id) do nothing;
 
   -- 2. Move child rows.
@@ -86,21 +96,29 @@ begin
   update public.qa_runs     t set project_id = m.new_id from _project_id_map m where t.project_id = m.old_id;
   update public.qa_findings t set project_id = m.new_id from _project_id_map m where t.project_id = m.old_id;
 
-  -- project_budgets has project_id as its primary key. Same merge rule: keep
-  -- an existing canonical row; otherwise the most recently updated old row.
+  -- project_budgets has project_id as its primary key. Same merge rule:
+  --  * a winner was picked in step 1 (no canonical row): keep only the
+  --    winner's budget; every other old budget is dropped;
+  --  * the canonical row existed: keep its budget; if it has none, keep the
+  --    old budget that ranks first by the same order (no created_at on
+  --    project_budgets, so: latest updated_at, then lowest old id).
   delete from public.project_budgets b
   using _project_id_map m
   where b.project_id = m.old_id
-    and (exists (select 1 from public.project_budgets c where c.project_id = m.new_id)
-         or b.project_id <> (
-              select o.project_id
-              from public.project_budgets o
-              join _project_id_map om on om.old_id = o.project_id
-              where om.new_id = m.new_id
-              order by (to_jsonb(o) ->> 'updated_at')::timestamptz desc nulls last,
-                       (to_jsonb(o) ->> 'created_at')::timestamptz desc nulls last,
-                       om.old_id
-              limit 1));
+    and case
+          when exists (select 1 from _project_winner w where w.new_id = m.new_id)
+            then b.project_id <> (select w.old_id from _project_winner w where w.new_id = m.new_id)
+          else exists (select 1 from public.project_budgets c where c.project_id = m.new_id)
+               or b.project_id <> (
+                    select o.project_id
+                    from public.project_budgets o
+                    join _project_id_map om on om.old_id = o.project_id
+                    where om.new_id = m.new_id
+                    order by (to_jsonb(o) ->> 'updated_at')::timestamptz desc nulls last,
+                             (to_jsonb(o) ->> 'created_at')::timestamptz desc nulls last,
+                             om.old_id collate "C"
+                    limit 1)
+        end;
   update public.project_budgets b set project_id = m.new_id from _project_id_map m where b.project_id = m.old_id;
 
   -- 3. Remove the old registry rows (nothing references them any more).
@@ -137,6 +155,7 @@ begin
     raise exception 'canonical_project_ids: % row(s) still use an old id; nothing was changed', leftover;
   end if;
 
+  drop table _project_winner;
   drop table _project_id_map;
 end
 $migrate$;

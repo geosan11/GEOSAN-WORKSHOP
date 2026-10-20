@@ -73,37 +73,65 @@ export function remapLegacyIds<T>(value: T): T {
   return value;
 }
 
-/** Latest of `updated_at` / `created_at` (ms), or -Infinity if neither parses. */
-function recency(item: unknown): number {
+/**
+ * MERGE ORDER / TIE-BREAK, identical to the SQL migration
+ * (supabase/migrations/20261020010000_canonical_project_ids.sql):
+ *   1. latest updated date, 2. then latest created date, 3. then lowest old id
+ *   (plain string order, like `collate "C"` in SQL).
+ * A missing or unreadable date counts as oldest. The winner is taken whole:
+ * the losing records' values are dropped, never merged field by field.
+ */
+const UPDATED_FIELDS = ['updated_at', 'updatedAt', 'lastUpdated'] as const;
+const CREATED_FIELDS = ['created_at', 'createdAt'] as const;
+
+/**
+ * The LATEST readable date (ms) among `fields` of `item` (e.g. `updated_at`
+ * and `lastUpdated` both set: the later one counts), or -Infinity if none of
+ * them parses.
+ */
+function latestDate(item: unknown, fields: readonly string[]): number {
   if (!item || typeof item !== 'object') return -Infinity;
   const rec = item as Record<string, unknown>;
-  for (const field of ['updated_at', 'updatedAt', 'lastUpdated', 'created_at', 'createdAt']) {
+  let latest = -Infinity;
+  for (const field of fields) {
     const t = typeof rec[field] === 'string' ? Date.parse(rec[field] as string) : NaN;
-    if (!Number.isNaN(t)) return t;
+    if (!Number.isNaN(t) && t > latest) latest = t;
   }
-  return -Infinity;
+  return latest;
+}
+
+/** True if candidate (record `a`, old id `aId`) ranks before `b` / `bId` by the rule above. */
+function ranksBefore(a: unknown, aId: string, b: unknown, bId: string): boolean {
+  const ua = latestDate(a, UPDATED_FIELDS);
+  const ub = latestDate(b, UPDATED_FIELDS);
+  if (ua !== ub) return ua > ub;
+  const ca = latestDate(a, CREATED_FIELDS);
+  const cb = latestDate(b, CREATED_FIELDS);
+  if (ca !== cb) return ca > cb;
+  return aId < bId;
 }
 
 /**
- * Among old-id entries that map to the same canonical id, keeps one: the most
- * recently updated (updated_at, else created_at); ties keep the first listed.
+ * Among old-id entries that map to the same canonical id, keeps one: the
+ * winner by the merge order above.
  */
 function pickPerTarget<E extends [string, unknown]>(entries: E[], record: (e: E) => unknown): E[] {
   const best = new Map<string, E>();
   for (const e of entries) {
     const target = remapString(e[0]);
     const cur = best.get(target);
-    if (!cur || recency(record(e)) > recency(record(cur))) best.set(target, e);
+    if (!cur || ranksBefore(record(e), e[0], record(cur), cur[0])) best.set(target, e);
   }
   return [...best.values()];
 }
 
 /**
  * Merge rule for a list of records after remapping (same rule as the SQL
- * migration): for each id keep one record. A record that already had the
- * canonical id wins; otherwise the most recently updated old-id record
- * (updated_at, else created_at; ties: first listed). The kept record takes
- * the position of the first record with that id.
+ * migration): for each id keep ONE record, whole. A record that already had
+ * the canonical id wins; otherwise the old-id record that ranks first by the
+ * merge order above. Its fields (including `monthly_budget_usd`) all come
+ * from that one record; the losers are dropped. The kept record takes the
+ * position of the first record with that id.
  */
 function dedupeById(original: unknown[], remapped: unknown[]): unknown[] {
   const idOf = (item: unknown) =>
@@ -119,7 +147,9 @@ function dedupeById(original: unknown[], remapped: unknown[]): unknown[] {
     const curCanonical = idOf(original[cur]) === id;
     const thisCanonical = idOf(original[i]) === id;
     if (curCanonical) return;
-    if (thisCanonical || recency(original[i]) > recency(original[cur])) winner.set(id, i);
+    if (thisCanonical || ranksBefore(original[i], idOf(original[i])!, original[cur], idOf(original[cur])!)) {
+      winner.set(id, i);
+    }
   });
   const out: unknown[] = [];
   const placed = new Set<string>();
@@ -211,6 +241,7 @@ export function migrateLegacyProjectIds(storage: StorageLike): MigrationReport {
   }
   // Group old per-project keys by their canonical key.
   const groups = new Map<string, string[]>();
+  const prefixOf = (key: string) => MIGRATED_KEY_PREFIXES.find((p) => key.startsWith(p)) ?? '';
   for (const key of keys) {
     const prefix = MIGRATED_KEY_PREFIXES.find((p) => key.startsWith(p));
     if (!prefix) continue;
@@ -227,12 +258,13 @@ export function migrateLegacyProjectIds(storage: StorageLike): MigrationReport {
     }
   };
   for (const [target, oldKeys] of groups) {
-    // Same rule as the lists: canonical key wins; else the most recently
-    // updated old key (ties: first found).
+    // Same rule as the lists: canonical key wins; else the old key that ranks
+    // first by the merge order (latest updated, latest created, lowest old id).
+    const oldIdOf = (k: string) => k.slice(prefixOf(k).length);
     let keep: string | null = null;
     if (storage.getItem(target) == null) {
       for (const k of oldKeys) {
-        if (keep == null || recency(parseOrNull(storage.getItem(k))) > recency(parseOrNull(storage.getItem(keep)))) keep = k;
+        if (keep == null || ranksBefore(parseOrNull(storage.getItem(k)), oldIdOf(k), parseOrNull(storage.getItem(keep)), oldIdOf(keep))) keep = k;
       }
     }
     for (const key of oldKeys) {
