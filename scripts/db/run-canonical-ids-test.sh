@@ -27,16 +27,14 @@ snapshot() { as postgres -tA -c "
   union all select 'rel', relname, relrowsecurity::text, relforcerowsecurity::text, coalesce(relacl::text, ''), '', ''
     from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'
   union all select 'defacl', pg_get_userbyid(defaclrole), defaclnamespace::text, defaclobjtype::text, defaclacl::text, '', ''
-    from pg_default_acl
-  order by 1, 2, 3"; }
+    from pg_default_acl" | LC_ALL=C sort; }
 data() { as postgres -tA -c "
   select 'reg', id, name, coalesce(design_kit,'') from public.project_registry
   union all select 'task', id, project_id, org_id from public.agent_tasks
   union all select 'cost', id, project_id, org_id from public.cost_events
   union all select 'run', id, project_id, org_id from public.qa_runs
   union all select 'find', id, project_id, '' from public.qa_findings
-  union all select 'bud', project_id, monthly_limit_usd::text, '' from public.project_budgets
-  order by 1, 2"; }
+  union all select 'bud', project_id, monthly_limit_usd::text, '' from public.project_budgets" | LC_ALL=C sort; }
 
 # The database as it is live today: schema.sql from main before this PR.
 git -C "$ROOT" show 6bfeb72:supabase/schema.sql > "$WORK/schema-before.sql"
