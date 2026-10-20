@@ -133,11 +133,11 @@ export const viaProxy = (h = {}) => FORWARD_HEADERS.some((k) => h[k] !== undefin
 /**
  * Throws ProxyError(403) unless the Host header names this machine
  * (PROXY_ALLOWED_HOSTS, default localhost,127.0.0.1,[::1]; port ignored).
+ * The Host must be exactly a name or [IPv6] literal plus an optional :port.
  */
-export function assertLocalHost(headers, allowed = (process.env.PROXY_ALLOWED_HOSTS || 'localhost,127.0.0.1,[::1]').split(',').map((s) => s.trim().toLowerCase())) {
-  const raw = String(headers.host || '').toLowerCase();
-  const host = raw.startsWith('[') ? raw.slice(0, raw.indexOf(']') + 1) : raw.replace(/:\d+$/, '');
-  if (!allowed.includes(host)) throw new ProxyError(403, 'Host not allowed');
+export function assertLocalHost(headers, allowed = (process.env.PROXY_ALLOWED_HOSTS || 'localhost,127.0.0.1,[::1]').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)) {
+  const m = /^(\[[0-9a-f:.]+\]|[^:\[\]]+)(?::\d+)?$/.exec(String(headers.host || '').toLowerCase());
+  if (!m || !allowed.includes(m[1])) throw new ProxyError(403, 'Host not allowed');
 }
 
 const sessionCache = new Map();
@@ -204,9 +204,14 @@ export async function guardGatewayRequest(auth, req, fetchImpl = fetch) {
   const remote = req.socket?.remoteAddress;
   // A loopback socket with forwarding headers is a tunnel or reverse proxy
   // relaying someone else, not a caller on this machine.
-  if (!isLoopback(remote) || viaProxy(req.headers)) {
-    throw new ProxyError(403, 'This route is only available from this machine');
+  if (viaProxy(req.headers)) {
+    throw new ProxyError(
+      403,
+      'This request came through a tunnel or proxy, which the dev gateway does not accept. ' +
+        'Run `npm run proxy` (server.js) and call it with a token (Authorization: Bearer ...) instead.'
+    );
   }
+  if (!isLoopback(remote)) throw new ProxyError(403, 'This route is only available from this machine');
   assertBrowserSafe(auth, req.headers, ownOrigins(req.headers));
   return authenticate(auth, req.headers, remote, fetchImpl);
 }

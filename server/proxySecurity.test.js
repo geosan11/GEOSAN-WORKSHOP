@@ -228,7 +228,11 @@ test('local-dev: forwarded loopback requests get no loopback trust', async () =>
   assert.equal((await authenticate(keyAuth, { 'x-forwarded-for': '203.0.113.5', authorization: 'Bearer k3y' }, '127.0.0.1')).kind, 'api-key');
   // The dev gateway refuses relayed requests outright.
   const req = { socket: { remoteAddress: '127.0.0.1' }, headers: { host: '127.0.0.1:3000', 'content-type': 'application/json', 'x-forwarded-for': '203.0.113.5' } };
-  await assert.rejects(guardGatewayRequest(devAuth, req), { status: 403 });
+  await assert.rejects(guardGatewayRequest(devAuth, req), { status: 403, message: /tunnel or proxy.*npm run proxy/ });
+  await assert.rejects(
+    guardGatewayRequest(devAuth, { socket: { remoteAddress: '10.0.0.5' }, headers: { host: '127.0.0.1:3000', 'content-type': 'application/json' } }),
+    { status: 403, message: 'This route is only available from this machine' }
+  );
 });
 
 test('assertLocalHost only accepts this machine', () => {
@@ -239,4 +243,25 @@ test('assertLocalHost only accepts this machine', () => {
     assert.doesNotThrow(() => assertLocalHost({ host }), host);
   }
   assert.doesNotThrow(() => assertLocalHost({ host: 'proxy.example.com:443' }, ['proxy.example.com']));
+  // Junk after an IPv6 literal, a bare port, or extra colons never parse as a host.
+  for (const host of ['[::1]evil', '[::1]evil:3001', '[::1]:3001x', ':3001', 'localhost:3001:1', '[::1']) {
+    assert.throws(() => assertLocalHost({ host }), { status: 403 }, host);
+  }
+});
+
+test('assertLocalHost: a trailing comma in PROXY_ALLOWED_HOSTS does not admit an empty Host', () => {
+  const saved = process.env.PROXY_ALLOWED_HOSTS;
+  process.env.PROXY_ALLOWED_HOSTS = 'localhost,';
+  try {
+    assert.throws(() => assertLocalHost({ host: '' }), { status: 403 });
+    assert.throws(() => assertLocalHost({}), { status: 403 });
+    assert.doesNotThrow(() => assertLocalHost({ host: 'localhost' }));
+    assert.throws(() => assertLocalHost({ host: '127.0.0.1:3001' }), { status: 403 });
+  } finally {
+    if (saved === undefined) delete process.env.PROXY_ALLOWED_HOSTS;
+    else process.env.PROXY_ALLOWED_HOSTS = saved;
+  }
+  for (const host of ['[::1]:3001', 'localhost', '127.0.0.1:3001']) {
+    assert.doesNotThrow(() => assertLocalHost({ host }), host);
+  }
 });
