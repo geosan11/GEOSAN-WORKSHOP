@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Conversation, ChatMessage } from '../lib/types';
 import { MOCK_CONVERSATIONS, MOCK_CHAT_MESSAGES } from '../lib/mockData';
 import { useToast } from '../components/Toast';
+import { proxyAuthHeaders, proxyUrl } from '../lib/proxyAuth';
 
 const readAllConversations = (): Conversation[] => {
   if (typeof window === 'undefined') return [...MOCK_CONVERSATIONS];
@@ -109,11 +110,13 @@ export function useChat(projectId: string) {
 
       if (role === 'user') {
         try {
-          const res = await fetch('/api/ai/chat', {
+          const res = await fetch(proxyUrl('/api/ai/chat'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...proxyAuthHeaders() },
             body: JSON.stringify({
-              messages: [...allMsgs, newMsg],
+              messages: [...allMsgs, newMsg]
+                .filter((m: ChatMessage) => m.conversation_id === conversationId)
+                .map((m: ChatMessage) => ({ role: m.role, content: m.content })),
               project_id: projectId,
             }),
           });

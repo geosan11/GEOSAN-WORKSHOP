@@ -10,6 +10,60 @@
 import http from 'http';
 import { getBudgetLedger, admitBudget, AdmitRequest, WeeklyLedgerState } from './budgetLedger.ts';
 import { INITIAL_LEARNING_RECORDS, exportAsJSONL, exportAsSystemPrompt, LearningRecord } from '../src/lib/llmLearningStore.ts';
+import {
+  ProxyError,
+  addLearningRecord,
+  guardGatewayRequest,
+  loadLearningLimits,
+  loadAuthConfig,
+  loadProjectCredentials,
+  ownOrigins,
+  prepareGitHubRequest,
+  validateLearningPayload,
+} from './proxySecurity.js';
+
+let proxySecurity: { auth: any; projects: Map<string, any>; errors: string[] } | null = null;
+function getProxySecurity() {
+  if (!proxySecurity) {
+    const auth = loadAuthConfig();
+    const { projects, errors } = loadProjectCredentials();
+    proxySecurity = { auth, projects, errors: [...auth.errors, ...errors] };
+  }
+  return proxySecurity;
+}
+
+/**
+ * Shared guard for the gateway's proxy and git sync routes. Answers 503 when
+ * the proxy isn't configured (Demo Mode keeps working: the client falls back
+ * to mock data), otherwise loopback only, then assertBrowserSafe, then
+ * authenticate. Throws ProxyError on refusal.
+ */
+async function guardProxyRoute(req: http.IncomingMessage, what: string) {
+  const security = getProxySecurity();
+  if (security.errors.length > 0) {
+    const err = new ProxyError(503, `${what} is not configured`) as ProxyError & { details?: string[] };
+    err.details = security.errors;
+    throw err;
+  }
+  await guardGatewayRequest(security.auth, req);
+  return security;
+}
+
+function sendProxyError(res: http.ServerResponse, err: any, label: string) {
+  const send = (status: number, payload: unknown) => {
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(payload));
+  };
+  if (err instanceof ProxyError) {
+    const details = (err as any).details;
+    send((err as any).status, details ? { error: err.message, details } : { error: err.message });
+  } else if (err instanceof SyntaxError) {
+    send(400, { error: 'Invalid JSON' });
+  } else {
+    console.error(`${label} error:`, err);
+    send(500, { error: `${label} Error` });
+  }
+}
 
 // In-memory server-side knowledge records
 let serverLearningRecords: LearningRecord[] = [...INITIAL_LEARNING_RECORDS];
@@ -100,10 +154,15 @@ export function handleTelemetryGateway(
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   const pathname = url.pathname;
 
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // CORS: no wildcard. The app calls the gateway same-origin, so the allow
+  // header is only ever echoed back for the gateway's own origin.
+  const origin = req.headers.origin;
+  if (origin && ownOrigins(req.headers).includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  res.setHeader('Vary', 'Origin');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -175,12 +234,20 @@ export function handleTelemetryGateway(
 
   // 5. Secure Server-Side Git Workflow: POST /api/git/sync or POST /git/sync
   // Keeps GitHub personal access tokens, SSH credentials, and write operations isolated on the server.
+  // Same guard as /api/github/proxy: 503 if unconfigured, loopback only, then
+  // assertBrowserSafe (allowed Origin + JSON), then authenticate.
   if ((pathname === '/api/git/sync' || pathname === '/git/sync') && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
     });
     req.on('end', async () => {
+      try {
+        await guardProxyRoute(req, 'Git sync');
+      } catch (err: any) {
+        sendProxyError(res, err, 'Git sync');
+        return;
+      }
       try {
         const payload = body ? JSON.parse(body) : {};
         const {
@@ -253,6 +320,9 @@ export function handleTelemetryGateway(
   }
 
   // 5b. GitHub API Proxy: POST /api/github/proxy
+  // Same rules as server.js: signed-in callers only, allowlisted endpoints and
+  // methods, and the token of the project that owns the repo. If the proxy is
+  // not configured it answers 503 so the dev server (and Demo Mode) keep working.
   if (pathname === '/api/github/proxy' && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => {
@@ -260,39 +330,21 @@ export function handleTelemetryGateway(
     });
     req.on('end', async () => {
       try {
-        const parsed = body ? JSON.parse(body) : {};
-        const { endpoint, options } = parsed;
-        if (!endpoint) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Missing endpoint' }));
-          return;
-        }
-
-        const serverToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
-        const url = `https://api.github.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-        const headers: Record<string, string> = {
-          'User-Agent': 'AetherOrch-Proxy/1.0',
-          Accept: 'application/vnd.github.v3+json',
-          ...(options?.headers || {}),
-        };
-        if (serverToken) {
-          headers['Authorization'] = `token ${serverToken}`;
-        }
-
-        const ghRes = await fetch(url, {
-          method: options?.method || 'GET',
-          headers,
-          body: options?.body ? JSON.stringify(options.body) : undefined,
+        // `npm run dev` binds 0.0.0.0, so only answer callers on this machine.
+        const security = await guardProxyRoute(req, 'GitHub proxy');
+        const upstream = prepareGitHubRequest(security.projects, body ? JSON.parse(body) : {});
+        const ghRes = await fetch(upstream.url, {
+          method: upstream.method,
+          headers: upstream.headers,
+          body: upstream.body,
         });
-
         const text = await ghRes.text();
         res.writeHead(ghRes.status, {
           'Content-Type': ghRes.headers.get('content-type') || 'application/json',
         });
         res.end(text);
       } catch (err: any) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'GitHub Proxy Error', details: err.message }));
+        sendProxyError(res, err, 'GitHub Proxy');
       }
     });
     return true;
@@ -415,15 +467,25 @@ export function handleTelemetryGateway(
     return true;
   }
 
-  // 8. Record New Learning Event: POST /api/learning/record
-  if (pathname === '/api/learning/record' && req.method === 'POST') {
+  // 8. Record New Learning Event: POST /api/learning/record or POST /learning/record
+  // Records are exported as rules that "must govern" the AI, so this uses the
+  // same guard as git/sync (503 if unconfigured, loopback, Origin + JSON, auth)
+  // and the limits from LEARNING_MAX_RECORDS / LEARNING_MAX_FIELD_BYTES.
+  if ((pathname === '/api/learning/record' || pathname === '/learning/record') && req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
     });
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
-        const payload = body ? JSON.parse(body) : {};
+        await guardProxyRoute(req, 'Learning record');
+      } catch (err: any) {
+        sendProxyError(res, err, 'Learning record');
+        return;
+      }
+      try {
+        const limits = loadLearningLimits();
+        const payload = validateLearningPayload(body ? JSON.parse(body) : {}, limits);
         const newRecord: LearningRecord = {
           id: `learn-srv-${Date.now()}`,
           projectId: payload.projectId || 'proj-general',
@@ -442,14 +504,13 @@ export function handleTelemetryGateway(
           tags: payload.tags || ['custom-fix']
         };
 
-        serverLearningRecords.unshift(newRecord);
+        addLearningRecord(serverLearningRecords, newRecord, limits.maxRecords);
         broadcastStatusUpdate();
 
         res.writeHead(201, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: true, record: newRecord }));
       } catch (err: any) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ success: false, error: err.message || 'Invalid learning payload' }));
+        sendProxyError(res, err, 'Learning record');
       }
     });
     return true;

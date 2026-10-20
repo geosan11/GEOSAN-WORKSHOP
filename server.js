@@ -1,145 +1,125 @@
 import express from 'express';
-import cors from 'cors';
+import 'dotenv/config';
+import {
+  ProxyError,
+  assertBrowserSafe,
+  assertLocalHost,
+  authenticate,
+  corsHeaders,
+  loadAuthConfig,
+  loadProjectCredentials,
+  prepareAiRequest,
+  prepareGitHubRequest,
+} from './server/proxySecurity.js';
+
+// Refuse to start with missing or incomplete credentials. There are no
+// placeholder keys and no cross-project fallback.
+const auth = loadAuthConfig();
+const { projects, errors } = loadProjectCredentials();
+const startupErrors = [...auth.errors, ...errors];
+if (startupErrors.length > 0) {
+  console.error('Proxy not started. Fix these settings (see .env.example):');
+  for (const e of startupErrors) console.error(`  - ${e}`);
+  process.exit(1);
+}
+for (const p of projects.values()) {
+  const ai = [p.openaiApiKey && 'openai', p.anthropicApiKey && 'anthropic'].filter(Boolean);
+  console.log(`Project ${p.id}: ${p.repos.size} repo(s), AI providers: ${ai.join(', ') || 'none'}`);
+}
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '2mb' }));
 
-// Fake Vault for the proxy
-const VAULT = {
-  "proj-ehi-001": {
-    github_token: process.env.GITHUB_TOKEN || "ghp_fake_token_for_ehi_123",
-    openai_api_key: process.env.OPENAI_API_KEY || "sk-fake-openai-token",
-    anthropic_api_key: process.env.ANTHROPIC_API_KEY || "sk-ant-fake-anthropic-token",
-  },
-  "proj-iya-001": {
-    github_token: process.env.GITHUB_TOKEN || "ghp_fake_token_for_iya_456",
-  }
-};
-
-app.post('/api/github/proxy', async (req, res) => {
-  const { endpoint, options, project_id } = req.body;
-  const credentials = VAULT[project_id] || VAULT["proj-ehi-001"];
-
-  if (!endpoint) {
-    return res.status(400).json({ error: 'Missing endpoint' });
-  }
-
-  const url = `https://api.github.com${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-  
-  const headers = { ...options?.headers, 'User-Agent': 'AetherOrch-Proxy' };
-  
-  // Inject the server-side token securely
-  if (credentials && credentials.github_token) {
-    headers['Authorization'] = `token ${credentials.github_token}`;
-  }
-
+// CORS allowlist (PROXY_ALLOWED_ORIGINS); same-origin requests carry no Origin.
+app.use((req, res, next) => {
   try {
-    const ghRes = await fetch(url, {
-      method: options?.method || 'GET',
-      headers,
-      body: options?.body ? JSON.stringify(options.body) : undefined
+    res.set(corsHeaders(auth, req.headers.origin));
+  } catch (err) {
+    return res.status(err.status).json({ error: err.message });
+  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  next();
+});
+
+// Every /api route requires a signed-in caller.
+app.use('/api', async (req, res, next) => {
+  try {
+    assertLocalHost(req.headers);
+    assertBrowserSafe(auth, req.headers);
+    req.user = await authenticate(auth, req.headers, req.socket.remoteAddress);
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.post('/api/github/proxy', async (req, res, next) => {
+  try {
+    const upstream = prepareGitHubRequest(projects, req.body || {});
+    const ghRes = await fetch(upstream.url, {
+      method: upstream.method,
+      headers: upstream.headers,
+      body: upstream.body,
     });
 
-    // Proxy headers back for Rate Limit info
     for (const [key, val] of ghRes.headers.entries()) {
-      if (key.toLowerCase().startsWith('x-ratelimit-')) {
-        res.setHeader(key, val);
-      }
+      if (key.toLowerCase().startsWith('x-ratelimit-')) res.setHeader(key, val);
     }
-
-    if (ghRes.status === 204) {
-      return res.status(204).send();
-    }
-
-    const text = await ghRes.text();
-    res.status(ghRes.status).send(text);
-  } catch (error) {
-    console.error('Proxy Error:', error);
-    res.status(500).json({ message: 'Internal Proxy Error', details: error.message });
+    if (ghRes.status === 204) return res.status(204).send();
+    res.status(ghRes.status).type(ghRes.headers.get('content-type') || 'application/json').send(await ghRes.text());
+  } catch (err) {
+    next(err);
   }
 });
 
-// AI Inference Endpoint
-app.post('/api/ai/chat', async (req, res) => {
-  const { messages, project_id, modelId } = req.body;
-  const credentials = VAULT[project_id] || VAULT["proj-ehi-001"];
-
-  if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'Missing or invalid messages array' });
-  }
-
+app.post('/api/ai/chat', async (req, res, next) => {
   try {
-    let aiResponseText = '';
+    const ai = prepareAiRequest(projects, req.body || {});
+    let reply = '';
 
-    // Route to Anthropic (Claude)
-    if (modelId?.includes('claude')) {
-      const url = 'https://api.anthropic.com/v1/messages';
-      const systemMessage = messages.find(m => m.role === 'system');
-      const userMessages = messages.filter(m => m.role !== 'system');
-      
-      const payload = {
-        model: modelId || 'claude-3-7-sonnet-20250219',
-        max_tokens: 4096,
-        system: systemMessage ? systemMessage.content : "You are an intelligent architecture assistant.",
-        messages: userMessages.map(m => ({ role: m.role, content: m.content }))
-      };
-
-      const anthropicRes = await fetch(url, {
+    if (ai.provider === 'anthropic') {
+      const system = ai.messages.find((m) => m.role === 'system');
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers: {
-          'x-api-key': credentials.anthropic_api_key,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        headers: { 'x-api-key': ai.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: ai.model,
+          max_tokens: 4096,
+          system: system ? system.content : 'You are an intelligent architecture assistant.',
+          messages: ai.messages.filter((m) => m.role !== 'system'),
+        }),
       });
-      
-      if (!anthropicRes.ok) {
-        throw new Error(`Anthropic Error: ${await anthropicRes.text()}`);
-      }
-      const data = await anthropicRes.json();
-      aiResponseText = data.content?.[0]?.text || '';
-    } 
-    // Default route to OpenAI (GPT/DeepSeek simulated)
-    else {
-      const url = 'https://api.openai.com/v1/chat/completions';
-      
-      // Convert internal roles to OpenAI expected roles (e.g. tool -> user/assistant depending)
-      const openaiMessages = messages.map(m => ({
-        role: m.role,
-        content: m.content
-      }));
-
-      const payload = {
-        model: modelId || 'gpt-4o',
-        messages: openaiMessages
-      };
-
-      const openaiRes = await fetch(url, {
+      if (!r.ok) throw new ProxyError(502, `Anthropic returned HTTP ${r.status}`);
+      const data = await r.json();
+      reply = data.content?.[0]?.text || '';
+    } else {
+      const r = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${credentials.openai_api_key}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        headers: { Authorization: `Bearer ${ai.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: ai.model, messages: ai.messages }),
       });
-
-      if (!openaiRes.ok) {
-        throw new Error(`OpenAI Error: ${await openaiRes.text()}`);
-      }
-      const data = await openaiRes.json();
-      aiResponseText = data.choices?.[0]?.message?.content || '';
+      if (!r.ok) throw new ProxyError(502, `OpenAI returned HTTP ${r.status}`);
+      const data = await r.json();
+      reply = data.choices?.[0]?.message?.content || '';
     }
 
-    res.status(200).json({ reply: aiResponseText });
-  } catch (error) {
-    console.error('AI Proxy Error:', error);
-    res.status(500).json({ error: 'AI inference failed', details: error.message });
+    res.status(200).json({ reply });
+  } catch (err) {
+    next(err);
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`Orchestrator Backend running on http://localhost:${PORT}`);
+// Upstream error bodies and stack traces stay in the server log.
+app.use((err, req, res, _next) => {
+  if (err instanceof ProxyError) return res.status(err.status).json({ error: err.message });
+  if (err instanceof SyntaxError) return res.status(400).json({ error: 'Invalid JSON' });
+  console.error(`${req.method} ${req.path} failed:`, err);
+  res.status(500).json({ error: 'Internal proxy error' });
+});
+
+const PORT = Number(process.env.PROXY_PORT || 3001);
+const HOST = process.env.PROXY_HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`Orchestrator backend running on http://${HOST}:${PORT}`);
 });
