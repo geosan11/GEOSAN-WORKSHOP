@@ -118,7 +118,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (supabase) {
       try {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (!error && data?.session && data?.user) {
+        // The REST token endpoint returns { access_token, user, ... } at the top level.
+        const accessToken: string | undefined = data?.session?.access_token ?? data?.access_token;
+        if (!error && accessToken && data?.user) {
           const authUser: AuthUser = {
             id: data.user.id,
             email: data.user.email || email,
@@ -130,7 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           const sess: AuthSession = {
             user: authUser,
-            access_token: data.session.access_token || 'prod-supabase-session'
+            access_token: accessToken
           };
           localStorage.setItem('ehi_auth_session', JSON.stringify(sess));
           setSession(sess);
