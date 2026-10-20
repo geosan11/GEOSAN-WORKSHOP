@@ -54,7 +54,10 @@ function viteEnv(): AuthEnv {
   return {
     VITE_DEMO_MODE: readVar(() => import.meta.env.VITE_DEMO_MODE),
     VITE_OWNER_USER_ID: readVar(() => import.meta.env.VITE_OWNER_USER_ID),
-    VITE_OWNER_EMAILS: readVar(() => import.meta.env.VITE_OWNER_EMAILS),
+    // Emails are only a fallback for when no owner id is set. Written as a
+    // static ternary so that, when VITE_OWNER_USER_ID is set, Vite folds it
+    // away and the owner's email never reaches the public bundle.
+    VITE_OWNER_EMAILS: readVar(() => (import.meta.env.VITE_OWNER_USER_ID ? undefined : import.meta.env.VITE_OWNER_EMAILS)),
   };
 }
 

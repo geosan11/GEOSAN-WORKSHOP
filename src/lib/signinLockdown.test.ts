@@ -1,7 +1,10 @@
 // Run: npx tsx --test src/lib/signinLockdown.test.ts
 import { test, mock, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const store = new Map<string, string>();
 (globalThis as any).localStorage = {
@@ -12,11 +15,12 @@ const store = new Map<string, string>();
 
 type Call = { url: string; method: string; headers: Record<string, string>; body?: any };
 let calls: Call[] = [];
-let respond: (c: Call) => { status: number; body: any } = () => ({ status: 200, body: [] });
+type Reply = { status: number; body: any };
+let respond: (c: Call) => Reply | Promise<Reply> = () => ({ status: 200, body: [] });
 (globalThis as any).fetch = async (url: string, init: any = {}) => {
   const c: Call = { url, method: init.method || 'GET', headers: init.headers || {}, body: init.body ? JSON.parse(init.body) : undefined };
   calls.push(c);
-  const r = respond(c);
+  const r = await respond(c);
   return new Response(JSON.stringify(r.body), { status: r.status });
 };
 
@@ -41,8 +45,8 @@ const isTokenCall = (c: Call) => c.url.includes('/auth/v1/token');
 const isRefresh = (c: Call) => c.url.includes('grant_type=refresh_token');
 const restCalls = () => calls.filter((c) => c.url.includes('/rest/v1/'));
 const clients: any[] = [];
-const newClient = (events: any = null) => {
-  const c = new ProductionSupabaseClient('https://example.supabase.co', ANON, { events });
+const newClient = (events: any = null, locks: any = null) => {
+  const c = new ProductionSupabaseClient('https://example.supabase.co', ANON, { events, locks } as any);
   clients.push(c);
   return c;
 };
@@ -571,4 +575,200 @@ test('sign-out revokes on the server, even when the access token has already exp
   assert.ok(isRefresh(calls[0]));
   assert.equal(calls[1].url, 'https://example.supabase.co/auth/v1/logout');
   assert.equal(calls[1].headers.Authorization, `Bearer ${revoke.access_token}`);
+});
+
+// --- 10. Sign-out / cross-tab change during an in-flight refresh -------------
+const delay = <T>(ms: number, v: T) => new Promise<T>((r) => setTimeout(() => r(v), ms));
+
+test('sign-out during an in-flight refresh: the refresh result is discarded', async () => {
+  save({ ...live(30), refresh_token: 'rt-old', user: owner });
+  respond = (c) => (isRefresh(c) ? delay(20, { status: 200, body: tokenResponse() }) : { status: 200, body: {} });
+  const c = newClient();
+  const seen: string[] = [];
+  c.auth.onAuthStateChange((e) => seen.push(e));
+  const pending = Promise.resolve(c.from('p').select()); // the builder runs on .then
+  await flush();
+  assert.equal(calls.filter(isRefresh).length, 1, 'refresh in flight');
+  await c.auth.signOut();
+  await pending;
+  await delay(30, null);
+  assert.equal(saved(), null, 'session not brought back');
+  assert.deepEqual(seen, ['SIGNED_OUT']);
+});
+
+test('cross-tab sign-out during an in-flight refresh: the refresh result is discarded', async () => {
+  const events = new EventTarget();
+  save({ ...live(30), refresh_token: 'rt-old', user: owner });
+  respond = (c) => (isRefresh(c) ? delay(20, { status: 200, body: tokenResponse() }) : { status: 200, body: [] });
+  const c = newClient(events);
+  const seen: string[] = [];
+  c.auth.onAuthStateChange((e) => seen.push(e));
+  const pending = Promise.resolve(c.from('p').select()); // the builder runs on .then
+  await flush();
+  assert.equal(calls.filter(isRefresh).length, 1, 'refresh in flight');
+  store.delete(SESSION_STORAGE_KEY); // the other tab signed out
+  events.dispatchEvent(Object.assign(new Event('storage'), { key: SESSION_STORAGE_KEY }));
+  await pending;
+  assert.equal(saved(), null);
+  assert.deepEqual(seen, ['SIGNED_OUT']);
+});
+
+test('a refresh whose refresh token was replaced meanwhile is discarded', async () => {
+  save({ ...live(30), refresh_token: 'rt-old', user: owner });
+  respond = (c) => (isRefresh(c) ? delay(20, { status: 200, body: tokenResponse() }) : { status: 200, body: [] });
+  const c = newClient();
+  const pending = Promise.resolve(c.from('p').select()); // the builder runs on .then
+  await flush();
+  assert.equal(calls.filter(isRefresh).length, 1, 'refresh in flight');
+  save({ ...live(3600, OWNER_ID, 'other'), refresh_token: 'rt-other', user: owner }); // no storage event yet
+  await pending;
+  assert.equal(saved().refresh_token, 'rt-other', 'the other session is not overwritten');
+});
+
+// --- 11. Multi-tab refresh race ----------------------------------------------
+/** A FIFO lock like navigator.locks, shared by the "tabs". */
+const makeLocks = () => {
+  let tail: Promise<unknown> = Promise.resolve();
+  const names: string[] = [];
+  return {
+    names,
+    request<T>(name: string, cb: () => Promise<T>): Promise<T> {
+      names.push(name);
+      const run = tail.then(() => cb());
+      tail = run.catch(() => {});
+      return run;
+    },
+  };
+};
+/** Supabase-like rotation: the first use of rt-old succeeds, any reuse is rejected. */
+const rotatingServer = () => {
+  const used = new Set<string>();
+  return (c: Call) => {
+    if (!isRefresh(c)) return { status: 200, body: [] };
+    const rt = c.body.refresh_token;
+    if (used.has(rt)) return delay(30, { status: 400, body: { code: 400, error_code: 'refresh_token_already_used', msg: 'Invalid Refresh Token: Already Used' } });
+    used.add(rt);
+    return delay(10, { status: 200, body: tokenResponse() });
+  };
+};
+
+test('two tabs refreshing at once: one network refresh under the lock, the other tab adopts it', async () => {
+  save({ ...live(30), refresh_token: 'rt-old', user: owner });
+  respond = rotatingServer();
+  const locks = makeLocks();
+  const a = newClient(null, locks);
+  const b = newClient(null, locks);
+  const seen: string[] = [];
+  a.auth.onAuthStateChange((e) => seen.push(`a:${e}`));
+  b.auth.onAuthStateChange((e) => seen.push(`b:${e}`));
+  await Promise.all([a.from('p').select(), b.from('p').select()]);
+  assert.equal(calls.filter(isRefresh).length, 1, 'only one tab hit the network');
+  assert.deepEqual(locks.names, ['ehi_auth_refresh', 'ehi_auth_refresh']);
+  assert.equal(saved().refresh_token, 'rt-new');
+  assert.deepEqual(seen.sort(), ['a:TOKEN_REFRESHED', 'b:TOKEN_REFRESHED']);
+  for (const r of restCalls()) assert.equal(r.headers.Authorization, `Bearer ${saved().access_token}`);
+});
+
+test('without locks: a rejected refresh adopts the newer token another tab stored instead of signing out', async () => {
+  save({ ...live(30), refresh_token: 'rt-old', user: owner });
+  respond = rotatingServer();
+  const a = newClient();
+  const b = newClient();
+  const seen: string[] = [];
+  a.auth.onAuthStateChange((e) => seen.push(`a:${e}`));
+  b.auth.onAuthStateChange((e) => seen.push(`b:${e}`));
+  await Promise.all([a.from('p').select(), b.from('p').select()]);
+  assert.equal(calls.filter(isRefresh).length, 2, 'both tabs raced');
+  assert.equal(saved()?.refresh_token, 'rt-new', 'still signed in');
+  assert.ok(!seen.some((e) => e.endsWith('SIGNED_OUT')), seen.join());
+  for (const r of restCalls()) assert.equal(r.headers.Authorization, `Bearer ${saved().access_token}`);
+});
+
+// --- 12. Short lifetimes, missing expires_in -----------------------------------
+test('very short token lifetimes (20 s) refresh on schedule and never drift into backoff', async () => {
+  mock.timers.enable({ apis: ['setTimeout', 'Date'], now: SERVER_START });
+  try {
+    let n = 0;
+    respond = (c) => (isTokenCall(c) ? { status: 200, body: tokenResponse(20, owner, `s${++n}`) } : { status: 200, body: [] });
+    const c = newClient();
+    await c.auth.signInWithPassword({ email: 'sanni@example.com', password: 'pw' });
+    for (let t = 0; t < 300; t++) {
+      await c.from('p').select();
+      mock.timers.tick(1_000);
+      await flush();
+    }
+    assert.ok(restCalls().every((r) => r.headers.Authorization !== `Bearer ${ANON}`), 'every request had a live token');
+    const refreshes = calls.filter(isRefresh).length;
+    assert.ok(refreshes >= 28 && refreshes <= 31, `refreshes every ~10 s, got ${refreshes}`);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test('a refresh without a usable expires_in keeps the rotated tokens with a 5 min fallback expiry', async () => {
+  for (const extra of [{}, { expires_in: 0 }, { expires_in: 'soon' }]) {
+    store.clear();
+    calls = [];
+    save({ ...live(-5), refresh_token: 'rt-old', user: owner });
+    const body: any = { access_token: jwt(3600, OWNER_ID, 'noexp'), refresh_token: 'rt-rotated', token_type: 'bearer', ...extra };
+    respond = (c) => (isRefresh(c) ? { status: 200, body } : { status: 200, body: [] });
+    const before = Date.now();
+    const r = await newClient().auth.refreshSession();
+    assert.equal(r.error, null, JSON.stringify(extra));
+    assert.equal(saved().refresh_token, 'rt-rotated');
+    assert.equal(saved().expires_in, 300);
+    assert.ok(Math.abs(saved().expiresAtLocal - (before + 300_000)) < 2_000);
+  }
+});
+
+// --- 13. Proxy cache drop on sign-out -----------------------------------------
+test('sign-out calls the pre-sign-out hook (proxy cache drop) before revoking, best effort', async () => {
+  save({ ...live(3600), refresh_token: 'rt', user: owner });
+  const token = saved().access_token;
+  const order: string[] = [];
+  respond = (c) => {
+    order.push(c.url.replace('https://example.supabase.co', ''));
+    return { status: 200, body: {} };
+  };
+  const c = newClient();
+  c.setBeforeSignOut(async (t: string) => void order.push(`hook:${t === token}`));
+  await c.auth.signOut();
+  assert.deepEqual(order, ['hook:true', '/auth/v1/logout']);
+
+  // A failing hook does not stop the sign-out or the revoke.
+  order.length = 0;
+  save({ ...live(3600), refresh_token: 'rt', user: owner });
+  const c2 = newClient();
+  c2.setBeforeSignOut(() => {
+    throw new Error('proxy down');
+  });
+  await c2.auth.signOut();
+  assert.equal(saved(), null);
+  assert.deepEqual(order, ['/auth/v1/logout']);
+});
+
+// --- 14. Owner email not in the bundle -----------------------------------------
+test('built bundle: the owner email is left out when VITE_OWNER_USER_ID is set', { skip: process.env.SKIP_BUNDLE_TEST === '1' }, () => {
+  const root = new URL('../../', import.meta.url).pathname;
+  const build = (env: Record<string, string>) => {
+    const out = mkdtempSync(join(tmpdir(), 'ehi-bundle-'));
+    const r = spawnSync('npx', ['vite', 'build', '--outDir', out, '--emptyOutDir', '--logLevel', 'error'], {
+      cwd: root,
+      env: { ...process.env, VITE_SUPABASE_URL: 'https://sentinel.example', VITE_SUPABASE_ANON_KEY: 'SENTINEL_ANON', VITE_UNRELATED_SECRET: 'SENTINEL_UNRELATED', ...env },
+      encoding: 'utf8',
+    });
+    assert.equal(r.status, 0, r.stderr);
+    const js = readdirSync(join(out, 'assets'))
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => readFileSync(join(out, 'assets', f), 'utf8'))
+      .join('\n');
+    rmSync(out, { recursive: true, force: true });
+    return js;
+  };
+  const withId = build({ VITE_OWNER_USER_ID: 'SENTINEL_OWNER_ID', VITE_OWNER_EMAILS: 'sentinel-owner@example.com' });
+  assert.ok(withId.includes('SENTINEL_OWNER_ID'));
+  assert.ok(!withId.includes('sentinel-owner@example.com'), 'owner email must not be in the bundle');
+  assert.ok(!withId.includes('SENTINEL_UNRELATED'), 'unrelated VITE_ vars must not be in the bundle');
+  const emailOnly = build({ VITE_OWNER_USER_ID: '', VITE_OWNER_EMAILS: 'sentinel-owner@example.com' });
+  assert.ok(emailOnly.includes('sentinel-owner@example.com'), 'email fallback still works when no id is set');
 });

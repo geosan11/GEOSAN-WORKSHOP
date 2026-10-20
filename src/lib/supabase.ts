@@ -17,8 +17,18 @@ export const REFRESH_MARGIN_SECONDS = 60;
 export const MIN_REFRESH_DELAY_MS = 5_000;
 /** Upper bound for the exponential backoff after failed or repeated refreshes. */
 export const MAX_REFRESH_BACKOFF_MS = 5 * 60_000;
-/** A successful refresh this soon after the previous one counts as "repeated" and backs off. */
+/**
+ * A successful refresh sooner than min(30 s, lifetime / 4) after the previous
+ * one counts as "repeated" and backs off. Scaling with the lifetime keeps very
+ * short-lived tokens (refreshed every lifetime / 2) out of the backoff.
+ */
 const REPEATED_REFRESH_WINDOW_MS = 30_000;
+/** Used when the token endpoint gives no usable expires_in (and no exp - iat). */
+export const FALLBACK_TOKEN_LIFETIME_SECONDS = 5 * 60;
+/** navigator.locks name that serialises refreshes across tabs. */
+export const REFRESH_LOCK_NAME = 'ehi_auth_refresh';
+/** How long sign-out waits for the pre-sign-out hook (proxy cache drop) before revoking. */
+const SIGN_OUT_HOOK_TIMEOUT_MS = 2_000;
 
 /**
  * A Supabase session as returned by /auth/v1/token, plus expiresAtLocal.
@@ -121,16 +131,18 @@ function normalizeSession(json: any, previous: StoredSession | null | undefined,
   const session: StoredSession = { ...json };
   delete session.expiresAtLocal;
   if (!session.user && previous?.user) session.user = previous.user;
-  let lifetime: number | null = finite(json.expires_in) ? json.expires_in : null;
+  const usable = (v: unknown): v is number => finite(v) && v > 0;
+  let lifetime: number | null = usable(json.expires_in) ? json.expires_in : null;
   if (lifetime === null) {
     // No expires_in: exp - iat is a duration, so it is still clock-independent.
     const p = jwtPayload(String(session.access_token));
-    if (finite(p?.exp) && finite(p?.iat)) lifetime = p.exp - p.iat;
+    if (finite(p?.exp) && finite(p?.iat) && usable(p.exp - p.iat)) lifetime = p.exp - p.iat;
   }
-  if (lifetime !== null) {
-    session.expires_in = lifetime;
-    session.expiresAtLocal = requestedAt + lifetime * 1000;
-  }
+  // Still nothing usable: keep the (rotated) tokens with a short, conservative
+  // expiry rather than dropping them; we just refresh again sooner.
+  if (lifetime === null) lifetime = FALLBACK_TOKEN_LIFETIME_SECONDS;
+  session.expires_in = lifetime;
+  session.expiresAtLocal = requestedAt + lifetime * 1000;
   return session;
 }
 
@@ -290,9 +302,16 @@ export interface AuthEventSource {
   removeEventListener(type: string, listener: (event: any) => void): void;
 }
 
+/** The part of navigator.locks we use. */
+export interface RefreshLockManager {
+  request<T>(name: string, callback: () => Promise<T>): Promise<T>;
+}
+
 export interface ClientOptions {
   /** Defaults to window when there is one. Pass null to listen to nothing. */
   events?: AuthEventSource | null;
+  /** Defaults to navigator.locks when available. Pass null to run refreshes without a cross-tab lock. */
+  locks?: RefreshLockManager | null;
 }
 
 export class ProductionSupabaseClient implements AccessTokenSource {
@@ -318,7 +337,15 @@ export class ProductionSupabaseClient implements AccessTokenSource {
   private retryPending = false;
   /** The access token this tab last saw in storage, to spot other tabs' changes. */
   private knownToken: string | null = null;
+  /**
+   * Bumped on sign-in, sign-out and any cross-tab session change. A refresh
+   * that started under an older generation is discarded, so a sign-out
+   * during an in-flight refresh can't bring the session back.
+   */
+  private generation = 0;
   private events: AuthEventSource | null;
+  private locks: RefreshLockManager | null;
+  private beforeSignOut: ((accessToken: string) => unknown) | null = null;
 
   constructor(url: string, apikey: string, options: ClientOptions = {}) {
     this.url = url.replace(/\/+$/, '');
@@ -332,6 +359,9 @@ export class ProductionSupabaseClient implements AccessTokenSource {
           : null;
     this.events?.addEventListener('online', this.onOnline);
     this.events?.addEventListener('storage', this.onStorage);
+    const navLocks = (globalThis as any).navigator?.locks;
+    this.locks =
+      options.locks !== undefined ? options.locks : navLocks && typeof navLocks.request === 'function' ? navLocks : null;
 
     this.auth = {
       getSession: async () => {
@@ -368,6 +398,7 @@ export class ProductionSupabaseClient implements AccessTokenSource {
             return { data: null, error: new Error(json.msg || json.error_description || 'Authentication failed') };
           }
           const session = normalizeSession(json, null, requestedAt);
+          this.generation++;
           this.resetRefreshState();
           this.store(session);
           this.scheduleRefresh(session);
@@ -386,10 +417,13 @@ export class ProductionSupabaseClient implements AccessTokenSource {
       signOut: async () => {
         const saved = readStoredSession();
         this.endSession();
+        let token = saved && isJwt(saved.access_token) && !isSessionExpired(saved) ? saved.access_token : null;
+        // Best effort, first: let our own proxy drop this token from its
+        // session cache (setBeforeSignOut), so it stops accepting it now.
+        if (token && this.beforeSignOut) await this.runBeforeSignOut(token);
         // Best effort: revoke the refresh token on the server too. /logout
         // needs a live access token, so swap the refresh token for one first
         // if ours has expired (the new session is used only to revoke).
-        let token = saved && isJwt(saved.access_token) && !isSessionExpired(saved) ? saved.access_token : null;
         try {
           if (!token && saved && isJwt(saved.access_token) && saved.refresh_token) {
             const res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
@@ -414,6 +448,31 @@ export class ProductionSupabaseClient implements AccessTokenSource {
         return { data: { subscription: { unsubscribe: () => void this.listeners.delete(cb) } } };
       },
     };
+  }
+
+  /**
+   * Called with the access token at sign-out, before the Supabase revoke
+   * (e.g. to tell our proxy to drop the token from its cache). Best effort:
+   * errors are ignored and it gets at most 2 s.
+   */
+  setBeforeSignOut(hook: ((accessToken: string) => unknown) | null) {
+    this.beforeSignOut = hook;
+  }
+
+  private async runBeforeSignOut(token: string) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => this.beforeSignOut?.(token)),
+        new Promise((resolve) => {
+          timer = setTimeout(resolve, SIGN_OUT_HOOK_TIMEOUT_MS);
+          (timer as any)?.unref?.();
+        }),
+      ]);
+    } catch {
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /** Stop timers and event listeners (tests, hot reload). */
@@ -460,6 +519,7 @@ export class ProductionSupabaseClient implements AccessTokenSource {
 
   /** Clear the stored session and tell listeners we're signed out. */
   private endSession() {
+    this.generation++;
     this.clearTimer();
     this.resetRefreshState();
     clearStoredSession();
@@ -502,6 +562,7 @@ export class ProductionSupabaseClient implements AccessTokenSource {
     if (nextToken === this.knownToken) return;
     const had = this.knownToken;
     this.knownToken = nextToken;
+    this.generation++;
     if (!next || !nextToken) {
       this.clearTimer();
       this.resetRefreshState();
@@ -518,12 +579,14 @@ export class ProductionSupabaseClient implements AccessTokenSource {
 
   /**
    * Swap the refresh token for a new session via
-   * /auth/v1/token?grant_type=refresh_token. One refresh at a time (Supabase
-   * rotates refresh tokens, so parallel refreshes would race), and never more
-   * often than the backoff allows. Signs out only when Supabase definitively
-   * rejects the refresh token (isRefreshRejected). On a network error, 5xx or
-   * anything else temporary the session is kept and retried with backoff (and
-   * on the 'online' event); an expired access token is still never sent.
+   * /auth/v1/token?grant_type=refresh_token. One refresh at a time per tab
+   * (shared promise) and across tabs (navigator.locks 'ehi_auth_refresh';
+   * Supabase rotates refresh tokens, so parallel refreshes would race), and
+   * never more often than the backoff allows. Signs out only when Supabase
+   * definitively rejects the refresh token (isRefreshRejected) and no other
+   * tab has stored a newer one. On a network error, 5xx or anything else
+   * temporary the session is kept and retried with backoff (and on the
+   * 'online' event); an expired access token is still never sent.
    */
   private refresh(): Promise<StoredSession | null> {
     if (this.refreshing) return this.refreshing;
@@ -533,49 +596,102 @@ export class ProductionSupabaseClient implements AccessTokenSource {
       if (current?.refresh_token && !this.refreshTimer) this.setTimer(this.nextRefreshAt - Date.now());
       return Promise.resolve(current && isJwt(current.access_token) && !isSessionExpired(current) ? current : null);
     }
-    this.refreshing = (async () => {
-      const current = readStoredSession();
-      if (!current?.refresh_token) {
-        if (current && isJwt(current.access_token)) this.endSession();
-        return null;
-      }
-      const requestedAt = Date.now();
-      let res: Response;
-      let json: any = null;
-      try {
-        res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
-          method: 'POST',
-          headers: { apikey: this.apikey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: current.refresh_token }),
-        });
-        json = await res.json().catch(() => null);
-      } catch {
-        return this.refreshFailed(current);
-      }
-      if (res.ok && isJwt(json?.access_token)) {
-        const session = normalizeSession(json, current, requestedAt);
-        if (isSessionExpired(session)) return this.refreshFailed(current);
-        const now = Date.now();
-        // A refresh right after another one means something keeps rejecting
-        // fresh tokens: back off instead of looping.
-        this.refreshStreak = this.lastRefreshOkAt && now - this.lastRefreshOkAt < REPEATED_REFRESH_WINDOW_MS ? this.refreshStreak + 1 : 0;
-        this.lastRefreshOkAt = now;
-        this.nextRefreshAt = now + this.backoffMs();
-        this.retryPending = false;
-        this.store(session);
-        this.scheduleRefresh(session);
-        this.emit('TOKEN_REFRESHED', session);
-        return session;
-      }
-      if (isRefreshRejected(res.status, json)) {
-        this.endSession();
-        return null;
-      }
-      return this.refreshFailed(current);
-    })().finally(() => {
+    const before = readStoredSession();
+    this.refreshing = this.withRefreshLock(() => this.refreshLocked(before)).finally(() => {
       this.refreshing = null;
     });
     return this.refreshing;
+  }
+
+  /** Run fn under the cross-tab refresh lock, or directly when locks are unavailable. */
+  private withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.locks) return fn();
+    try {
+      return this.locks.request(REFRESH_LOCK_NAME, fn);
+    } catch {
+      return fn();
+    }
+  }
+
+  private async refreshLocked(before: StoredSession | null): Promise<StoredSession | null> {
+    const generation = this.generation;
+    // Re-read inside the lock: another tab may have refreshed while we waited.
+    const current = readStoredSession();
+    if (
+      current &&
+      isJwt(current.access_token) &&
+      current.access_token !== before?.access_token &&
+      !isSessionExpired(current, refreshMarginMs(current))
+    ) {
+      return this.adopt(current);
+    }
+    if (!current?.refresh_token) {
+      if (current && isJwt(current.access_token)) this.endSession();
+      return null;
+    }
+    const sentRefreshToken = current.refresh_token;
+    // The result belongs to a session that is gone (signed out, signed in
+    // again, or changed by another tab) if either of these changed meanwhile.
+    const stale = () => this.generation !== generation || readStoredSession()?.refresh_token !== sentRefreshToken;
+    const requestedAt = Date.now();
+    let res: Response;
+    let json: any = null;
+    try {
+      res = await fetch(`${this.url}/auth/v1/token?grant_type=refresh_token`, {
+        method: 'POST',
+        headers: { apikey: this.apikey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: sentRefreshToken }),
+      });
+      json = await res.json().catch(() => null);
+    } catch {
+      return stale() ? this.discarded() : this.refreshFailed(current);
+    }
+    if (res.ok && isJwt(json?.access_token)) {
+      if (stale()) return this.discarded();
+      const session = normalizeSession(json, current, requestedAt);
+      const now = Date.now();
+      // A refresh right after another one means something keeps rejecting
+      // fresh tokens: back off instead of looping.
+      const lifetimeMs = (session.expires_in ?? FALLBACK_TOKEN_LIFETIME_SECONDS) * 1000;
+      const repeatWindow = Math.min(REPEATED_REFRESH_WINDOW_MS, lifetimeMs / 4);
+      this.refreshStreak = this.lastRefreshOkAt && now - this.lastRefreshOkAt < repeatWindow ? this.refreshStreak + 1 : 0;
+      this.lastRefreshOkAt = now;
+      this.nextRefreshAt = now + this.backoffMs();
+      this.retryPending = false;
+      this.store(session);
+      this.scheduleRefresh(session);
+      this.emit('TOKEN_REFRESHED', session);
+      return session;
+    }
+    if (isRefreshRejected(res.status, json)) {
+      // Rejected because another tab already rotated it? Then adopt that tab's session.
+      const latest = readStoredSession();
+      if (latest?.refresh_token && latest.refresh_token !== sentRefreshToken && isJwt(latest.access_token)) {
+        return this.adopt(latest);
+      }
+      if (this.generation !== generation) return this.discarded();
+      this.endSession();
+      return null;
+    }
+    return stale() ? this.discarded() : this.refreshFailed(current);
+  }
+
+  /** Take over a session another tab stored (no network call). */
+  private adopt(session: StoredSession): StoredSession | null {
+    const changed = session.access_token !== this.knownToken;
+    this.knownToken = session.access_token;
+    this.refreshStreak = 0;
+    this.retryPending = false;
+    this.nextRefreshAt = Date.now() + MIN_REFRESH_DELAY_MS;
+    this.scheduleRefresh(session);
+    if (changed) this.emit('TOKEN_REFRESHED', session);
+    return isSessionExpired(session) ? null : session;
+  }
+
+  /** The refresh result is for a session that no longer exists: drop it, report what is stored now. */
+  private discarded(): StoredSession | null {
+    const now = readStoredSession();
+    return now && isJwt(now.access_token) && !isSessionExpired(now) ? now : null;
   }
 
   /** Temporary failure: keep the session, retry after the backoff (or when back online). */
