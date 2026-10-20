@@ -13,6 +13,16 @@
 --   proj-edgepoint-004   -> proj-edge-004
 --   org-ehi-global       -> org-geosan        (org_id columns)
 --
+-- MERGE RULE (pending Sanni's confirmation). proj-iya-001 and proj-iyanu-002
+-- both map to proj-iya-002, so up to three rows can describe one project.
+-- For project_registry and project_budgets, one row is kept per project:
+--   1. if a row with the canonical id (proj-iya-002) exists, it is kept as is;
+--   2. otherwise the most recently updated old-id row is kept (updated_at,
+--      then created_at; a missing value counts as oldest; final tie: old id);
+--   3. the other old-id rows are removed. Child rows (tasks, costs, QA) are
+--      never dropped: all of them move to the canonical id.
+-- The browser-side remap (src/lib/projectIdMigration.ts) uses the same rule.
+--
 -- Also adds the optional project_registry.design_kit column and fills it for
 -- the four client projects where it is still empty.
 --
@@ -51,16 +61,23 @@ begin
 
   alter table public.project_registry add column if not exists design_kit text;
 
-  -- 1. Make sure the canonical registry row exists, copied from an old row if
-  --    needed (every column except id). Children can then be moved before the
-  --    old row is removed.
+  -- 1. Make sure the canonical registry row exists (merge rule above): keep an
+  --    existing canonical row; otherwise copy the most recently updated old
+  --    row (every column except id). Children can then be moved before the
+  --    old rows are removed.
   insert into public.project_registry
   select (jsonb_populate_record(null::public.project_registry,
-            to_jsonb(r) || jsonb_build_object('id', m.new_id, 'updated_at', now()))).*
-  from public.project_registry r
-  join _project_id_map m on m.old_id = r.id
-  where not exists (select 1 from public.project_registry c where c.id = m.new_id)
-  order by m.old_id
+            to_jsonb(k.r) || jsonb_build_object('id', k.new_id, 'updated_at', now()))).*
+  from (
+    select distinct on (m.new_id) m.new_id, r
+    from public.project_registry r
+    join _project_id_map m on m.old_id = r.id
+    where not exists (select 1 from public.project_registry c where c.id = m.new_id)
+    order by m.new_id,
+             (to_jsonb(r) ->> 'updated_at')::timestamptz desc nulls last,
+             (to_jsonb(r) ->> 'created_at')::timestamptz desc nulls last,
+             m.old_id
+  ) k
   on conflict (id) do nothing;
 
   -- 2. Move child rows.
@@ -69,15 +86,21 @@ begin
   update public.qa_runs     t set project_id = m.new_id from _project_id_map m where t.project_id = m.old_id;
   update public.qa_findings t set project_id = m.new_id from _project_id_map m where t.project_id = m.old_id;
 
-  -- project_budgets has project_id as its primary key: keep an existing
-  -- canonical row; otherwise keep the first old one (by old id).
+  -- project_budgets has project_id as its primary key. Same merge rule: keep
+  -- an existing canonical row; otherwise the most recently updated old row.
   delete from public.project_budgets b
   using _project_id_map m
   where b.project_id = m.old_id
     and (exists (select 1 from public.project_budgets c where c.project_id = m.new_id)
-         or exists (select 1 from public.project_budgets o
-                    join _project_id_map om on om.old_id = o.project_id
-                    where om.new_id = m.new_id and om.old_id < m.old_id));
+         or b.project_id <> (
+              select o.project_id
+              from public.project_budgets o
+              join _project_id_map om on om.old_id = o.project_id
+              where om.new_id = m.new_id
+              order by (to_jsonb(o) ->> 'updated_at')::timestamptz desc nulls last,
+                       (to_jsonb(o) ->> 'created_at')::timestamptz desc nulls last,
+                       om.old_id
+              limit 1));
   update public.project_budgets b set project_id = m.new_id from _project_id_map m where b.project_id = m.old_id;
 
   -- 3. Remove the old registry rows (nothing references them any more).

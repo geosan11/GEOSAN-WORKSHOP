@@ -129,3 +129,81 @@ test('canonical data and an empty store are left as they are', () => {
   assert.deepEqual(migrateLegacyProjectIds(canonical).rewrittenKeys, []);
   assert.deepEqual(canonical.dump(), before);
 });
+
+// --- Old and new entries for the same project: the canonical one wins ---
+
+test('geosan_projects: the canonical record wins over an old-id record listed first', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iyanu-002', name: 'Iyanu (old)', updated_at: '2026-10-19T00:00:00Z' },
+      { id: 'proj-iya-002', name: 'Iyanu (canonical)', updated_at: '2026-01-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(s.json('geosan_projects'), [
+    { id: 'proj-iya-002', name: 'Iyanu (canonical)', updated_at: '2026-01-01T00:00:00Z' }
+  ]);
+});
+
+test('geosan_projects: with only old-id records, the most recently updated one is kept', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'older', updated_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'newer', updated_at: '2026-10-01T00:00:00Z' },
+      { id: 'proj-ehi-001', name: 'EHI' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(s.json('geosan_projects').map((p: { name: string }) => p.name), ['newer', 'EHI']);
+  assert.equal(s.json('geosan_projects')[0].id, 'proj-iya-002');
+});
+
+test('object keyed by project id: the canonical key wins, whatever the key order', () => {
+  const s = new MemoryStorage({
+    aetherorch_learning_vault: [
+      { id: 'l1', byProject: { 'proj-iya-002': 'canonical', 'proj-iyanu-002': 'old' } },
+      { id: 'l2', byProject: { 'proj-iyanu-002': 'old', 'proj-iya-002': 'canonical' } }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  const v = s.json('aetherorch_learning_vault');
+  assert.deepEqual(v[0].byProject, { 'proj-iya-002': 'canonical' });
+  assert.deepEqual(v[1].byProject, { 'proj-iya-002': 'canonical' });
+});
+
+// --- Per-project keys ---
+
+test('ehi.disclosure.project-<id> keys are mapped', () => {
+  const s = new MemoryStorage({ 'ehi.disclosure.project-proj-aviation-003': { open: true } });
+  migrateLegacyProjectIds(s);
+  assert.equal(s.getItem('ehi.disclosure.project-proj-aviation-003'), null);
+  assert.deepEqual(s.json('ehi.disclosure.project-proj-aero-003'), { open: true });
+});
+
+test('old per-project key next to a canonical one: canonical kept, old removed, nothing reported next load', () => {
+  const s = new MemoryStorage({
+    'geosan_design_brief_proj-iyanu-002': { v: 'old' },
+    'geosan_design_brief_proj-iya-002': { v: 'new' },
+    'ehi.disclosure.project-proj-edgepoint-004': { open: false },
+    'ehi.disclosure.project-proj-edge-004': { open: true }
+  });
+  const first = migrateLegacyProjectIds(s);
+  assert.equal(s.json('geosan_design_brief_proj-iya-002').v, 'new');
+  assert.equal(s.getItem('geosan_design_brief_proj-iyanu-002'), null);
+  assert.equal(s.json('ehi.disclosure.project-proj-edge-004').open, true);
+  assert.equal(s.getItem('ehi.disclosure.project-proj-edgepoint-004'), null);
+  assert.deepEqual(first.skippedKeys, []);
+  const second = migrateLegacyProjectIds(s);
+  assert.deepEqual(second, { rewrittenKeys: [], renamedKeys: [], skippedKeys: [], droppedKeys: [] });
+});
+
+test('two old per-project keys, no canonical one: the most recently updated is kept', () => {
+  const s = new MemoryStorage({
+    'aetherorch_discovery_proj-iya-001': { projectId: 'proj-iya-001', lastUpdated: '2026-10-10T00:00:00Z', v: 'newer' },
+    'aetherorch_discovery_proj-iyanu-002': { projectId: 'proj-iyanu-002', lastUpdated: '2026-09-10T00:00:00Z', v: 'older' }
+  });
+  migrateLegacyProjectIds(s);
+  assert.equal(s.json('aetherorch_discovery_proj-iya-002').v, 'newer');
+  assert.equal(s.json('aetherorch_discovery_proj-iya-002').projectId, 'proj-iya-002');
+  assert.deepEqual(Object.keys(s.dump()), ['aetherorch_discovery_proj-iya-002']);
+});

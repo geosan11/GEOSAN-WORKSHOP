@@ -39,8 +39,10 @@ data() { as postgres -tA -c "
 # The database as it is live today: schema.sql from main before this PR.
 git -C "$ROOT" show 6bfeb72:supabase/schema.sql > "$WORK/schema-before.sql"
 
-run_case() {  # $1 label, $2 "lock" to apply PR #5's lock first
+run_case() {  # $1 label, $2 "lock" to apply PR #5's lock first, $3 db, [$4 fixture, $5 assertions]
   local db="$3"
+  local fixture="${4:-$ROOT/scripts/db/canonical-ids-fixture.sql}"
+  local checks="${5:-$ROOT/scripts/db/canonical-ids-test.sql}"
   as supabase_admin -c "create database $db owner postgres"
   DB=$db as supabase_admin -c "alter schema public owner to postgres; grant usage on schema public to anon, authenticated, service_role;"
   # Per-database parts of the stub (auth schema, auth.uid()); role creation
@@ -48,12 +50,12 @@ run_case() {  # $1 label, $2 "lock" to apply PR #5's lock first
   if [ -f "$STUB" ]; then psql -X -q -h "$WORK" -p "$PORT" -U supabase_admin -d "$db" -f "$STUB" >/dev/null 2>&1 || true; fi
   export DB=$db
   as postgres -f "$WORK/schema-before.sql"
-  as postgres -f "$ROOT/scripts/db/canonical-ids-fixture.sql"
+  as postgres -f "$fixture"
   if [ "$2" = lock ]; then as postgres -f "$LOCK"; fi
   local before; before=$(snapshot)
   as postgres -f "$MIG"
   PGOPTIONS= psql -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PORT" -U postgres -d "$db" \
-    -f "$ROOT/scripts/db/canonical-ids-test.sql" 2>&1 | sed -n 's/.*NOTICE:  //p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [$1] /"
+    -f "$checks" 2>&1 | sed -n 's/.*NOTICE:  //p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [$1] /"
   test "${PIPESTATUS[0]}" -eq 0
   local after; after=$(snapshot)
   [ "$before" = "$after" ] || { echo "   [$1] FAIL migration changed policies/RLS/grants"; diff <(echo "$before") <(echo "$after"); exit 1; }
@@ -83,12 +85,19 @@ else
 fi
 as supabase_admin -c "alter role postgres createdb" -c "create role app_user login"
 
-echo "== 1. old ids on today's (unlocked) schema"
+NC_FIX="$ROOT/scripts/db/canonical-ids-fixture-no-canonical.sql"
+NC_TEST="$ROOT/scripts/db/canonical-ids-test-no-canonical.sql"
+
+echo "== 1. old ids on today's (unlocked) schema (canonical proj-iya-002 and two newer old-id rows)"
 run_case unlocked nolock t_unlocked
+echo "== 1b. no canonical proj-iya-002, two old-id rows (unlocked)"
+run_case unlocked-nc nolock t_unlocked_nc "$NC_FIX" "$NC_TEST"
 
 if [ -f "$LOCK" ]; then
   echo "== 2. on top of PR #5's owner-only lock"
   run_case locked lock t_locked
+  echo "== 2b. no canonical proj-iya-002, two old-id rows (locked)"
+  run_case locked-nc lock t_locked_nc "$NC_FIX" "$NC_TEST"
   echo "== 3. a role that row security applies to is refused, nothing changes"
   export DB=t_locked
   as postgres -f "$ROOT/scripts/db/canonical-ids-fixture.sql" >/dev/null 2>&1 || true

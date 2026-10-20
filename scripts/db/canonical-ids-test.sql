@@ -57,3 +57,11 @@ begin
   raise notice 'PASS design_kit preset ids set';
 end
 $t$;
+do $t$
+begin
+  if (select name from public.project_registry where id = 'proj-iya-002') in ('Iyanuoluwa (old id)', 'Iyanuoluwa (older id)') then
+    raise exception 'FAIL both rows exist: a newer old-id row replaced the canonical proj-iya-002';
+  end if;
+  raise notice 'PASS both rows exist: canonical row kept although the old-id rows are newer';
+end
+$t$;

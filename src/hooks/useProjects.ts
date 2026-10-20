@@ -12,21 +12,31 @@ function withSeedDesignKit(project: Project): Project {
   return seed?.design_kit ? { ...project, design_kit: seed.design_kit } : project;
 }
 
+/**
+ * Projects from the saved value. A valid saved list is the source of truth,
+ * including an empty one. Nothing saved yet, or a broken value (not JSON, or
+ * not a list), falls back to the client project seed instead of an empty list.
+ */
+export function projectsFromStorage(saved: string | null): { projects: Project[]; fromSeed: boolean } {
+  if (saved != null) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) return { projects: (parsed as Project[]).map(withSeedDesignKit), fromSeed: false };
+    } catch {
+      /* broken value: fall through to the seed */
+    }
+  }
+  return { projects: [...CLIENT_PROJECTS], fromSeed: true };
+}
+
 const getProjects = async (): Promise<Project[]> => {
   if (typeof window === 'undefined') return [...CLIENT_PROJECTS];
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved != null) {
-    // The stored list is the source of truth, including an empty one.
-    try {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? (parsed as Project[]).map(withSeedDesignKit) : [];
-    } catch {
-      return [];
-    }
-  }
-  // First visit only: write the client project records.
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(CLIENT_PROJECTS));
-  return [...CLIENT_PROJECTS];
+  const { projects, fromSeed } = projectsFromStorage(saved);
+  // First visit only: write the client project records. A broken saved value
+  // is left in place (not overwritten) until the next real save.
+  if (fromSeed && saved == null) localStorage.setItem(STORAGE_KEY, JSON.stringify(CLIENT_PROJECTS));
+  return projects;
 };
 const createProject = async (params: {
   name: string;
