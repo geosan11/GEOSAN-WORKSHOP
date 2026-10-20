@@ -29,7 +29,7 @@ snapshot() { as postgres -tA -c "
   union all select 'defacl', pg_get_userbyid(defaclrole), defaclnamespace::text, defaclobjtype::text, defaclacl::text, '', ''
     from pg_default_acl" | LC_ALL=C sort; }
 data() { as postgres -tA -c "
-  select 'reg', id, name, coalesce(design_kit,'') from public.project_registry
+  select 'reg', id, '', coalesce(design_kit,'') from public.project_registry
   union all select 'task', id, project_id, org_id from public.agent_tasks
   union all select 'cost', id, project_id, org_id from public.cost_events
   union all select 'run', id, project_id, org_id from public.qa_runs
@@ -61,7 +61,7 @@ run_case() {  # $1 label, $2 "lock" to apply PR #5's lock first
   local d1; d1=$(data)
   as postgres -f "$MIG"
   [ "$d1" = "$(data)" ] || { echo "   [$1] FAIL second run changed data"; exit 1; }
-  # schema.sql's seed upsert must not bring old ids back. (Only when the file
+  # schema.sql's seed upsert (it resets names) must not bring old ids back. (Only when the file
   # can be re-run at all: before PR #5 it re-creates policies and errors.)
   if ! grep -qi '^create policy' "$ROOT/supabase/schema.sql"; then
     as postgres -f "$ROOT/supabase/schema.sql"
