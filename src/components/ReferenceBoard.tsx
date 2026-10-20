@@ -629,7 +629,9 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
                 <span className="ml-2 font-mono">golden.html · Signature Object Runtime</span>
               </span>
-              <span className="text-emerald-400 font-bold font-mono">100% Contract Compliant</span>
+              <span className={`font-bold font-mono ${criticResult.passed ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {criticResult.passed ? '100% Contract Compliant' : `${criticResult.score}% · ${criticResult.violations.length} to fix`}
+              </span>
             </div>
 
             <iframe
