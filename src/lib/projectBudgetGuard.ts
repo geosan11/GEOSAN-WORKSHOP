@@ -5,8 +5,10 @@
  * dispatched, approved, re-queued or confirmed for it, and no AI chat call is
  * made, until a budget is set. A missing budget never means "unlimited".
  *
- * "Has a budget" means a finite number greater than 0 (USD per month). Missing,
- * null, NaN, a string, 0 or a negative value all block.
+ * "Has a budget" means an amount greater than 0 (USD per month): a finite
+ * number, or a plain decimal string such as '100.00' (how a Postgres
+ * `numeric` column arrives from a driver / PostgREST). Missing, null, NaN,
+ * '', 'abc', '0', 0, negative values and anything else block.
  *
  * Where it is enforced today (all client side, see tests):
  *   - useTasks: createTask / approveTask / retryTask / confirmProposedTask
@@ -32,8 +34,24 @@ export type BudgetCheck =
   | { ok: true; budgetUsd: number }
   | { ok: false; reason: string };
 
-function validBudget(v: unknown): number | null {
-  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+/** Plain decimal (no sign, exponent, hex or spaces inside): '100', '100.00', '.5'. */
+const DECIMAL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+/**
+ * The budget amount as a number, or null if `v` is not one: a finite number,
+ * or a plain decimal string (surrounding spaces allowed). Says nothing about
+ * whether the amount is > 0; see validBudget.
+ */
+export function toBudgetNumber(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && DECIMAL.test(v.trim())) return Number(v.trim());
+  return null;
+}
+
+/** A usable budget: an amount (see toBudgetNumber) greater than 0. */
+export function validBudget(v: unknown): number | null {
+  const n = toBudgetNumber(v);
+  return n !== null && n > 0 ? n : null;
 }
 
 function label(project: BudgetSource | null | undefined, projectId?: string): string {

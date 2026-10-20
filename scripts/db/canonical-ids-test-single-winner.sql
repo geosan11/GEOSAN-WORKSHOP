@@ -123,3 +123,23 @@ insert into public.agent_tasks (id, project_id, task_type, prompt) values
 \i :mig
 select pg_temp.check_iya('canonical E: proj-iya-002 exists -> it wins; old budgets tied on updated_at -> lowest id', 'E canonical', 333);
 rollback;
+
+-- E2. Parity with the browser: canonical proj-iya-002 exists without a budget;
+--     the old budgets tie on updated_at and the old REGISTRY rows differ in
+--     created_at (proj-iyanu-002 created later). SQL orders the old budgets by
+--     project_budgets' own columns only (updated_at, then created_at, which
+--     project_budgets lacks, so always a tie), so the lowest old id wins.
+begin;
+select pg_temp.reset_iya();
+insert into public.project_registry (id, name, vertical, created_at, updated_at) values
+  ('proj-iya-002',   'E2 canonical', 'agriculture', '2026-01-01', '2026-01-01'),
+  ('proj-iya-001',   'E2 iya-001',   'agriculture', '2026-08-01', '2026-10-01'),
+  ('proj-iyanu-002', 'E2 iyanu-002', 'agriculture', '2026-09-01', '2026-10-01');
+insert into public.project_budgets (project_id, monthly_limit_usd, updated_at) values
+  ('proj-iyanu-002', 777, '2026-10-01'),
+  ('proj-iya-001', 333, '2026-10-01');
+insert into public.agent_tasks (id, project_id, task_type, prompt) values
+  ('t-sw-1', 'proj-iya-001', 'FIX_BUG', 'a'), ('t-sw-2', 'proj-iyanu-002', 'FIX_BUG', 'b');
+\i :mig
+select pg_temp.check_iya('canonical E2 (parity): budgets tie on updated_at, registry created_at ignored -> lowest id proj-iya-001', 'E2 canonical', 333);
+rollback;

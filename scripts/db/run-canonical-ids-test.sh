@@ -15,6 +15,7 @@ PORT="${PGPORT_TEST:-55441}"
 MIG="$ROOT/supabase/migrations/20261020010000_canonical_project_ids.sql"
 LOCK="$ROOT/supabase/migrations/20261020000000_lock_db_to_owner.sql"
 STUB="$ROOT/scripts/db/supabase-stub.sql"
+SYNC="$ROOT/supabase/migrations/20261020020000_sync_registry_budget.sql"
 cleanup() { pg_ctl -D "$WORK/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$WORK"; }
 trap cleanup EXIT
 
@@ -119,4 +120,31 @@ if [ -f "$LOCK" ]; then
 else
   echo "== 2. skipped: PR #5's lock migration is not on this branch"
 fi
+[ -f "$SYNC" ] || { echo "   FAIL missing $SYNC"; exit 1; }
+{
+  echo "== 4. sync_registry_budget (new separate migration): registry budget agrees with project_budgets"
+  as supabase_admin -c "create database t_sync owner postgres"
+  DB=t_sync as supabase_admin -c "alter schema public owner to postgres; grant usage on schema public to anon, authenticated, service_role;"
+  if [ -f "$STUB" ]; then psql -X -q -h "$WORK" -p "$PORT" -U supabase_admin -d t_sync -f "$STUB" >/dev/null 2>&1 || true; fi
+  export DB=t_sync
+  as postgres -f "$WORK/schema-before.sql"
+  if [ -f "$LOCK" ]; then as postgres -f "$LOCK"; fi
+  PGOPTIONS= psql -X -q -v ON_ERROR_STOP=1 -v mig="$MIG" -v sync="$SYNC" -h "$WORK" -p "$PORT" -U postgres -d t_sync \
+    -f "$ROOT/scripts/db/sync-registry-budget-test.sql" 2>&1 | sed -n 's/.*NOTICE:  PASS/PASS/p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [sync] /"
+  test "${PIPESTATUS[0]}" -eq 0
+  # Refuses (and changes nothing) before the canonical-id migration has run.
+  as postgres -f "$ROOT/scripts/db/canonical-ids-fixture.sql"
+  reg() { as postgres -tA -c "select string_agg(id || '=' || monthly_budget_usd, ',' order by id) from public.project_registry"; }
+  r0=$(reg)
+  if out=$(as postgres -f "$SYNC" 2>&1); then echo "   [sync] FAIL ran before the canonical-id migration"; exit 1; fi
+  echo "$out" | grep -q "run 20261020010000_canonical_project_ids.sql first" || { echo "   [sync] FAIL unexpected error: $out"; exit 1; }
+  [ "$r0" = "$(reg)" ] || { echo "   [sync] FAIL refused run changed data"; exit 1; }
+  echo "   [sync] PASS refused before the canonical-id migration; nothing changed"
+  # Policies, RLS flags and grants unchanged by the sync.
+  as postgres -f "$MIG"
+  b0=$(snapshot); as postgres -f "$SYNC"; [ "$b0" = "$(snapshot)" ] || { echo "   [sync] FAIL changed policies/RLS/grants"; exit 1; }
+  r1=$(reg); as postgres -f "$SYNC"; [ "$r1" = "$(reg)" ] || { echo "   [sync] FAIL second run changed data"; exit 1; }
+  echo "   [sync] PASS policies/RLS/grants unchanged; idempotent"
+  unset DB
+}
 echo "ALL CANONICAL ID MIGRATION TESTS PASSED"

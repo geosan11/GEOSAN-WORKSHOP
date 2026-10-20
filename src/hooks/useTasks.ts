@@ -4,16 +4,16 @@ import { useToast } from '../components/Toast';
 import { MOCK_TASKS } from '../lib/mockData';
 import { DEMO_SESSION_TASKS } from '../data/sessionFixtures';
 import { isDemoMode } from '../lib/supabase';
-import { findStoredProject } from './useProjects';
-import { assertProjectBudget, isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
+import { checkStoredProjectBudget } from './useProjects';
+import { ProjectBudgetBlockedError, isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 /**
  * Fail closed: throws ProjectBudgetBlockedError if the project has no budget.
  * Runs before a task is created, or moved to running / queued.
  */
 export function guardAiWork(projectId: string, saved?: string | null): void {
-  const project = saved === undefined ? findStoredProject(projectId) : findStoredProject(projectId, saved);
-  assertProjectBudget(project, { projectId });
+  const check = checkStoredProjectBudget(projectId, saved);
+  if (!check.ok) throw new ProjectBudgetBlockedError(check.reason);
 }
 
 /** Statuses that start or queue AI work. */
