@@ -52,7 +52,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
 }) => {
   const toast = useToast();
   const { navigate } = useNavigation();
-  const { projects, loading: pLoading } = useProjects();
+  const { projects, loading: pLoading, updateProjectBudget } = useProjects();
   const { tasks, loading: tLoading, refetch: tRefetch, createTask, approveTask, rejectTask, cancelTask, retryTask } = useTasks(projectId);
   const { costEvents } = useCosts(projectId);
   const { qaFindings, qaRuns, refetch: qRefetch } = useQA(projectId);
@@ -510,11 +510,11 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
                       type="button"
                       onClick={() => {
                         const newB = window.prompt('Set new Monthly Budget (USD):', String(project.monthly_budget_usd || 1000));
-                        if (newB && !isNaN(Number(newB))) {
-                          project.monthly_budget_usd = Number(newB);
-                          toast.success(`Budget updated to ${formatCost(Number(newB))}`);
-                          setHardStopEnabled((prev) => prev);
-                        }
+                        if (newB == null) return; // cancelled
+                        // Saved to the store the budget guard reads; success only after it is read back.
+                        updateProjectBudget({ projectId: project.id, value: newB })
+                          .then((saved) => toast.success(`Budget updated to ${formatCost(Number(saved.monthly_budget_usd))}`))
+                          .catch((err) => toast.error(err instanceof Error ? err.message : 'Budget not saved.'));
                       }}
                       className="text-meta text-primary"
                     >
