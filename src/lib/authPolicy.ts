@@ -4,9 +4,11 @@
  * - The "staff operator" fallback (any email gets in when Supabase sign-in
  *   fails) only works in local demo mode: VITE_DEMO_MODE=true AND the page is
  *   on localhost / 127.0.0.1 / [::1]. Anywhere else a failed sign-in is an error.
- * - If VITE_OWNER_USER_ID or VITE_OWNER_EMAILS is set, any other account is
- *   signed straight back out. This is defence in depth only: the database
- *   rules (supabase/migrations, docs/SECURITY-DB.md) are the real lock.
+ * - If VITE_OWNER_USER_ID is set, any other account is signed straight back
+ *   out. VITE_OWNER_EMAILS is an optional fallback used only when no id is
+ *   set; like every VITE_* value it ends up in the public JS bundle, so prefer
+ *   the id. This is defence in depth only: the database rules
+ *   (supabase/migrations, docs/SECURITY-DB.md) are the real lock.
  */
 import { SESSION_STORAGE_KEY, type ProductionSupabaseClient } from './supabase';
 
@@ -34,8 +36,26 @@ export const FALLBACK_REFUSED_MESSAGE = 'Sign-in failed. Check your email and pa
 
 const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
+/** undefined outside Vite (e.g. node:test), where import.meta.env does not exist. */
+function readVar(read: () => string | boolean | undefined): string | boolean | undefined {
+  try {
+    return read();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Each variable is read by its full static name (import.meta.env.VITE_X) so
+ * Vite inlines just that value. Never read `import.meta.env` as a whole
+ * object: Vite would then inline every VITE_* variable into the bundle.
+ */
 function viteEnv(): AuthEnv {
-  return ((typeof import.meta !== 'undefined' && (import.meta as any).env) || {}) as AuthEnv;
+  return {
+    VITE_DEMO_MODE: readVar(() => import.meta.env.VITE_DEMO_MODE),
+    VITE_OWNER_USER_ID: readVar(() => import.meta.env.VITE_OWNER_USER_ID),
+    VITE_OWNER_EMAILS: readVar(() => import.meta.env.VITE_OWNER_EMAILS),
+  };
 }
 
 function pageHostname(): string {
@@ -62,7 +82,10 @@ const list = (v: unknown) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
-/** VITE_OWNER_USER_ID (comma-separated ids) and/or VITE_OWNER_EMAILS (comma-separated). */
+/**
+ * VITE_OWNER_USER_ID (comma-separated ids, preferred) and VITE_OWNER_EMAILS
+ * (comma-separated, optional, public in the bundle; ignored when an id is set).
+ */
 export function readOwnerConfig(env: AuthEnv = viteEnv()): OwnerConfig {
   return {
     userIds: list(env.VITE_OWNER_USER_ID),
@@ -70,11 +93,14 @@ export function readOwnerConfig(env: AuthEnv = viteEnv()): OwnerConfig {
   };
 }
 
-/** True when no owner is configured, or the user matches an owner id or email. */
+/**
+ * True when no owner is configured, or the user is the owner: by id when
+ * VITE_OWNER_USER_ID is set (emails are then ignored), else by email.
+ */
 export function isOwner(user: { id?: string; email?: string } | null | undefined, config: OwnerConfig): boolean {
   if (!config.userIds.length && !config.emails.length) return true;
   if (!user) return false;
-  if (user.id && config.userIds.includes(user.id)) return true;
+  if (config.userIds.length) return Boolean(user.id && config.userIds.includes(user.id));
   return Boolean(user.email && config.emails.includes(user.email.toLowerCase()));
 }
 
