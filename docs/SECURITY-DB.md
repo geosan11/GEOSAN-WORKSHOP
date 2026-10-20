@@ -71,10 +71,12 @@ the API. Re-running it is now safe: it can't re-open anything.
      `authenticated` either. Revoking from `anon` and `authenticated` alone
      does nothing, because they inherit `PUBLIC`'s EXECUTE. A
      `PUBLIC` revoke limited to schema `public` is also a no-op in Postgres.
-     So this revoke is global: it covers functions `postgres` creates in
-     **any** schema, including through `CREATE EXTENSION`. Grant EXECUTE
-     explicitly to any new function the API (or a column default or
-     policy used by signed-in requests) must call. `is_app_owner()` already
+     So this revoke is global: it covers functions created by `postgres`
+     only, in **any** schema. Extension functions installed by
+     `supabase_admin` (trusted extensions such as pgcrypto install that way)
+     keep their own grants and stay callable by `PUBLIC`. Grant EXECUTE
+     explicitly to any new `postgres`-created function the API (or a column
+     default or policy used by signed-in requests) must call. `is_app_owner()` already
      exists and keeps its explicit grant to `authenticated`.
 
    None of this covers objects created by other roles, such as

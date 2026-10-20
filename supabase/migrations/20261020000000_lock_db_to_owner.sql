@@ -201,9 +201,11 @@ begin
   --     inherit that, so the two function revokes above do nothing on their
   --     own. A per-schema ("in schema public") revoke from PUBLIC is a no-op
   --     too: Postgres only adds per-schema defaults on top of the global
-  --     one. So this one is global. It applies to functions postgres creates
-  --     in ANY schema later, including by CREATE EXTENSION, so grant EXECUTE
-  --     explicitly where a function must be callable through the API.
+  --     one. So this one is global. It applies only to functions created by
+  --     postgres later, in ANY schema, so grant EXECUTE explicitly where such
+  --     a function must be callable through the API. Extension functions
+  --     installed by supabase_admin (trusted extensions like pgcrypto) keep
+  --     their own grants and stay callable by PUBLIC.
   --     is_app_owner() is unaffected: it already exists and keeps its
   --     explicit grant to authenticated.
   alter default privileges for role postgres revoke execute on functions from public;
