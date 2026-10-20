@@ -6,7 +6,7 @@
 - **Sources (credited):**
   - Supervisor: `geosan-context/BRIEF.md`.
   - **Ai & Cloud Engineer:** `geosan-design/data-and-keys.md`, the core of §4, §5 and the step 1–3 server PRs.
-  - **UI/UX:** `redesign/plan.md`, the core of §7 and the UI PRs, and **[`redesign/hardcoded-projects-audit.md`](../redesign/hardcoded-projects-audit.md)** (89 entries in 49 files).
+  - **UI/UX:** `redesign/plan.md`, the core of §7 and the UI PRs, and a hard-coded projects audit (89 entries in 49 files, kept by UI/UX outside the repo).
   - **DevOps:** `geosan-design/app-server-hosting.md` (§3), plus the guard rules shared with the Supervisor and Ai & Cloud Engineer.
 
 ## 1. Goal
