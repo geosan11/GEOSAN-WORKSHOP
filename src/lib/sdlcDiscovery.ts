@@ -6,6 +6,8 @@
  * time by >50% before any agent or engineer writes code.
  */
 
+import { CLIENT_PROJECT_IDS } from '../data/clientProjects';
+
 export interface SDLCQuestion {
   id: string;
   phaseId: string;
@@ -387,10 +389,11 @@ export const UI_SDLC_PHASES: SDLCPhase[] = [
 ];
 
 /**
- * Pre-populated High-Fidelity Domain Specifications for the 4 Core Projects
+ * Discovery answers already captured for existing client projects, keyed by
+ * canonical project id. Any other project starts with empty answers.
  */
 export const PREPOPULATED_PROJECT_DISCOVERY: Record<string, Record<string, string>> = {
-  'proj-ehi-001': {
+  [CLIENT_PROJECT_IDS.ehi]: {
     'q1-1-persona-outcome':
       'Corporate treasury officers and hub dispatchers. Single metric: Zero un-reconciled inter-hub cargo settlement discrepancy at 23:59:59 daily close.',
     'q1-2-out-of-scope':
@@ -428,7 +431,7 @@ export const PREPOPULATED_PROJECT_DISCOVERY: Record<string, Record<string, strin
     'q6-3-canary-rollback':
       'Automatic promotion to production Vercel deployment only after 100% smoke test pass; instant rollback if settlement error > 0% in 5 minutes.'
   },
-  'proj-iyanu-002': {
+  [CLIENT_PROJECT_IDS.iyanuoluwa]: {
     'q1-1-persona-outcome':
       'Refinery scale-house operators and weighbridge technicians. Single metric: Scale-house ticket issuance under 15 seconds over Bluetooth scale driver.',
     'q1-2-out-of-scope':
@@ -466,7 +469,7 @@ export const PREPOPULATED_PROJECT_DISCOVERY: Record<string, Record<string, strin
     'q6-3-canary-rollback':
       'Staging factory preview deployment verified against scale head simulator before production rollout.'
   },
-  'proj-aviation-003': {
+  [CLIENT_PROJECT_IDS.aviation]: {
     'q1-1-persona-outcome':
       'Captain, First Officer, and FAA Dispatcher. Single metric: Electronic Flight Bag (EFB) pre-flight signoff compliance within 3 minutes with RSA hardware certs.',
     'q1-2-out-of-scope':
@@ -504,7 +507,7 @@ export const PREPOPULATED_PROJECT_DISCOVERY: Record<string, Record<string, strin
     'q6-3-canary-rollback':
       'Zero downtime dual-cockpit blue/green deployment strategy.'
   },
-  'proj-edgepoint-004': {
+  [CLIENT_PROJECT_IDS.edgepoint]: {
     'q1-1-persona-outcome':
       'Edge Infrastructure & IoT Operations Engineers. Single metric: MQTT telemetry ingestion latency under 45ms across 10,000 edge nodes.',
     'q1-2-out-of-scope':

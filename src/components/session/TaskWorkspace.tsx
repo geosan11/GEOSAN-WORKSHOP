@@ -44,6 +44,9 @@ import {
   CornerDownRight,
   Info
 } from 'lucide-react';
+import { EmptyState } from '../EmptyState';
+import { isDemoMode } from '../../lib/supabase';
+import { selectCurrentTask } from './selectCurrentTask';
 
 interface TaskWorkspaceProps {
   taskId?: string;
@@ -129,31 +132,8 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
   const { qaFindings } = useQA(project.id);
   const { navigate } = useNavigation();
 
-  // Find active task or default to first project task / running fixture
-  const currentTask =
-    tasks.find((t) => t.id === taskId) ||
-    tasks.find((t) => t.project_id === project.id && t.status === 'running') ||
-    tasks.find((t) => t.project_id === project.id && t.status === 'awaiting_approval') ||
-    tasks.find((t) => t.project_id === project.id) ||
-    DEMO_WORKLOG_RUNNING[0]
-      ? {
-          id: 'task-session-running-01',
-          org_id: project.org_id,
-          project_id: project.id,
-          task_type: 'BUILD_FEATURE',
-          prompt: 'Implement bilateral netting engine for Kano Hub settlement\nEnsure strict integer arithmetic for kobo precision and generate verifiable settlement receipts.',
-          status: 'running',
-          assigned_agent: 'FullStackAgent',
-          plan: { summary: 'Bilateral netting engine with atomic transaction' },
-          result: { changed_files: ['src/settlement/bilateralNetting.ts', 'src/api/routes/settle.ts', 'test/settlementNetting.spec.ts'] },
-          branch_name: 'feat/kano-netting-engine',
-          pr_url: null,
-          created_at: new Date().toISOString(),
-          started_at: new Date().toISOString(),
-          completed_at: null,
-          parent_task_id: null
-        } as AgentTask
-      : (tasks[0] as AgentTask);
+  // This project's task; the demo task only as a last resort in demo mode.
+  const currentTask = selectCurrentTask(tasks, project, taskId, { demoMode: isDemoMode });
 
   const activeTaskId = currentTask?.id || 'task-session-running-01';
 
@@ -161,10 +141,13 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('progress');
 
   // Worklog state (seeded from fixtures or dynamic)
+  // Demo worklogs only for the demo tasks themselves (or in demo mode), never for real tasks.
   const initialWorklog =
     activeTaskId === 'task-session-approval-02'
       ? DEMO_WORKLOG_APPROVAL
-      : DEMO_WORKLOG_RUNNING;
+      : activeTaskId === 'task-session-running-01' || isDemoMode
+        ? DEMO_WORKLOG_RUNNING
+        : [];
   const [worklog, setWorklog] = useState<WorklogItem[]>(initialWorklog);
   const [selectedWorklogId, setSelectedWorklogId] = useState<string | null>(initialWorklog[0]?.id || null);
 
@@ -202,7 +185,7 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
 
   // Diffs for this task
   const diffFiles: SessionDiffFile[] =
-    DEMO_SESSION_DIFFS[activeTaskId] || [
+    DEMO_SESSION_DIFFS[activeTaskId] || (!isDemoMode ? [] : [
       {
         path: 'src/settlement/bilateralNetting.ts',
         status: 'added',
@@ -211,7 +194,7 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
         before: '// (New file)',
         after: `export interface NettingResult {\n  grossKobo: bigint;\n  netKobo: bigint;\n  feeKobo: bigint;\n}\n\nexport function calculateBilateralNetting() {\n  // Integer micro-kobo precision\n}`
       }
-    ];
+    ]);
   const [selectedDiffPath, setSelectedDiffPath] = useState<string>(diffFiles[0]?.path || '');
 
   // QA findings for this task
@@ -268,6 +251,15 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
       setMessages((prev) => [...prev, ackMsg]);
     }, 800);
   };
+
+  if (!currentTask) {
+    return (
+      <EmptyState
+        title="No task for this project yet"
+        description="Start a task for this project to see its progress, shell, diff and QA here."
+      />
+    );
+  }
 
   const statusMeta = getMappedStatusLabel(currentTask.status, currentTask.pr_url);
   const selectedWorklog = worklog.find((w) => w.id === selectedWorklogId);

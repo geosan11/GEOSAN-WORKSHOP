@@ -3,8 +3,11 @@ import { AgentTask, TaskType } from '../lib/types';
 import { useToast } from '../components/Toast';
 import { MOCK_TASKS } from '../lib/mockData';
 import { DEMO_SESSION_TASKS } from '../data/sessionFixtures';
+import { isDemoMode } from '../lib/supabase';
 
-const SEED_TASKS: AgentTask[] = MOCK_TASKS.length > 0 ? [...MOCK_TASKS] : [...DEMO_SESSION_TASKS];
+// Demo session tasks sit on the client projects, so they are seeded in demo mode only.
+const SEED_TASKS: AgentTask[] =
+  MOCK_TASKS.length > 0 ? [...MOCK_TASKS] : isDemoMode ? [...DEMO_SESSION_TASKS] : [];
 const SEED_FLAG = 'geosan_tasks_seeded_v1';
 
 function readStoredTasks(): AgentTask[] | null {

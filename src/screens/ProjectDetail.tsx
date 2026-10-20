@@ -83,7 +83,8 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
     loadProjectDiscovery(projectId)
   );
 
-  const project = projects.find((p) => p.id === projectId) || projects[0];
+  // No fallback to another project: an unknown id shows the not-found state below.
+  const project = projects.find((p) => p.id === projectId);
 
   // Filter tasks for this project
   const projectTasks = useMemo(() => {
