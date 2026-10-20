@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: sbSession.user.id,
             email: sbSession.user.email || '',
             user_metadata: {
-              org_id: (sbSession.user.user_metadata?.org_id as string) || 'org-geosan',
+              org_id: (sbSession.user.user_metadata?.org_id as string) || 'org-ehi-global',
               org_role: (sbSession.user.user_metadata?.org_role as string) || 'member',
               full_name: (sbSession.user.user_metadata?.full_name as string) || ''
             }
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: sbSession.user.id,
           email: sbSession.user.email || '',
           user_metadata: {
-            org_id: (sbSession.user.user_metadata?.org_id as string) || 'org-geosan',
+            org_id: (sbSession.user.user_metadata?.org_id as string) || 'org-ehi-global',
             org_role: (sbSession.user.user_metadata?.org_role as string) || 'member',
             full_name: (sbSession.user.user_metadata?.full_name as string) || ''
           }
@@ -123,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: data.user.id,
             email: data.user.email || email,
             user_metadata: {
-              org_id: (data.user.user_metadata?.org_id as string) || 'org-geosan',
+              org_id: (data.user.user_metadata?.org_id as string) || 'org-ehi-global',
               org_role: (data.user.user_metadata?.org_role as string) || 'owner',
               full_name: (data.user.user_metadata?.full_name as string) || email.split('@')[0]
             }
@@ -148,7 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: `usr-operator-${Date.now().toString(36)}`,
         email: cleanEmail,
         user_metadata: {
-          org_id: 'org-geosan',
+          org_id: 'org-ehi-global',
           org_role: 'owner',
           full_name: cleanEmail.includes('@') ? cleanEmail.split('@')[0] : 'Staff Operator'
         }
