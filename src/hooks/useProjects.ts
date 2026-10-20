@@ -29,6 +29,17 @@ export function projectsFromStorage(saved: string | null): { projects: Project[]
   return { projects: [...CLIENT_PROJECTS], fromSeed: true };
 }
 
+/**
+ * The saved project with `projectId` (same source as the project list), or
+ * null. `saved` defaults to the browser's stored list.
+ */
+export function findStoredProject(
+  projectId: string,
+  saved: string | null = typeof localStorage === 'undefined' ? null : localStorage.getItem(STORAGE_KEY)
+): Project | null {
+  return projectsFromStorage(saved).projects.find((p) => p.id === projectId) ?? null;
+}
+
 const getProjects = async (): Promise<Project[]> => {
   if (typeof window === 'undefined') return [...CLIENT_PROJECTS];
   const saved = localStorage.getItem(STORAGE_KEY);

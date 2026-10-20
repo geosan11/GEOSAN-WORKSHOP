@@ -12,6 +12,7 @@ import { PageHeader, SectionCard } from '../components/ui';
 import { AgentTask } from '../lib/types';
 import { formatRelative } from '../lib/format';
 import { Clock, ShieldAlert, PlayCircle, ArrowRight, User, RefreshCw } from 'lucide-react';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 const QUEUE_PREVIEW = 5;
 
@@ -344,8 +345,13 @@ export const PortfolioScreen: React.FC = () => {
         onReject={rejectTask}
         onCancel={cancelTask}
         onRetry={async (id) => {
-          await retryTask(id);
-          setSelectedTask(null);
+          try {
+            await retryTask(id);
+            setSelectedTask(null);
+          } catch (err) {
+            // A missing budget is already reported by useTasks with a clear message.
+            if (!isProjectBudgetBlocked(err)) throw err;
+          }
         }}
       />
     </div>

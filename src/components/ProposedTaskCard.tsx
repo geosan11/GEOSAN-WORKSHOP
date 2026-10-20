@@ -3,6 +3,7 @@ import { AgentTask } from '../lib/types';
 import { useTasks } from '../hooks/useTasks';
 import { useToast } from './Toast';
 import { Check, X, Sparkles, ArrowRight, Layers } from 'lucide-react';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 interface ProposedTaskCardProps {
   task: AgentTask;
@@ -20,8 +21,9 @@ export const ProposedTaskCard: React.FC<ProposedTaskCardProps> = ({ task, onReso
       await confirmProposedTask(task.id);
       toast.success('Task confirmed and dispatched to Coordinator');
       onResolved?.();
-    } catch {
-      toast.error('Failed to confirm task');
+    } catch (err) {
+      // A missing budget is already reported by useTasks with a clear message.
+      if (!isProjectBudgetBlocked(err)) toast.error('Failed to confirm task');
     } finally {
       setLoading(false);
     }

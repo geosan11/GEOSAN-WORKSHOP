@@ -22,8 +22,11 @@
 --      budget that ranks first by the order below is moved onto it);
 --   2. otherwise ONE winning old-id project_registry row is picked, and both
 --      the project row and the budget are taken from it. The losing rows'
---      values (registry and budget) are dropped, never merged; if the winner
---      has no budget row, proj-iya-002 gets none.
+--      project values are dropped, never merged. Only the budget can fall
+--      back: if the winner has no budget row, the budget of the next-ranked
+--      old row (same order below) is used, as in rule 1. Other old budgets
+--      are dropped. With no old budget at all, proj-iya-002 has none, and the
+--      app blocks AI work for it until a budget is set (fail closed).
 --   3. Child rows (tasks, costs, QA) are never dropped: all of them move to
 --      the canonical id, whichever row won.
 -- ORDER / TIE-BREAK (the same in src/lib/projectIdMigration.ts):
@@ -83,6 +86,20 @@ begin
            (to_jsonb(r) ->> 'created_at')::timestamptz desc nulls last,
            m.old_id collate "C";
 
+  -- Budget source for each winner: the winner's own budget, else the budget of
+  -- the next-ranked old row that has one (same order as the winner).
+  create temporary table _budget_source (new_id text primary key, old_id text not null) on commit drop;
+  insert into _budget_source (new_id, old_id)
+  select distinct on (m.new_id) m.new_id, m.old_id
+  from public.project_registry r
+  join _project_id_map m on m.old_id = r.id
+  join public.project_budgets b on b.project_id = r.id
+  where exists (select 1 from _project_winner w where w.new_id = m.new_id)
+  order by m.new_id,
+           (to_jsonb(r) ->> 'updated_at')::timestamptz desc nulls last,
+           (to_jsonb(r) ->> 'created_at')::timestamptz desc nulls last,
+           m.old_id collate "C";
+
   insert into public.project_registry
   select (jsonb_populate_record(null::public.project_registry,
             to_jsonb(r) || jsonb_build_object('id', w.new_id, 'updated_at', now()))).*
@@ -98,7 +115,8 @@ begin
 
   -- project_budgets has project_id as its primary key. Same merge rule:
   --  * a winner was picked in step 1 (no canonical row): keep only the
-  --    winner's budget; every other old budget is dropped;
+  --    budget picked in _budget_source (the winner's, else the next-ranked
+  --    old row's); every other old budget is dropped;
   --  * the canonical row existed: keep its budget; if it has none, keep the
   --    old budget that ranks first by the same order (no created_at on
   --    project_budgets, so: latest updated_at, then lowest old id).
@@ -107,7 +125,7 @@ begin
   where b.project_id = m.old_id
     and case
           when exists (select 1 from _project_winner w where w.new_id = m.new_id)
-            then b.project_id <> (select w.old_id from _project_winner w where w.new_id = m.new_id)
+            then b.project_id is distinct from (select s.old_id from _budget_source s where s.new_id = m.new_id)
           else exists (select 1 from public.project_budgets c where c.project_id = m.new_id)
                or b.project_id <> (
                     select o.project_id
@@ -155,6 +173,7 @@ begin
     raise exception 'canonical_project_ids: % row(s) still use an old id; nothing was changed', leftover;
   end if;
 
+  drop table _budget_source;
   drop table _project_winner;
   drop table _project_id_map;
 end

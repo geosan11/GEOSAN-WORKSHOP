@@ -4,6 +4,7 @@ import {
   LEGACY_PROJECT_ID_MAP,
   canonicalProjectId,
   migrateLegacyProjectIds,
+  parseIsoTimestamp,
   remapLegacyIds,
   type StorageLike
 } from './projectIdMigration';
@@ -303,4 +304,73 @@ test('per-project keys: same tie-break (lowest old id on a full tie, not first f
   assert.equal(s.json('aetherorch_discovery_proj-iya-002').v, 'a');
   assert.deepEqual(report.droppedKeys, ['aetherorch_discovery_proj-iyanu-002']);
   assert.deepEqual(Object.keys(s.dump()), ['aetherorch_discovery_proj-iya-002']);
+});
+
+// --- Budget fallback: only the budget falls back to the next-ranked record ---
+
+test('budget fallback: winner has no budget -> next-ranked old record\'s budget; other fields from the winner only', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'loser', repo_url: 'loser-repo', monthly_budget_usd: 333, updated_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'winner', repo_url: null, updated_at: '2026-10-15T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(s.json('geosan_projects'), [
+    { id: 'proj-iya-002', name: 'winner', repo_url: null, updated_at: '2026-10-15T00:00:00Z', monthly_budget_usd: 333 }
+  ]);
+});
+
+test('budget fallback: canonical record without budget takes the top-ranked old budget (like SQL)', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-002', name: 'canonical', updated_at: '2026-01-01T00:00:00Z' },
+      { id: 'proj-iya-001', name: 'old', monthly_budget_usd: 333, updated_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'newer old', monthly_budget_usd: 777, updated_at: '2026-10-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(s.json('geosan_projects'), [
+    { id: 'proj-iya-002', name: 'canonical', updated_at: '2026-01-01T00:00:00Z', monthly_budget_usd: 777 }
+  ]);
+});
+
+test('budget fallback: a winner with its own budget keeps it; no budget anywhere stays without one', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'loser', monthly_budget_usd: 333, updated_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'winner', monthly_budget_usd: 0, updated_at: '2026-10-15T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.equal(s.json('geosan_projects')[0].monthly_budget_usd, 0, 'an explicit budget (even 0) is the winner\'s own');
+  const t = new MemoryStorage({
+    geosan_projects: [{ id: 'proj-iya-001', name: 'a' }, { id: 'proj-iyanu-002', name: 'b', updated_at: '2026-10-15T00:00:00Z' }]
+  });
+  migrateLegacyProjectIds(t);
+  assert.deepEqual(t.json('geosan_projects'), [{ id: 'proj-iya-002', name: 'b', updated_at: '2026-10-15T00:00:00Z' }]);
+});
+
+// --- Only ISO-8601 style timestamps are readable dates ---
+
+test('date reader: "1" (which Date.parse reads as 2001) is treated as missing', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'odd date "1"', updated_at: '1' },
+      { id: 'proj-iyanu-002', name: 'real date', updated_at: '1999-01-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.deepEqual(names(s), ['real date']);
+});
+
+test('date reader: only ISO-8601 style strings are read', () => {
+  for (const bad of ['1', '2026', 'Oct 5 2026', '10/05/2026', '2026-02-30', '2026-10-01T24:00:00Z', '1790812800000']) {
+    assert.ok(Number.isNaN(parseIsoTimestamp(bad)), bad);
+  }
+  assert.ok(Number.isNaN(parseIsoTimestamp(1790812800000)), 'numbers are not read');
+  const t = Date.UTC(2026, 9, 1);
+  for (const good of ['2026-10-01', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00.000Z', '2026-10-01 00:00:00+00', '2026-10-01T01:00:00+01:00', '2026-10-01T01:00:00+0100']) {
+    assert.equal(parseIsoTimestamp(good), t, good);
+  }
 });

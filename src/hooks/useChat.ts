@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Conversation, ChatMessage } from '../lib/types';
 import { MOCK_CONVERSATIONS, MOCK_CHAT_MESSAGES } from '../lib/mockData';
 import { useToast } from '../components/Toast';
+import { guardAiWork } from './useTasks';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 const readAllConversations = (): Conversation[] => {
   if (typeof window === 'undefined') return [...MOCK_CONVERSATIONS];
@@ -95,6 +97,8 @@ export function useChat(projectId: string) {
       role?: 'user' | 'assistant';
       proposedTaskId?: string | null;
     }) => {
+      // Fail closed before anything is saved or sent: no budget, no AI call.
+      if (role === 'user') guardAiWork(projectId);
       const allMsgs = readAllMessages();
 
       const newMsg: ChatMessage = {
@@ -143,7 +147,7 @@ export function useChat(projectId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages'] });
     },
-    onError: () => toast.error('Failed to send message'),
+    onError: (err) => toast.error(isProjectBudgetBlocked(err) ? err.message : 'Failed to send message'),
   });
 
   return {

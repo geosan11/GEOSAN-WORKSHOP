@@ -79,8 +79,8 @@ insert into public.agent_tasks (id, project_id, task_type, prompt) values
 select pg_temp.check_iya('single winner C (full tie): lowest old id proj-iya-001 wins, budget from the same row', 'C iya-001', 333);
 rollback;
 
--- D. The winner has no budget row, the loser has one: the loser's budget is
---    dropped, not merged in, so proj-iya-002 has no budget row.
+-- D. The winner has no budget row, the next-ranked old row has one: only the
+--    budget falls back to it; the project fields still come from the winner.
 begin;
 select pg_temp.reset_iya();
 insert into public.project_registry (id, name, vertical, created_at, updated_at) values
@@ -91,7 +91,20 @@ insert into public.project_budgets (project_id, monthly_limit_usd, updated_at) v
 insert into public.agent_tasks (id, project_id, task_type, prompt) values
   ('t-sw-1', 'proj-iya-001', 'FIX_BUG', 'a'), ('t-sw-2', 'proj-iyanu-002', 'FIX_BUG', 'b');
 \i :mig
-select pg_temp.check_iya('single winner D: winner has no budget -> loser''s budget dropped, not merged', 'D iyanu-002', null);
+select pg_temp.check_iya('single winner D: winner has no budget -> next-ranked old row''s budget is used; project fields from the winner', 'D iyanu-002', 333);
+rollback;
+
+-- D2. Neither old row has a budget: proj-iya-002 has none (the app then
+--     blocks AI work for it).
+begin;
+select pg_temp.reset_iya();
+insert into public.project_registry (id, name, vertical, created_at, updated_at) values
+  ('proj-iya-001',   'D2 iya-001',   'agriculture', '2026-08-01', '2026-09-01'),
+  ('proj-iyanu-002', 'D2 iyanu-002', 'agriculture', '2026-08-01', '2026-10-15');
+insert into public.agent_tasks (id, project_id, task_type, prompt) values
+  ('t-sw-1', 'proj-iya-001', 'FIX_BUG', 'a'), ('t-sw-2', 'proj-iyanu-002', 'FIX_BUG', 'b');
+\i :mig
+select pg_temp.check_iya('single winner D2: no old budget at all -> proj-iya-002 has no budget row', 'D2 iyanu-002', null);
 rollback;
 
 -- E. Canonical proj-iya-002 exists (no canonical budget) - unchanged rule:

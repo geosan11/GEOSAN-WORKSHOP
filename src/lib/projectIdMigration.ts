@@ -79,22 +79,51 @@ export function remapLegacyIds<T>(value: T): T {
  *   1. latest updated date, 2. then latest created date, 3. then lowest old id
  *   (plain string order, like `collate "C"` in SQL).
  * A missing or unreadable date counts as oldest. The winner is taken whole:
- * the losing records' values are dropped, never merged field by field.
+ * the losing records' values are dropped, never merged field by field. The
+ * one exception is the budget (`monthly_budget_usd`): if the kept record has
+ * none, it comes from the next-ranked old-id record that has one (as in SQL).
  */
 const UPDATED_FIELDS = ['updated_at', 'updatedAt', 'lastUpdated'] as const;
 const CREATED_FIELDS = ['created_at', 'createdAt'] as const;
 
 /**
+ * ISO-8601 style timestamps only: `YYYY-MM-DD`, optionally followed by `T` (or
+ * a space, as Postgres prints them) and `hh:mm[:ss[.fraction]]`, optionally
+ * followed by `Z` or an offset (`+hh`, `+hhmm`, `+hh:mm`). Numbers are not
+ * read (dates are only stored as strings). Anything else, e.g. "1" (which
+ * Date.parse reads as 2001), "Oct 5" or "2026-02-30", is unreadable.
+ */
+const ISO_TIMESTAMP =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?)?(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
+
+/** Milliseconds for an ISO-8601 style timestamp, or NaN if `value` is not one. */
+export function parseIsoTimestamp(value: unknown): number {
+  if (typeof value !== 'string') return NaN;
+  const m = ISO_TIMESTAMP.exec(value.trim());
+  if (!m) return NaN;
+  const [, y, mo, d, hh = '00', mi = '00', ss = '00', zone] = m;
+  if (+mo < 1 || +mo > 12 || +d < 1 || +hh > 23 || +mi > 59 || +ss > 59) return NaN;
+  // Reject impossible days (2026-02-30) instead of letting them roll over.
+  if (+d > new Date(Date.UTC(+y, +mo, 0)).getUTCDate()) return NaN;
+  let iso = value.trim().replace(' ', 'T');
+  if (zone && /^[+-]\d{2}$/.test(zone)) iso += ':00';
+  else if (zone && /^[+-]\d{4}$/.test(zone)) iso = iso.slice(0, -2) + ':' + iso.slice(-2);
+  // A date without a zone is read as UTC (like a date-only ISO string).
+  if (!zone && m[4] !== undefined) iso += 'Z';
+  return Date.parse(iso);
+}
+
+/**
  * The LATEST readable date (ms) among `fields` of `item` (e.g. `updated_at`
  * and `lastUpdated` both set: the later one counts), or -Infinity if none of
- * them parses.
+ * them is a readable ISO-8601 timestamp.
  */
 function latestDate(item: unknown, fields: readonly string[]): number {
   if (!item || typeof item !== 'object') return -Infinity;
   const rec = item as Record<string, unknown>;
   let latest = -Infinity;
   for (const field of fields) {
-    const t = typeof rec[field] === 'string' ? Date.parse(rec[field] as string) : NaN;
+    const t = parseIsoTimestamp(rec[field]);
     if (!Number.isNaN(t) && t > latest) latest = t;
   }
   return latest;
@@ -125,32 +154,53 @@ function pickPerTarget<E extends [string, unknown]>(entries: E[], record: (e: E)
   return [...best.values()];
 }
 
+const BUDGET_FIELD = 'monthly_budget_usd';
+/** A record "has a budget" when `monthly_budget_usd` is a finite number. */
+function hasBudget(item: unknown): boolean {
+  if (!item || typeof item !== 'object') return false;
+  const v = (item as Record<string, unknown>)[BUDGET_FIELD];
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
 /**
  * Merge rule for a list of records after remapping (same rule as the SQL
- * migration): for each id keep ONE record, whole. A record that already had
- * the canonical id wins; otherwise the old-id record that ranks first by the
- * merge order above. Its fields (including `monthly_budget_usd`) all come
- * from that one record; the losers are dropped. The kept record takes the
- * position of the first record with that id.
+ * migration): for each id keep ONE record. A record that already had the
+ * canonical id wins; otherwise the old-id record that ranks first by the
+ * merge order above. All its fields come from that one record; the losers are
+ * dropped. Only the budget falls back: if the kept record has no
+ * `monthly_budget_usd`, it is taken from the highest-ranked old-id record
+ * that has one. The kept record takes the position of the first record with
+ * that id.
  */
 function dedupeById(original: unknown[], remapped: unknown[]): unknown[] {
   const idOf = (item: unknown) =>
     item && typeof item === 'object' && typeof (item as Record<string, unknown>).id === 'string'
       ? ((item as Record<string, unknown>).id as string)
       : null;
-  const winner = new Map<string, number>();
+  const groups = new Map<string, number[]>();
   remapped.forEach((item, i) => {
     const id = idOf(item);
-    if (id == null) return;
-    const cur = winner.get(id);
-    if (cur === undefined) return void winner.set(id, i);
-    const curCanonical = idOf(original[cur]) === id;
-    const thisCanonical = idOf(original[i]) === id;
-    if (curCanonical) return;
-    if (thisCanonical || ranksBefore(original[i], idOf(original[i])!, original[cur], idOf(original[cur])!)) {
-      winner.set(id, i);
-    }
+    if (id != null) groups.set(id, [...(groups.get(id) ?? []), i]);
   });
+  const kept = new Map<string, unknown>();
+  for (const [id, indices] of groups) {
+    const canonical = indices.find((i) => idOf(original[i]) === id);
+    // Old-id records, best first (stable sort keeps list order on exact ties).
+    const ranked = indices
+      .filter((i) => i !== canonical)
+      .sort((a, b) =>
+        ranksBefore(original[a], idOf(original[a])!, original[b], idOf(original[b])!) ? -1
+          : ranksBefore(original[b], idOf(original[b])!, original[a], idOf(original[a])!) ? 1 : 0);
+    const win = canonical ?? ranked[0];
+    let record = remapped[win];
+    if (!hasBudget(original[win])) {
+      const donor = ranked.find((i) => i !== win && hasBudget(original[i]));
+      if (donor !== undefined) {
+        record = { ...(record as Record<string, unknown>), [BUDGET_FIELD]: (original[donor] as Record<string, unknown>)[BUDGET_FIELD] };
+      }
+    }
+    kept.set(id, record);
+  }
   const out: unknown[] = [];
   const placed = new Set<string>();
   remapped.forEach((item) => {
@@ -158,7 +208,7 @@ function dedupeById(original: unknown[], remapped: unknown[]): unknown[] {
     if (id == null) return void out.push(item);
     if (placed.has(id)) return;
     placed.add(id);
-    out.push(remapped[winner.get(id)!]);
+    out.push(kept.get(id));
   });
   return out;
 }
