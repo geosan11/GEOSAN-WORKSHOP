@@ -6,12 +6,13 @@ import {
   saveDesignBrief,
   approveDesignBrief,
   rejectDesignBrief,
+  applyPresetToBrief,
+  CUSTOM_KIT_ID,
   ReferenceItem
 } from '../lib/designBrief';
-import { VERTICAL_KITS, VerticalKit } from '../data/verticalKits';
+import { DESIGN_KIT_PRESETS, getDesignKitPreset } from '../data/designKitPresets';
 import { lintDesignBriefAndFixture, SlopCriticResult } from '../lib/slopCritic';
 import { getOrCreateGoldenFixture } from '../lib/goldenFixtures';
-import { getCopyDeckForKit } from '../lib/copyDeck';
 import { loadProjectDiscovery } from '../lib/sdlcDiscovery';
 import { useToast } from './Toast';
 import {
@@ -47,7 +48,7 @@ interface ReferenceBoardProps {
 export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesignApproved }) => {
   const toast = useToast();
 
-  const [brief, setBrief] = useState<DesignBrief>(() => getDesignBrief(project.id, project.vertical));
+  const [brief, setBrief] = useState<DesignBrief>(() => getDesignBrief(project.id));
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
   const [activeSubView, setActiveSubView] = useState<'board' | 'critic' | 'fixture' | 'copy'>('board');
@@ -67,13 +68,10 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
   );
   const discoveryGatePassed = hasGoldenPath && hasEntities;
 
-  // Active Kit
-  const activeKit = VERTICAL_KITS[brief.kit_id] || VERTICAL_KITS.ehi;
-
-  // Golden Fixture
+  // Golden Fixture (rendered from this project's own copy of the kit)
   const goldenFixture = useMemo(() => {
-    return getOrCreateGoldenFixture(project.id, project.name, brief.kit_id);
-  }, [project.id, project.name, brief.kit_id]);
+    return getOrCreateGoldenFixture(project.id, project.name, brief);
+  }, [project.id, project.name, brief]);
 
   // Slop Critic Analysis
   const criticResult: SlopCriticResult = useMemo(() => {
@@ -81,7 +79,8 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
   }, [brief, goldenFixture.html_content]);
 
   // Copy Deck
-  const copyDeck = useMemo(() => getCopyDeckForKit(brief.kit_id), [brief.kit_id]);
+  const copyDeck = brief.copy_deck;
+  const kitIsPreset = Boolean(getDesignKitPreset(brief.kit_id));
 
   // Update handler
   const handleUpdateBrief = (updater: (prev: DesignBrief) => DesignBrief) => {
@@ -287,7 +286,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           }`}
         >
           <FileCode2 className="w-3.5 h-3.5" />
-          <span>4. Copy Deck (10 Domain Nouns)</span>
+          <span>4. Copy Deck ({copyDeck.length} Domain Nouns)</span>
         </button>
       </div>
 
@@ -304,29 +303,35 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                 Selected Vertical Kit:
               </label>
               <select
-                value={brief.kit_id}
+                value={kitIsPreset ? brief.kit_id : CUSTOM_KIT_ID}
                 onChange={(e) => {
-                  const newKitId = e.target.value as any;
-                  const kit = VERTICAL_KITS[newKitId];
-                  handleUpdateBrief((prev) => ({
-                    ...prev,
-                    kit_id: newKitId,
-                    signature_object: kit.signatureObject,
-                    setting: kit.setting,
-                    forbidden: [...kit.defaultForbidden]
-                  }));
+                  const presetId = e.target.value;
+                  if (presetId === CUSTOM_KIT_ID) return;
+                  const wasApproved = brief.status === 'approved';
+                  handleUpdateBrief((prev) => applyPresetToBrief(prev, presetId));
+                  const picked = getDesignKitPreset(presetId);
+                  toast.success(
+                    `Copied "${picked?.name ?? presetId}" into this project${wasApproved ? '. Approval reset to draft.' : '.'}`
+                  );
                 }}
                 className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
               >
-                <option value="iyanuoluwa">Bulk Materials & Weighbridge Kit (Ticket Tape WB-YYYY-XXXXX)</option>
-                <option value="ehi">Reconciliation Ledger & Debt Line Kit (Audit Stamp & Aging Buckets)</option>
-                <option value="aviation">Technical Flight Logbook Kit (Hobbs Decimals & A&P Signoff)</option>
-                <option value="edgepoint">IoT Sensor Mesh & Telemetry Kit (Node RSSI & Voltage)</option>
+                {!kitIsPreset && (
+                  <option value={CUSTOM_KIT_ID}>{brief.kit_name || 'Custom kit'}</option>
+                )}
+                {DESIGN_KIT_PRESETS.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                    {preset.kit.signatureObject ? ` (${preset.kit.signatureObject})` : ''}
+                  </option>
+                ))}
               </select>
 
               <div className="p-3 rounded-lg bg-app border border-app space-y-1">
                 <span className="text-[10px] text-muted uppercase block">Screen Grammar:</span>
-                <span className="text-xs text-muted font-sans">{activeKit.screenGrammar}</span>
+                <span className="text-xs text-muted font-sans">
+                  {brief.screen_grammar || 'No screen grammar yet. Pick a preset, or describe how the deliverable reads.'}
+                </span>
               </div>
             </div>
 
@@ -645,10 +650,18 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           <div className="p-4 rounded-xl bg-card border border-app">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <FileCode2 className="w-4 h-4 text-[#F0B230]" />
-              Ten Domain Contract Nouns (Gating CodingAgent & Chat)
+              Domain Contract Nouns (Gating CodingAgent & Chat)
             </h3>
             <p className="text-xs text-muted font-sans mt-0.5">
-              Chat and plan prompts must use these nouns. A plan that says "user" and "item" where contract says <code>{copyDeck[0].noun}</code> and <code>{copyDeck[1].noun}</code> is rejected in Ask mode.
+              {copyDeck.length >= 2 ? (
+                <>
+                  Chat and plan prompts must use these nouns. A plan that says "user" and "item" where contract says <code>{copyDeck[0].noun}</code> and <code>{copyDeck[1].noun}</code> is rejected in Ask mode.
+                </>
+              ) : copyDeck.length === 1 ? (
+                <>Chat and plan prompts must use these nouns, such as <code>{copyDeck[0].noun}</code>.</>
+              ) : (
+                <>This project's kit has no contract nouns yet, so prompts are not checked. Pick a preset with a copy deck to enforce one.</>
+              )}
             </p>
           </div>
 
