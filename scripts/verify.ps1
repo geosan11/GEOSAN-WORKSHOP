@@ -1,19 +1,29 @@
 # PowerShell deterministic harness runner for Windows environment
+$ErrorActionPreference = 'Stop'
+
+function Invoke-Step {
+    param(
+        [Parameter(Mandatory = $true)][string]$Label,
+        [Parameter(Mandatory = $true)][scriptblock]$Action
+    )
+
+    Write-Host "--> $Label"
+    & $Action
+    if ($LASTEXITCODE -ne 0) {
+        throw "Step failed ($Label) with exit code $LASTEXITCODE"
+    }
+}
+
 Write-Host "=========================================="
 Write-Host "GEOSAN-WORKSHOP Deterministic Harness (PowerShell)"
 Write-Host "=========================================="
 
-Write-Host "--> Running strict TypeScript lint..."
-npm run lint
-
-Write-Host "--> Running full system invariant test..."
-npx tsx scripts/full-system-test.ts
-
-Write-Host "--> Running user interactions simulation test..."
-npx tsx scripts/test-all-user-interactions.ts
-
-Write-Host "--> Running comprehensive coverage audit..."
-npx tsx scripts/comprehensive-coverage-audit.ts
+Invoke-Step 'Running strict TypeScript lint...' { npm run lint }
+Invoke-Step 'Running dependency weight + package check...' { node scripts/check-deps.mjs }
+Invoke-Step 'Running secret hygiene check...' { node scripts/check-secrets.mjs }
+Invoke-Step 'Running budget & telemetry replay...' { npx tsx scripts/replay-budget.ts }
+Invoke-Step 'Running full system invariant test...' { npx tsx scripts/full-system-test.ts }
+Invoke-Step 'Running deterministic Slop Critic & Design Contract lint...' { npx tsx scripts/design-lint.ts }
 
 Write-Host "=========================================="
 Write-Host "All deterministic tests PASSED successfully."

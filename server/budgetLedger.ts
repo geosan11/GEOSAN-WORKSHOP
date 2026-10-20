@@ -89,12 +89,17 @@ activeLedger.tiers[2].usedUsd = 0.05;
 activeLedger.tiers[3].usedRequests = 2;
 activeLedger.tiers[3].usedUsd = 0.01;
 
-export function getBudgetLedger(): WeeklyLedgerState {
+function ensureCurrentWeekLedger(): WeeklyLedgerState {
   const currentWeek = getIsoWeekKey();
   if (activeLedger.weekKey !== currentWeek) {
     activeLedger = createDefaultLedger(currentWeek);
   }
-  return { ...activeLedger };
+  return activeLedger;
+}
+
+/** Snapshot for reads / API responses. Mutate only via admitBudget. */
+export function getBudgetLedger(): WeeklyLedgerState {
+  return JSON.parse(JSON.stringify(ensureCurrentWeekLedger())) as WeeklyLedgerState;
 }
 
 export interface AdmitRequest {
@@ -118,74 +123,16 @@ export interface AdmitResult {
   totalUsdCap: number;
 }
 
-export function admitBudget(req: AdmitRequest): AdmitResult {
-  const ledger = getBudgetLedger();
-  const tierKey = (req.tier === 1 || req.tier === 2 || req.tier === 3 ? req.tier : 1) as 1 | 2 | 3;
+function snapshotAdmit(
+  admitted: boolean,
+  tierKey: 1 | 2 | 3,
+  ledger: WeeklyLedgerState,
+  reason?: string
+): AdmitResult {
   const tier = ledger.tiers[tierKey];
-  const cost = req.costUsd && req.costUsd > 0 ? req.costUsd : 0.0075; // average cost per request
-
-  // Check 1: Tier requests exhausted
-  if (tier.usedRequests >= tier.maxRequests) {
-    return {
-      admitted: false,
-      reason: `Tier ${tierKey} request quota exhausted (${tier.usedRequests}/${tier.maxRequests})`,
-      tier: tierKey,
-      weekKey: ledger.weekKey,
-      tierRequestsUsed: tier.usedRequests,
-      tierRequestsCap: tier.maxRequests,
-      tierUsdUsed: tier.usedUsd,
-      tierUsdCap: tier.maxUsd,
-      totalRequestsUsed: ledger.usedRequests,
-      totalRequestsCap: ledger.totalCapRequests,
-      totalUsdUsed: ledger.usedUsd,
-      totalUsdCap: ledger.totalCapUsd,
-    };
-  }
-
-  // Check 2: Tier USD exhausted
-  if (tier.usedUsd + cost > tier.maxUsd) {
-    return {
-      admitted: false,
-      reason: `Tier ${tierKey} USD budget cap exceeded ($${tier.usedUsd.toFixed(2)}/$${tier.maxUsd.toFixed(2)})`,
-      tier: tierKey,
-      weekKey: ledger.weekKey,
-      tierRequestsUsed: tier.usedRequests,
-      tierRequestsCap: tier.maxRequests,
-      tierUsdUsed: tier.usedUsd,
-      tierUsdCap: tier.maxUsd,
-      totalRequestsUsed: ledger.usedRequests,
-      totalRequestsCap: ledger.totalCapRequests,
-      totalUsdUsed: ledger.usedUsd,
-      totalUsdCap: ledger.totalCapUsd,
-    };
-  }
-
-  // Check 3: Global cap
-  if (ledger.usedRequests >= ledger.totalCapRequests || ledger.usedUsd + cost > ledger.totalCapUsd) {
-    return {
-      admitted: false,
-      reason: `Global weekly budget exhausted (${ledger.usedRequests}/${ledger.totalCapRequests}, $${ledger.usedUsd.toFixed(2)}/$${ledger.totalCapUsd.toFixed(2)})`,
-      tier: tierKey,
-      weekKey: ledger.weekKey,
-      tierRequestsUsed: tier.usedRequests,
-      tierRequestsCap: tier.maxRequests,
-      tierUsdUsed: tier.usedUsd,
-      tierUsdCap: tier.maxUsd,
-      totalRequestsUsed: ledger.usedRequests,
-      totalRequestsCap: ledger.totalCapRequests,
-      totalUsdUsed: ledger.usedUsd,
-      totalUsdCap: ledger.totalCapUsd,
-    };
-  }
-
-  // Admit: increment tier and global ledger
-  tier.usedRequests += 1;
-  tier.usedUsd = Number((tier.usedUsd + cost).toFixed(4));
-  ledger.usedRequests += 1;
-  ledger.usedUsd = Number((ledger.usedUsd + cost).toFixed(4));
-
   return {
-    admitted: true,
+    admitted,
+    reason,
     tier: tierKey,
     weekKey: ledger.weekKey,
     tierRequestsUsed: tier.usedRequests,
@@ -197,6 +144,54 @@ export function admitBudget(req: AdmitRequest): AdmitResult {
     totalUsdUsed: ledger.usedUsd,
     totalUsdCap: ledger.totalCapUsd,
   };
+}
+
+export function admitBudget(req: AdmitRequest): AdmitResult {
+  // Mutate the live ledger. getBudgetLedger() returns a deep clone, so admit
+  // must never write through that snapshot (shallow-copy bug left top-level
+  // usedRequests stuck while nested tier counters moved).
+  const ledger = ensureCurrentWeekLedger();
+  const tierKey = (req.tier === 1 || req.tier === 2 || req.tier === 3 ? req.tier : 1) as 1 | 2 | 3;
+  const tier = ledger.tiers[tierKey];
+  const cost = req.costUsd && req.costUsd > 0 ? req.costUsd : 0.0075; // average cost per request
+
+  // Check 1: Tier requests exhausted
+  if (tier.usedRequests >= tier.maxRequests) {
+    return snapshotAdmit(
+      false,
+      tierKey,
+      ledger,
+      `Tier ${tierKey} request quota exhausted (${tier.usedRequests}/${tier.maxRequests})`
+    );
+  }
+
+  // Check 2: Tier USD exhausted
+  if (tier.usedUsd + cost > tier.maxUsd) {
+    return snapshotAdmit(
+      false,
+      tierKey,
+      ledger,
+      `Tier ${tierKey} USD budget cap exceeded ($${tier.usedUsd.toFixed(2)}/$${tier.maxUsd.toFixed(2)})`
+    );
+  }
+
+  // Check 3: Global cap
+  if (ledger.usedRequests >= ledger.totalCapRequests || ledger.usedUsd + cost > ledger.totalCapUsd) {
+    return snapshotAdmit(
+      false,
+      tierKey,
+      ledger,
+      `Global weekly budget exhausted (${ledger.usedRequests}/${ledger.totalCapRequests}, $${ledger.usedUsd.toFixed(2)}/$${ledger.totalCapUsd.toFixed(2)})`
+    );
+  }
+
+  // Admit: increment tier and global ledger on the live object
+  tier.usedRequests += 1;
+  tier.usedUsd = Number((tier.usedUsd + cost).toFixed(4));
+  ledger.usedRequests += 1;
+  ledger.usedUsd = Number((ledger.usedUsd + cost).toFixed(4));
+
+  return snapshotAdmit(true, tierKey, ledger);
 }
 
 export function resetLedgerForTesting(): void {

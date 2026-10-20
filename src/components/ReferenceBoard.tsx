@@ -156,9 +156,9 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
   };
 
   return (
-    <div className="space-y-6 font-mono text-xs text-[#e6edf3]">
+    <div className="space-y-6 font-mono text-xs text-main">
       {/* ── TOP BANNER: STATUS & GATE NOTICE ── */}
-      <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-4 rounded-xl bg-card border border-app flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm text-white flex items-center gap-1.5">
@@ -177,7 +177,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
               Status: {brief.status.toUpperCase()}
             </span>
           </div>
-          <p className="text-[#8b98a8] font-sans text-xs">
+          <p className="text-muted font-sans text-xs">
             Gate: <code className="text-[#FFBD59]">BUILD_FEATURE</code> and <code className="text-[#FFBD59]">FIX_BUG</code> tasks stay <code className="text-amber-300">proposed</code> until this design brief is formally approved with a signed golden fixture hash.
           </p>
         </div>
@@ -241,13 +241,13 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
       )}
 
       {/* ── SUBVIEW TABS ── */}
-      <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+      <div className="flex items-center gap-2 border-b border-app pb-2">
         <button
           onClick={() => setActiveSubView('board')}
           className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
             activeSubView === 'board'
               ? 'bg-[#F0B230] text-[#0A1420]'
-              : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              : 'text-muted hover:text-main'
           }`}
         >
           <Pin className="w-3.5 h-3.5" />
@@ -259,7 +259,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
             activeSubView === 'critic'
               ? 'bg-[#F0B230] text-[#0A1420]'
-              : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              : 'text-muted hover:text-main'
           }`}
         >
           <Ban className="w-3.5 h-3.5" />
@@ -271,7 +271,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
             activeSubView === 'fixture'
               ? 'bg-[#F0B230] text-[#0A1420]'
-              : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              : 'text-muted hover:text-main'
           }`}
         >
           <Eye className="w-3.5 h-3.5" />
@@ -283,7 +283,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 ${
             activeSubView === 'copy'
               ? 'bg-[#F0B230] text-[#0A1420]'
-              : 'text-[#8b98a8] hover:text-[#e6edf3]'
+              : 'text-muted hover:text-main'
           }`}
         >
           <FileCode2 className="w-3.5 h-3.5" />
@@ -298,8 +298,8 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
         <div className="space-y-6">
           {/* Vertical Kit Selection & Signature Object */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
-              <label className="text-[11px] font-bold text-[#e6edf3] uppercase flex items-center gap-1.5">
+            <div className="p-4 rounded-xl bg-card border border-app space-y-3">
+              <label className="text-[11px] font-bold text-main uppercase flex items-center gap-1.5">
                 <Sliders className="w-3.5 h-3.5 text-[#F0B230]" />
                 Selected Vertical Kit:
               </label>
@@ -316,7 +316,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                     forbidden: [...kit.defaultForbidden]
                   }));
                 }}
-                className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
               >
                 <option value="iyanuoluwa">Bulk Materials & Weighbridge Kit (Ticket Tape WB-YYYY-XXXXX)</option>
                 <option value="ehi">Reconciliation Ledger & Debt Line Kit (Audit Stamp & Aging Buckets)</option>
@@ -324,14 +324,14 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                 <option value="edgepoint">IoT Sensor Mesh & Telemetry Kit (Node RSSI & Voltage)</option>
               </select>
 
-              <div className="p-3 rounded-lg bg-[#0d1117] border border-white/5 space-y-1">
-                <span className="text-[10px] text-[#8b98a8] uppercase block">Screen Grammar:</span>
-                <span className="text-xs text-slate-300 font-sans">{activeKit.screenGrammar}</span>
+              <div className="p-3 rounded-lg bg-app border border-app space-y-1">
+                <span className="text-[10px] text-muted uppercase block">Screen Grammar:</span>
+                <span className="text-xs text-muted font-sans">{activeKit.screenGrammar}</span>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
-              <label className="text-[11px] font-bold text-[#e6edf3] uppercase flex items-center justify-between">
+            <div className="p-4 rounded-xl bg-card border border-app space-y-3">
+              <label className="text-[11px] font-bold text-main uppercase flex items-center justify-between">
                 <span>Signature Object (Operator Holds):</span>
                 <span className="text-[10px] text-amber-400">Never "Dashboard"</span>
               </label>
@@ -339,18 +339,18 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                 type="text"
                 value={brief.signature_object}
                 onChange={(e) => handleUpdateBrief((p) => ({ ...p, signature_object: e.target.value }))}
-                className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-mono focus:outline-none focus:border-[#F0B230]"
+                className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-mono focus:outline-none focus:border-[#F0B230]"
               />
 
               <div className="space-y-1">
-                <label className="text-[10px] text-[#8b98a8] uppercase block">
+                <label className="text-[10px] text-muted uppercase block">
                   Setting & Operating Context (Lighting, Gloves, Distance):
                 </label>
                 <textarea
                   value={brief.setting}
                   onChange={(e) => handleUpdateBrief((p) => ({ ...p, setting: e.target.value }))}
                   rows={2}
-                  className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2 text-xs text-[#e6edf3] font-sans focus:outline-none focus:border-[#F0B230]"
+                  className="w-full bg-app border border-app rounded-lg p-2 text-xs text-main font-sans focus:outline-none focus:border-[#F0B230]"
                 />
               </div>
             </div>
@@ -359,34 +359,34 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           {/* EXACTLY THREE REFERENCES (PINNED) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#e6edf3] font-mono flex items-center gap-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-main font-mono flex items-center gap-1.5">
                 <Pin className="w-3.5 h-3.5 text-[#F0B230]" />
                 Pinned References (Exactly Three Required)
               </h3>
-              <span className="text-[10px] text-[#8b98a8]">
+              <span className="text-[10px] text-muted">
                 Every pin must contain both "what to steal" and "what to leave"
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {brief.references.map((ref, idx) => (
-                <div key={ref.id || idx} className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
+                <div key={ref.id || idx} className="p-4 rounded-xl bg-card border border-app space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-[#FFBD59] uppercase">
                       Reference #{idx + 1}
                     </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-[#8b98a8]">
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-muted">
                       PINNED
                     </span>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] text-[#8b98a8] uppercase block">Source / Archive:</label>
+                    <label className="text-[10px] text-muted uppercase block">Source / Archive:</label>
                     <input
                       type="text"
                       value={ref.source}
                       onChange={(e) => handleUpdateReference(idx, 'source', e.target.value)}
-                      className="w-full bg-[#0d1117] border border-white/10 rounded p-2 text-xs text-[#e6edf3] font-mono"
+                      className="w-full bg-app border border-app rounded p-2 text-xs text-main font-mono"
                     />
                   </div>
 
@@ -398,7 +398,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                       value={ref.what_to_steal}
                       onChange={(e) => handleUpdateReference(idx, 'what_to_steal', e.target.value)}
                       rows={2}
-                      className="w-full bg-[#0d1117] border border-emerald-500/20 rounded p-2 text-xs text-slate-200 font-sans"
+                      className="w-full bg-app border border-emerald-500/20 rounded p-2 text-xs text-main font-sans"
                     />
                   </div>
 
@@ -410,7 +410,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                       value={ref.what_to_leave}
                       onChange={(e) => handleUpdateReference(idx, 'what_to_leave', e.target.value)}
                       rows={2}
-                      className="w-full bg-[#0d1117] border border-red-500/20 rounded p-2 text-xs text-slate-200 font-sans"
+                      className="w-full bg-app border border-red-500/20 rounded p-2 text-xs text-main font-sans"
                     />
                   </div>
                 </div>
@@ -419,13 +419,13 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
           </div>
 
           {/* FORBIDDEN LIST (MINIMUM FIVE) */}
-          <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
+          <div className="p-4 rounded-xl bg-card border border-app space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#e6edf3] font-mono flex items-center gap-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-main font-mono flex items-center gap-1.5">
                 <Ban className="w-3.5 h-3.5 text-red-400" />
                 Forbidden Anti-Patterns ({brief.forbidden.length} Listed — Minimum 5 Required)
               </h3>
-              <span className="text-[10px] text-[#8b98a8]">
+              <span className="text-[10px] text-muted">
                 CodingAgent will be rejected if these patterns are detected
               </span>
             </div>
@@ -434,13 +434,13 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
               {brief.forbidden.map((item, idx) => (
                 <div
                   key={idx}
-                  className="p-2.5 rounded-lg bg-[#0d1117] border border-red-500/20 text-red-200 flex items-center justify-between gap-2"
+                  className="p-2.5 rounded-lg bg-app border border-red-500/20 text-red-200 flex items-center justify-between gap-2"
                 >
                   <span className="font-sans text-xs truncate">🚫 {item}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveForbidden(idx)}
-                    className="text-[#8b98a8] hover:text-red-400 p-1"
+                    className="text-muted hover:text-red-400 p-1"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -454,7 +454,7 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                 value={newForbiddenText}
                 onChange={(e) => setNewForbiddenText(e.target.value)}
                 placeholder="e.g. Generic onboarding carousels, celebratory toast confetti..."
-                className="flex-1 bg-[#0d1117] border border-white/10 rounded-lg p-2 text-xs text-[#e6edf3] font-sans"
+                className="flex-1 bg-app border border-app rounded-lg p-2 text-xs text-main font-sans"
               />
               <button
                 type="submit"
@@ -467,49 +467,49 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
 
           {/* TYPE, VOICE & TOKEN DELTA */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
-              <h4 className="text-[11px] font-bold uppercase text-[#e6edf3]">
+            <div className="p-4 rounded-xl bg-card border border-app space-y-3">
+              <h4 className="text-[11px] font-bold uppercase text-main">
                 Typography & Voice Invariants
               </h4>
               <div className="grid grid-cols-3 gap-2 text-[10px]">
                 <div>
-                  <span className="text-[#8b98a8] block">DISPLAY:</span>
+                  <span className="text-muted block">DISPLAY:</span>
                   <span className="font-bold text-white">{brief.type_and_voice.display_face}</span>
                 </div>
                 <div>
-                  <span className="text-[#8b98a8] block">BODY:</span>
+                  <span className="text-muted block">BODY:</span>
                   <span className="font-bold text-white">{brief.type_and_voice.text_face}</span>
                 </div>
                 <div>
-                  <span className="text-[#8b98a8] block">MONO:</span>
+                  <span className="text-muted block">MONO:</span>
                   <span className="font-bold text-white">{brief.type_and_voice.mono_face}</span>
                 </div>
               </div>
 
               <div className="space-y-1.5 pt-2">
-                <span className="text-[10px] text-[#8b98a8] uppercase block">Sample Domain Copy Strings:</span>
+                <span className="text-[10px] text-muted uppercase block">Sample Domain Copy Strings:</span>
                 {brief.type_and_voice.sample_strings.map((str, i) => (
-                  <div key={i} className="p-2 rounded bg-[#0d1117] border border-white/5 text-[11px] font-mono text-[#FFBD59]">
+                  <div key={i} className="p-2 rounded bg-app border border-app text-[11px] font-mono text-[#FFBD59]">
                     "{str}"
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 space-y-3">
-              <h4 className="text-[11px] font-bold uppercase text-[#e6edf3]">
+            <div className="p-4 rounded-xl bg-card border border-app space-y-3">
+              <h4 className="text-[11px] font-bold uppercase text-main">
                 Token Delta (Overrides from Workshop Tokens)
               </h4>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="text-[10px] text-[#8b98a8] block">ACCENT COLOR:</label>
+                  <label className="text-[10px] text-muted block">ACCENT COLOR:</label>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="w-5 h-5 rounded border border-white/20" style={{ background: brief.token_delta.accent_color }} />
                     <span className="font-mono">{brief.token_delta.accent_color}</span>
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] text-[#8b98a8] block">PAPER BACKGROUND:</label>
+                  <label className="text-[10px] text-muted block">PAPER BACKGROUND:</label>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="w-5 h-5 rounded border border-white/20" style={{ background: brief.token_delta.paper_color }} />
                     <span className="font-mono">{brief.token_delta.paper_color}</span>
@@ -518,8 +518,8 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
               </div>
 
               <div className="pt-2">
-                <label className="text-[10px] text-[#8b98a8] block">INTERFACE DENSITY:</label>
-                <span className="px-2.5 py-1 rounded bg-[#0d1117] border border-white/10 font-bold text-white text-[11px] mt-1 inline-block">
+                <label className="text-[10px] text-muted block">INTERFACE DENSITY:</label>
+                <span className="px-2.5 py-1 rounded bg-app border border-app font-bold text-white text-[11px] mt-1 inline-block">
                   {brief.token_delta.density.toUpperCase()}
                 </span>
               </div>
@@ -533,20 +533,20 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
       {/* ══════════════════════════════════════════════════════════════════ */}
       {activeSubView === 'critic' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-card border border-app flex items-center justify-between">
             <div className="space-y-1">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Ban className="w-4 h-4 text-red-400" />
                 Deterministic Slop Critic Analysis
               </h3>
-              <p className="text-xs text-[#8b98a8] font-sans">
+              <p className="text-xs text-muted font-sans">
                 Zero-model-spend design verification. Fails the brief if stat cards, gradients, buzzwords, or generic sidebars are present.
               </p>
             </div>
 
             <div className="flex items-center gap-3">
               <div className="text-right">
-                <span className="text-[10px] text-[#8b98a8] uppercase block">Compliance Score</span>
+                <span className="text-[10px] text-muted uppercase block">Compliance Score</span>
                 <span className={`text-2xl font-bold font-mono ${criticResult.passed ? 'text-emerald-400' : 'text-red-400'}`}>
                   {criticResult.score}%
                 </span>
@@ -597,27 +597,27 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
       {/* ══════════════════════════════════════════════════════════════════ */}
       {activeSubView === 'fixture' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-[#161b22] border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-4 rounded-xl bg-card border border-app flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Eye className="w-4 h-4 text-[#F0B230]" />
                 Golden Screen Fixture (design/{goldenFixture.project_slug}/golden.html)
               </h3>
-              <p className="text-xs text-[#8b98a8] font-sans mt-0.5">
+              <p className="text-xs text-muted font-sans mt-0.5">
                 Shows the signature object with real contract fields. Approval writes <code className="text-[#FFBD59]">{goldenFixture.fixture_hash}</code>.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-[#8b98a8] font-mono">
+              <span className="text-[10px] text-muted font-mono">
                 Hash: {goldenFixture.fixture_hash}
               </span>
             </div>
           </div>
 
           {/* Embedded Fixture Viewport */}
-          <div className="border border-white/10 rounded-2xl overflow-hidden shadow-2xl bg-black">
-            <div className="bg-[#161b22] px-4 py-2 border-b border-white/5 flex items-center justify-between text-[11px] text-[#8b98a8]">
+          <div className="border border-app rounded-2xl overflow-hidden shadow-2xl bg-black">
+            <div className="bg-card px-4 py-2 border-b border-app flex items-center justify-between text-[11px] text-muted">
               <span className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
@@ -642,19 +642,19 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
       {/* ══════════════════════════════════════════════════════════════════ */}
       {activeSubView === 'copy' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-[#161b22] border border-white/5">
+          <div className="p-4 rounded-xl bg-card border border-app">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <FileCode2 className="w-4 h-4 text-[#F0B230]" />
               Ten Domain Contract Nouns (Gating CodingAgent & Chat)
             </h3>
-            <p className="text-xs text-[#8b98a8] font-sans mt-0.5">
+            <p className="text-xs text-muted font-sans mt-0.5">
               Chat and plan prompts must use these nouns. A plan that says "user" and "item" where contract says <code>{copyDeck[0].noun}</code> and <code>{copyDeck[1].noun}</code> is rejected in Ask mode.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {copyDeck.map((entry, idx) => (
-              <div key={entry.noun} className="p-3.5 rounded-xl bg-[#161b22] border border-white/5 space-y-1.5">
+              <div key={entry.noun} className="p-3.5 rounded-xl bg-card border border-app space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-xs text-[#FFBD59] font-mono">
                     #{idx + 1} · {entry.noun}
@@ -663,8 +663,8 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
                     {entry.category}
                   </span>
                 </div>
-                <p className="text-xs text-[#8b98a8] font-sans">{entry.definition}</p>
-                <div className="p-1.5 rounded bg-[#0d1117] text-[11px] font-mono text-emerald-400">
+                <p className="text-xs text-muted font-sans">{entry.definition}</p>
+                <div className="p-1.5 rounded bg-app text-[11px] font-mono text-emerald-400">
                   Example: {entry.sampleString}
                 </div>
               </div>
@@ -676,18 +676,18 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
       {/* ── REJECT MODAL ── */}
       {rejectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true">
-          <div className="bg-[#161b22] border border-white/10 rounded-2xl max-w-md w-full p-5 space-y-4 text-xs font-mono shadow-2xl">
-            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+          <div className="bg-card border border-app rounded-2xl max-w-md w-full p-5 space-y-4 text-xs font-mono shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-app">
               <span className="font-bold text-sm text-red-400 flex items-center gap-2">
                 <XCircle className="w-4 h-4" />
                 Reject Design Brief
               </span>
-              <button onClick={() => setRejectModalOpen(false)} className="text-[#8b98a8] hover:text-white">
+              <button onClick={() => setRejectModalOpen(false)} className="text-muted hover:text-main">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-slate-300 font-sans">
+            <p className="text-muted font-sans">
               Enter the reason for rejection. This reason will be stored directly on the design brief record and blocks any <code>BUILD_FEATURE</code> tasks until resolved.
             </p>
 
@@ -696,14 +696,14 @@ export const ReferenceBoard: React.FC<ReferenceBoardProps> = ({ project, onDesig
               onChange={(e) => setRejectReasonInput(e.target.value)}
               rows={4}
               placeholder="e.g. Reference #2 has no valid 'what to leave'; Golden fixture contains marketing cards..."
-              className="w-full bg-[#0d1117] border border-white/10 rounded-lg p-2.5 text-xs text-[#e6edf3] font-sans focus:outline-none focus:border-red-400"
+              className="w-full bg-app border border-app rounded-lg p-2.5 text-xs text-main font-sans focus:outline-none focus:border-red-400"
             />
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setRejectModalOpen(false)}
-                className="px-3 py-1.5 rounded-lg text-[#8b98a8] hover:text-white"
+                className="px-3 py-1.5 rounded-lg text-muted hover:text-main"
               >
                 Cancel
               </button>
