@@ -10,6 +10,7 @@
  * only place the old ids may appear.
  */
 import { DEFAULT_WORKSPACE_ID } from './workspace';
+import { toBudgetNumber } from './projectBudgetGuard';
 
 /** old project id -> canonical project id */
 export const LEGACY_PROJECT_ID_MAP: Readonly<Record<string, string>> = Object.freeze({
@@ -155,11 +156,29 @@ function pickPerTarget<E extends [string, unknown]>(entries: E[], record: (e: E)
 }
 
 const BUDGET_FIELD = 'monthly_budget_usd';
-/** A record "has a budget" when `monthly_budget_usd` is a finite number. */
+/**
+ * A record "has a budget" when `monthly_budget_usd` is an amount (a finite
+ * number or a numeric string such as '100.00', see toBudgetNumber), like a
+ * project_budgets row existing in SQL. 0 counts as the record's own budget.
+ */
 function hasBudget(item: unknown): boolean {
   if (!item || typeof item !== 'object') return false;
-  const v = (item as Record<string, unknown>)[BUDGET_FIELD];
-  return typeof v === 'number' && Number.isFinite(v);
+  return toBudgetNumber((item as Record<string, unknown>)[BUDGET_FIELD]) !== null;
+}
+
+/**
+ * Order of old budgets when the CANONICAL record exists without a budget,
+ * matching the SQL exactly: there the old project_budgets rows are ordered by
+ * their own updated_at desc, created_at desc, old id (collate "C").
+ * project_budgets has no created_at column, so in SQL that key is always
+ * NULL (a tie); the browser therefore skips the created date here too:
+ * latest updated date, then lowest old id.
+ */
+function budgetRanksBefore(a: unknown, aId: string, b: unknown, bId: string): boolean {
+  const ua = latestDate(a, UPDATED_FIELDS);
+  const ub = latestDate(b, UPDATED_FIELDS);
+  if (ua !== ub) return ua > ub;
+  return aId < bId;
 }
 
 /**
@@ -194,7 +213,16 @@ function dedupeById(original: unknown[], remapped: unknown[]): unknown[] {
     const win = canonical ?? ranked[0];
     let record = remapped[win];
     if (!hasBudget(original[win])) {
-      const donor = ranked.find((i) => i !== win && hasBudget(original[i]));
+      // No canonical record: the next-ranked old record (same order as the
+      // winner, like SQL's _budget_source). Canonical record: the old budgets
+      // in SQL's project_budgets order (budgetRanksBefore).
+      const donors = ranked.filter((i) => i !== win && hasBudget(original[i]));
+      if (canonical !== undefined) {
+        const rank = (i: number) => [original[i], idOf(original[i])!] as const;
+        donors.sort((a, b) =>
+          budgetRanksBefore(...rank(a), ...rank(b)) ? -1 : budgetRanksBefore(...rank(b), ...rank(a)) ? 1 : 0);
+      }
+      const donor = donors[0];
       if (donor !== undefined) {
         record = { ...(record as Record<string, unknown>), [BUDGET_FIELD]: (original[donor] as Record<string, unknown>)[BUDGET_FIELD] };
       }

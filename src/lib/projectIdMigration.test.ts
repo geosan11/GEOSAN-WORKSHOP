@@ -374,3 +374,27 @@ test('date reader: only ISO-8601 style strings are read', () => {
     assert.equal(parseIsoTimestamp(good), t, good);
   }
 });
+
+test('canonical record without budget: old budgets ordered like SQL (updated, then lowest id; created date ignored)', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-002', name: 'canonical', updated_at: '2026-01-01T00:00:00Z' },
+      // same updated date; proj-iyanu-002 created later, but SQL's project_budgets has no created_at
+      { id: 'proj-iyanu-002', name: 'b', monthly_budget_usd: 777, updated_at: '2026-10-01T00:00:00Z', created_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iya-001', name: 'a', monthly_budget_usd: 333, updated_at: '2026-10-01T00:00:00Z', created_at: '2026-08-01T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.equal(s.json('geosan_projects')[0].monthly_budget_usd, 333);
+});
+
+test('budget fallback: a numeric-string budget ("100.00") counts as a budget', () => {
+  const s = new MemoryStorage({
+    geosan_projects: [
+      { id: 'proj-iya-001', name: 'loser', monthly_budget_usd: 333, updated_at: '2026-09-01T00:00:00Z' },
+      { id: 'proj-iyanu-002', name: 'winner', monthly_budget_usd: '100.00', updated_at: '2026-10-15T00:00:00Z' }
+    ]
+  });
+  migrateLegacyProjectIds(s);
+  assert.equal(s.json('geosan_projects')[0].monthly_budget_usd, '100.00');
+});

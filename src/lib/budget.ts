@@ -3,7 +3,8 @@
  * Shared weekly ledger: default 400 calls, $3.00 USD, 60/30/10 distribution across tiers.
  * Communicates with POST /budget/admit and GET /budget/status.
  */
-import { checkProjectBudget, type BudgetSource } from './projectBudgetGuard';
+import type { BudgetSource } from './projectBudgetGuard';
+import { checkStoredProjectBudget } from '../hooks/useProjects';
 
 export interface TierAllocation {
   tier: 1 | 2 | 3;
@@ -127,15 +128,20 @@ export async function fetchBudgetStatus(): Promise<WeeklyLedgerState> {
 
 /**
  * Admission for AI work on one project. Fails closed: a project with no
- * budget (see projectBudgetGuard) is refused here, before the weekly ledger
- * is asked or charged.
+ * budget (see projectBudgetGuard) is refused here, BEFORE the weekly ledger
+ * is asked or charged. The budget is read from the SAVED project (the same
+ * source the task guard reads when the task is then created), never from the
+ * in-memory `project` object, so the ledger can't be charged for work that
+ * is then blocked. `options.saved` overrides the saved list (tests).
  */
 export async function requestProjectBudgetAdmit(
   project: BudgetSource | null | undefined,
   tier: 1 | 2 | 3 = 1,
-  costUsd: number = 0.0075
+  costUsd: number = 0.0075,
+  options: { saved?: string | null } = {}
 ): Promise<AdmitResult> {
-  const check = checkProjectBudget(project);
+  const projectId = project?.id ?? '';
+  const check = checkStoredProjectBudget(projectId, 'saved' in options ? options.saved : undefined);
   if (!check.ok) {
     const ledger = demoLedger;
     const t = ledger.tiers[tier];
