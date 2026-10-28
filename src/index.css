@@ -4,6 +4,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --font-scale: 1;
+
   /* Futur × GEOSAN — cream default (see docs/DESIGN_SYSTEM.md) */
   --color-gold: #F0B230;
   --color-gold-light: #FFC857;
@@ -66,6 +68,22 @@
   --tracking-display: -0.04em;
   --tracking-meta: 0.12em;
   color-scheme: light;
+}
+
+html {
+  font-size: calc(16px * var(--font-scale, 1));
+}
+
+html[data-scale="small"] {
+  --font-scale: 0.875;
+}
+
+html[data-scale="medium"] {
+  --font-scale: 1;
+}
+
+html[data-scale="large"] {
+  --font-scale: 1.15;
 }
 
 .light,

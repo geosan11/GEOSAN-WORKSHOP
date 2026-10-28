@@ -15,7 +15,8 @@
     "verify": "npm run lint && npm run build",
     "harness": "npm run lint && node scripts/check-deps.mjs && node scripts/check-secrets.mjs && npx tsx scripts/replay-budget.ts && npx tsx scripts/full-system-test.ts && npx tsx scripts/design-lint.ts",
     "proxy": "node server.js",
-    "test:proxy": "node --test server/proxySecurity.test.js"
+    "test:proxy": "node --test server/proxySecurity.test.js",
+    "test:smoke": "npx tsx scripts/smoke-tests.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

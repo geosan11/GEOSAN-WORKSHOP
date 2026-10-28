@@ -190,6 +190,35 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
         }
       />
 
+      {/* Strategic Advisor Fleet Panel */}
+      {!selectedRun && (
+        <div className="p-3.5 rounded-xl border border-primary/30 bg-primary-container/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center text-primary shrink-0">
+              <span className="font-bold text-sm">⚔️</span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-main">Strategic Advisor Fleet</span>
+                <span className="stamp stamp-primary !text-[9px]">Always-Available Advisory</span>
+              </div>
+              <p className="text-[11px] text-muted font-sans mt-0.5">
+                Special non-committing advisory role. Observes project health, audits plan safety invariants, and logs strategic recommendations without altering code or mutating status.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] text-muted">
+              Role: <strong className="text-cyan-300">Read-Only Advisory</strong>
+            </div>
+            <div className="px-2 py-1 rounded bg-white/5 border border-white/10 text-[10px] text-muted">
+              Status: <strong className="text-emerald-400">Online</strong>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isCreatingTask && !selectedRun && (
         <form
           onSubmit={handleCreateRun}
