@@ -5,8 +5,8 @@
  * Runs completely deterministically without model spend.
  */
 
-import { VERTICAL_KITS } from '../src/data/verticalKits';
-import { createDefaultBrief, computeFixtureHash } from '../src/lib/designBrief';
+import { DESIGN_KIT_PRESETS, BLANK_PRESET_ID } from '../src/data/designKitPresets';
+import { createBriefFromPreset, applyPresetToBrief, CUSTOM_KIT_ID } from '../src/lib/designBrief';
 import { generateGoldenScreenHtml } from '../src/lib/goldenFixtures';
 import { lintDesignBriefAndFixture } from '../src/lib/slopCritic';
 import { validatePromptDomainVocabulary } from '../src/lib/copyDeck';
@@ -18,27 +18,67 @@ function runDesignLinter() {
 
   let passedAll = true;
 
-  // 1. Verify all 4 vertical kits pass slop critic
-  const kits = ['iyanuoluwa', 'ehi', 'aviation', 'edgepoint'] as const;
-
-  for (const kitId of kits) {
-    const kit = VERTICAL_KITS[kitId];
-    const brief = createDefaultBrief(`test-${kitId}`, kitId);
-    const html = generateGoldenScreenHtml(kitId, kit.verticalName);
+  // 1. Every built-in preset (except Blank) passes the slop critic once copied into a project
+  for (const preset of DESIGN_KIT_PRESETS) {
+    if (preset.id === BLANK_PRESET_ID) continue;
+    const brief = createBriefFromPreset(`test-${preset.id}`, preset.id);
+    const html = generateGoldenScreenHtml(brief, preset.name);
     const result = lintDesignBriefAndFixture(brief, html);
 
     if (result.passed) {
-      console.log(`✓ [PASS] Vertical Kit "${kitId}": Score ${result.score}% · Zero anti-patterns detected`);
+      console.log(`✓ [PASS] Preset "${preset.id}": Score ${result.score}% · Zero anti-patterns detected`);
     } else {
       passedAll = false;
-      console.error(`✗ [FAIL] Vertical Kit "${kitId}": ${result.summary}`);
+      console.error(`✗ [FAIL] Preset "${preset.id}": ${result.summary}`);
+      result.violations.forEach((v) => console.error(`   - [${v.code}] ${v.title}: ${v.message}`));
+    }
+  }
+
+  // 1b. Blank renders a clean skeleton fixture, and its brief is NOT approvable as-is
+  {
+    const blank = createBriefFromPreset('test-blank', BLANK_PRESET_ID);
+    const html = generateGoldenScreenHtml(blank, 'Project <Blank> & Co');
+    const fixtureOnly = lintDesignBriefAndFixture(
+      { ...blank, references: createBriefFromPreset('x', DESIGN_KIT_PRESETS[0].id).references, forbidden: ['a', 'b', 'c', 'd', 'e'], signature_object: 'Delivery note' },
+      html
+    );
+    const asIs = lintDesignBriefAndFixture(blank, html);
+    const escaped = html.includes('Project &lt;Blank&gt; &amp; Co') && !html.includes('<Blank>');
+    if (fixtureOnly.passed && !asIs.passed && escaped) {
+      console.log('✓ [PASS] Blank preset: skeleton fixture is clean, escapes the project name, and the empty brief is blocked until filled in.');
+    } else {
+      passedAll = false;
+      console.error('✗ [FAIL] Blank preset skeleton or gating is wrong.');
+      fixtureOnly.violations.forEach((v) => console.error(`   - [${v.code}] ${v.title}: ${v.message}`));
+    }
+  }
+
+  // 1c. A generated custom kit (an edited copy of a preset) still passes, and editing it never mutates the preset
+  {
+    const source = DESIGN_KIT_PRESETS[0];
+    const before = JSON.stringify(source);
+    const custom = applyPresetToBrief(createBriefFromPreset('test-custom', BLANK_PRESET_ID), source.id);
+    custom.kit_id = CUSTOM_KIT_ID;
+    custom.kit_name = 'Custom delivery-note kit';
+    custom.signature_object = 'Delivery note DN-XXXX';
+    custom.golden_template_html = undefined;
+    custom.token_delta.accent_color = '#E11D48';
+    custom.forbidden.push('Generic "order" instead of delivery note');
+    custom.copy_deck = [{ noun: 'delivery_note_id', category: 'identifier', definition: 'Printed note number', sampleString: 'DN-0042' }];
+    const result = lintDesignBriefAndFixture(custom, generateGoldenScreenHtml(custom, 'Custom Project'));
+    const presetUntouched = JSON.stringify(source) === before;
+    if (result.passed && presetUntouched) {
+      console.log('✓ [PASS] Custom kit: edited copy passes and the source preset is unchanged (copy on pick).');
+    } else {
+      passedAll = false;
+      console.error(`✗ [FAIL] Custom kit: passed=${result.passed} presetUntouched=${presetUntouched}`);
       result.violations.forEach((v) => console.error(`   - [${v.code}] ${v.title}: ${v.message}`));
     }
   }
 
   // 2. Adversarial Test: Sloppy fixture with 3 stat cards, gradient, buzzword, purple accent
   console.log('\n--> Running Adversarial Test on Intentional Slop Fixture...');
-  const sloppyBrief = createDefaultBrief('test-slop', 'ehi');
+  const sloppyBrief = createBriefFromPreset('test-slop', DESIGN_KIT_PRESETS[0].id);
   sloppyBrief.type_and_voice.display_face = 'Inter'; // forbidden display face
   sloppyBrief.token_delta.accent_color = '#6366f1'; // forbidden indigo
   sloppyBrief.signature_object = 'Analytics Dashboard'; // forbidden "dashboard"
@@ -79,10 +119,12 @@ function runDesignLinter() {
   const genericPrompt = 'The user clicks on the item on the dashboard to see data';
   const domainPrompt = 'The operator weighs the truck_plate and certifies gross_weight_kg on ticket_number';
 
-  const checkGeneric = validatePromptDomainVocabulary(genericPrompt, 'iyanuoluwa');
-  const checkDomain = validatePromptDomainVocabulary(domainPrompt, 'iyanuoluwa');
+  const weighbridgeDeck = createBriefFromPreset('test-deck', 'weighbridge-ticket').copy_deck;
+  const checkGeneric = validatePromptDomainVocabulary(genericPrompt, weighbridgeDeck);
+  const checkDomain = validatePromptDomainVocabulary(domainPrompt, weighbridgeDeck);
+  const checkEmptyDeck = validatePromptDomainVocabulary(genericPrompt, []);
 
-  if (!checkGeneric.valid && checkDomain.valid) {
+  if (weighbridgeDeck.length > 0 && !checkGeneric.valid && checkDomain.valid && checkEmptyDeck.valid) {
     console.log('✓ [PASS] Copy Deck correctly rejected generic "user/item/dashboard" and admitted domain nouns.');
   } else {
     passedAll = false;

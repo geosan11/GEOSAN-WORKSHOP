@@ -992,7 +992,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
               <h3 className="text-section-title mb-3">
                 Design brief
               </h3>
-              <ReferenceBoard project={project} onDesignApproved={() => tRefetch()} />
+              <ReferenceBoard key={project.id} project={project} onDesignApproved={() => tRefetch()} />
             </div>
           </div> : null}
         </section>

@@ -1,4 +1,14 @@
-import { VERTICAL_KITS, VerticalKit } from '../data/verticalKits';
+import {
+  DESIGN_KIT_PRESETS,
+  BLANK_PRESET_ID,
+  DesignKitPreset,
+  DomainCopyEntry,
+  getBlankPreset,
+  getDesignKitPreset
+} from '../data/designKitPresets';
+
+/** kit_id of a brief whose kit no longer matches any preset. */
+export const CUSTOM_KIT_ID = 'custom';
 
 export type DesignBriefStatus = 'draft' | 'in_review' | 'approved' | 'rejected';
 
@@ -30,7 +40,9 @@ export interface TokenDelta {
 
 export interface DesignBrief {
   project_id: string;
-  kit_id: 'iyanuoluwa' | 'ehi' | 'aviation' | 'edgepoint';
+  kit_id: string; // preset the kit was copied from (provenance only), or 'custom'
+  kit_name: string; // display name of the copied kit
+  screen_grammar: string;
   signature_object: string; // The physical or logical object operator holds (Ticket, debt line, log entry, sensor node)
   golden_screen: GoldenScreenConfig;
   setting: string; // yard, ward, cockpit, tower. Lighting, distance, gloves or desk
@@ -38,6 +50,8 @@ export interface DesignBrief {
   forbidden: string[]; // At least five required
   type_and_voice: TypeAndVoice;
   token_delta: TokenDelta;
+  copy_deck: DomainCopyEntry[]; // contract nouns for prompts; may be empty
+  golden_template_html?: string; // golden screen HTML with {{projectName}}; missing = neutral skeleton
   status: DesignBriefStatus;
   reject_reason?: string;
   approved_fixture_hash?: string;
@@ -60,88 +74,107 @@ export function computeFixtureHash(content: string): string {
 }
 
 /**
- * Maps project ID or vertical name to appropriate kit
+ * Builds a brief by COPYING a preset into the project (copy on pick).
+ * Unknown or missing preset ids fall back to Blank; nothing is guessed from
+ * the project id, name or vertical.
  */
-export function resolveKitForProject(projectId: string, vertical?: string): 'iyanuoluwa' | 'ehi' | 'aviation' | 'edgepoint' {
-  const p = (projectId || '').toLowerCase();
-  const v = (vertical || '').toLowerCase();
-
-  if (p.includes('iya') || v.includes('agri') || v.includes('agro') || v.includes('silo')) {
-    return 'iyanuoluwa';
-  }
-  if (p.includes('aero') || p.includes('avia') || v.includes('avia') || v.includes('flight')) {
-    return 'aviation';
-  }
-  if (p.includes('edge') || v.includes('iot') || v.includes('mesh') || v.includes('treasury')) {
-    return 'edgepoint';
-  }
-  return 'ehi';
-}
-
-/**
- * Default empty/draft brief initialized from a vertical kit
- */
-export function createDefaultBrief(projectId: string, vertical?: string): DesignBrief {
-  const kitKey = resolveKitForProject(projectId, vertical);
-  const kit = VERTICAL_KITS[kitKey];
-
+export function createBriefFromPreset(projectId: string, presetId?: string | null): DesignBrief {
+  const preset = getDesignKitPreset(presetId) ?? getBlankPreset();
   return {
     project_id: projectId,
-    kit_id: kitKey,
-    signature_object: kit.signatureObject,
-    golden_screen: {
-      screen_name: `${kit.signatureObject} Primary View`,
-      fields: [
-        kit.contractNouns[0] || 'identifier',
-        kit.contractNouns[1] || 'primary_metric',
-        kit.contractNouns[2] || 'secondary_metric',
-        kit.contractNouns[3] || 'status_flag',
-        kit.contractNouns[4] || 'audit_timestamp'
-      ]
-    },
-    setting: kit.setting,
-    references: [
-      {
-        id: 'ref-1',
-        source: 'Federal Aviation/Transport Physical Waybill & Stamp Paper Archive',
-        what_to_steal: 'High-density physical carbon-copy grid with indelible stamp watermark.',
-        what_to_leave: 'Leave behind any glossy marketing banners or multi-level navigational menus.'
-      },
-      {
-        id: 'ref-2',
-        source: 'Bloomberg Terminal & Reuters Forex Settlement Grid (Monochrome Layout)',
-        what_to_steal: 'Monospace tabular columns with strict number alignment and zero layout shift.',
-        what_to_leave: 'Leave behind pastel color gradients and playful rounded pill buttons.'
-      },
-      {
-        id: 'ref-3',
-        source: 'Siemens Ruggedized SCADA & Telemetry Industrial Panel (EN 60947)',
-        what_to_steal: 'Single-glance high-contrast status beacons with unambiguous fault indicators.',
-        what_to_leave: 'Leave behind celebratory confetti, gamified progress bars, or onboarding tutorials.'
-      }
-    ],
-    forbidden: [...kit.defaultForbidden],
-    type_and_voice: {
-      display_face: kit.recommendedTypography.displayFace,
-      text_face: kit.recommendedTypography.textFace,
-      mono_face: kit.recommendedTypography.monoFace,
-      sample_strings: [...kit.sampleCopy]
-    },
-    token_delta: {
-      accent_color: kit.defaultTokens.accentColor,
-      paper_color: kit.defaultTokens.paperColor,
-      density: kit.defaultTokens.density
-    },
+    ...briefFieldsFromPreset(preset),
     status: 'draft',
     updated_at: new Date().toISOString()
   };
 }
 
+/**
+ * Default brief for a project that has none yet. `presetId` is the project's
+ * chosen preset when the data layer provides one; otherwise Blank.
+ */
+export function createDefaultBrief(projectId: string, presetId?: string | null): DesignBrief {
+  return createBriefFromPreset(projectId, presetId);
+}
+
+/**
+ * Replaces the project's kit with a fresh copy of a preset. The brief goes
+ * back to draft, because the approved fixture no longer matches.
+ */
+export function applyPresetToBrief(brief: DesignBrief, presetId: string): DesignBrief {
+  const preset = getDesignKitPreset(presetId) ?? getBlankPreset();
+  return {
+    ...brief,
+    ...briefFieldsFromPreset(preset),
+    status: 'draft',
+    reject_reason: undefined,
+    approved_fixture_hash: undefined
+  };
+}
+
+function briefFieldsFromPreset(preset: DesignKitPreset) {
+  const kit = preset.kit;
+  return {
+    kit_id: preset.id,
+    kit_name: preset.name,
+    screen_grammar: kit.screenGrammar,
+    signature_object: kit.signatureObject,
+    golden_screen: {
+      screen_name: kit.goldenScreen.name,
+      fields: [...kit.goldenScreen.fields] as GoldenScreenConfig['fields']
+    },
+    golden_template_html: kit.goldenScreen.templateHtml,
+    setting: kit.setting,
+    references: kit.references.map((ref, i) => ({
+      id: `ref-${i + 1}`,
+      source: ref.source,
+      what_to_steal: ref.whatToSteal,
+      what_to_leave: ref.whatToLeave
+    })),
+    forbidden: [...kit.forbidden],
+    type_and_voice: {
+      display_face: kit.typography.display,
+      text_face: kit.typography.text,
+      mono_face: kit.typography.mono,
+      sample_strings: [...kit.sampleCopy] as TypeAndVoice['sample_strings']
+    },
+    token_delta: {
+      accent_color: kit.tokens.accent,
+      paper_color: kit.tokens.paper,
+      density: kit.tokens.density
+    },
+    copy_deck: kit.copyDeck.map((entry) => ({ ...entry }))
+  };
+}
+
+/**
+ * Briefs saved before kits became presets only stored the kit's id and some
+ * copied fields. Fill in the fields that used to be read live from the kit,
+ * by matching the preset whose signature object the brief copied. Anything
+ * that doesn't match keeps its own fields and gets Blank's empty extras.
+ */
+function normalizeStoredBrief(parsed: DesignBrief): DesignBrief {
+  if (typeof parsed.kit_name === 'string' && Array.isArray(parsed.copy_deck)) {
+    return parsed;
+  }
+  const match = DESIGN_KIT_PRESETS.find(
+    (p) => p.id !== BLANK_PRESET_ID && p.kit.signatureObject === parsed.signature_object
+  );
+  const source = match ?? getBlankPreset();
+  return {
+    ...parsed,
+    kit_id: match ? match.id : CUSTOM_KIT_ID,
+    kit_name: match ? match.name : 'Custom kit',
+    screen_grammar: parsed.screen_grammar ?? source.kit.screenGrammar,
+    golden_template_html: parsed.golden_template_html ?? source.kit.goldenScreen.templateHtml,
+    copy_deck: source.kit.copyDeck.map((entry) => ({ ...entry }))
+  };
+}
+
 const STORAGE_PREFIX = 'geosan_design_brief_';
 
-export function getDesignBrief(projectId: string, vertical?: string): DesignBrief {
+export function getDesignBrief(projectId: string, presetId?: string | null): DesignBrief {
   if (typeof localStorage === 'undefined') {
-    return createDefaultBrief(projectId, vertical);
+    return createDefaultBrief(projectId, presetId);
   }
 
   try {
@@ -149,12 +182,12 @@ export function getDesignBrief(projectId: string, vertical?: string): DesignBrie
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.project_id === projectId) {
-        return parsed;
+        return normalizeStoredBrief(parsed);
       }
     }
   } catch {}
 
-  const defaultBrief = createDefaultBrief(projectId, vertical);
+  const defaultBrief = createDefaultBrief(projectId, presetId);
   saveDesignBrief(defaultBrief);
   return defaultBrief;
 }
