@@ -1,26 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useProjects } from '../hooks/useProjects';
 import { useTasks } from '../hooks/useTasks';
-import { useCosts } from '../hooks/useCosts';
 import { useNavigation } from '../lib/navigation';
-import { projectMonthlySpend } from '../lib/cost';
-import { formatCost, formatRelative } from '../lib/format';
+import { formatRelative } from '../lib/format';
 import { LoadingState } from '../components/LoadingState';
 import { QueryError } from '../components/QueryError';
-import { VercelLogo, GitHubLogo } from '../components/ServiceLogos';
-import { Plus, Link2, ArrowRight, FolderGit2, Cpu, CheckCircle2, Clock, AlertTriangle, Sparkles } from 'lucide-react';
+import { Plus, Link2, Clock, Sparkles, ArrowRight, FolderKanban } from 'lucide-react';
 import { WorkshopProjectModal, WorkshopModalMode } from '../components/WorkshopProjectModal';
-import { HowToStartCards, StartPath } from '../components/HowToStartCards';
-import { PageHeader } from '../components/ui';
 import { seedDemoScenario } from '../lib/demoScenario';
 import { useToast } from '../components/Toast';
 
 export const ProjectsScreen: React.FC = () => {
   const toast = useToast();
   const { navigate } = useNavigation();
-  const { projects, loading: pLoading, error: pError, refetch } = useProjects();
+  const { projects, loading, error, refetch } = useProjects();
   const { tasks } = useTasks();
-  const { costEvents } = useCosts();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<WorkshopModalMode>('create');
 
@@ -40,236 +35,209 @@ export const ProjectsScreen: React.FC = () => {
     toast.success('Loaded demo scenario: TaskPulse, EdgeTelemetry & OmniScraper seeded!');
   };
 
-  const openWizardPath = (path: StartPath = 'ai') => {
-    if (path === 'scratch' || path === 'github') {
-      openAttachExisting();
-    } else {
-      openNewProject();
-    }
-  };
-
-  const openTaskCount = useMemo(
-    () => tasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length,
-    [tasks]
-  );
-  const fleetSpend = useMemo(
-    () => projects.reduce((sum, p) => sum + projectMonthlySpend(costEvents, p.id), 0),
-    [projects, costEvents]
-  );
-
-  if (pLoading && projects.length === 0) {
+  if (loading && projects.length === 0) {
     return (
-      <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-        <LoadingState type="table" count={4} />
+      <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-4">
+        <LoadingState type="table" count={3} />
       </div>
     );
   }
 
-  if (pError) {
+  if (error) {
     return (
-      <div className="p-4 md:p-6 max-w-xl mx-auto">
-        <QueryError message="Failed to load projects list. Retry?" onRetry={refetch} />
+      <div className="p-4 md:p-8 max-w-xl mx-auto">
+        <QueryError message="Failed to load projects list." onRetry={refetch} />
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5 font-sans">
-      <PageHeader
-        eyebrow="Workspace"
-        title="Projects"
-        lede="Active client verticals, agent fleet orchestration, and isolated repository worktrees."
-        actions={
-          <div className="flex items-center gap-2">
+    <div className="min-h-full p-4 sm:p-6 md:p-8 max-w-4xl mx-auto space-y-5 font-sans">
+      {/* Locked Clean Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
+        <div>
+          <h1 className="text-base sm:text-lg font-bold font-mono text-[#f3f4f6] tracking-tight">
+            Projects
+          </h1>
+          <p className="text-xs text-[#8e95a3] font-sans">
+            Active verticals, autonomous agent fleets, and isolated worktrees.
+          </p>
+        </div>
+
+        {/* Two Clear Primary Buttons */}
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={openAttachExisting}
+            className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium text-[#f3f4f6] bg-[#16181d] hover:bg-[#1f222a] border border-white/[0.08] hover:border-white/20 transition-all flex items-center gap-1.5"
+          >
+            <Link2 className="w-3.5 h-3.5 text-[#8e95a3]" />
+            <span>+ Attach Existing</span>
+          </button>
+          <button
+            type="button"
+            onClick={openNewProject}
+            className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium text-white bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/50 shadow-xs transition-all flex items-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>+ New Project</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Empty State */}
+      {projects.length === 0 ? (
+        <div className="p-8 rounded-xl border border-white/[0.08] bg-[#121316] text-center space-y-4 max-w-md mx-auto my-12 font-mono">
+          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+            <FolderKanban className="w-5 h-5" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-[#f3f4f6]">No projects yet</h3>
+            <p className="text-xs text-[#8e95a3] font-sans">
+              Create your first project or attach a repository to start planning and execution.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-2">
             <button
               type="button"
-              onClick={handleLoadDemoScenario}
-              className="btn btn-ghost text-xs py-1.5 px-2.5 flex items-center gap-1.5 text-muted hover:text-amber-300 border border-[color:var(--border-app)] hover:border-amber-400/40"
-              title="Seed 3 sample projects including TaskPulse with execution logs and assignments"
+              onClick={openNewProject}
+              className="px-3 py-1.5 rounded-lg text-xs font-mono text-white bg-indigo-600 hover:bg-indigo-500"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Load demo scenario</span>
+              + New Project
             </button>
             <button
               type="button"
               onClick={openAttachExisting}
-              className="btn btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg text-xs font-mono text-[#f3f4f6] bg-white/5 hover:bg-white/10 border border-white/10"
             >
-              <Link2 className="w-3.5 h-3.5 text-muted" />
-              <span>+ Attach Existing</span>
+              + Attach Existing
             </button>
+          </div>
+          <div className="pt-2">
             <button
               type="button"
-              onClick={openNewProject}
-              className="btn btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5"
+              onClick={handleLoadDemoScenario}
+              className="text-[11px] text-amber-400 hover:text-amber-300 font-sans underline underline-offset-4"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>+ New Project</span>
+              Or load the TaskPulse demo scenario →
             </button>
           </div>
-        }
-      />
-
-      {projects.length === 0 ? (
-        <HowToStartCards onChoose={openWizardPath} />
+        </div>
       ) : (
-        <>
-          {/* Quick Stats Top Ribbon */}
-          <div className="grid grid-cols-3 gap-3" aria-label="Projects orientation counts">
-            <div className="kpi-tile py-2 px-3">
-              <p className="text-[10px] text-meta uppercase tracking-wider">Total Projects</p>
-              <span className="text-sm md:text-base font-bold font-mono text-main">{projects.length}</span>
-            </div>
-            <div className="kpi-tile py-2 px-3">
-              <p className="text-[10px] text-meta uppercase tracking-wider">Active Tasks</p>
-              <span className="text-sm md:text-base font-bold font-mono text-main">{openTaskCount}</span>
-            </div>
-            <div className="kpi-tile py-2 px-3">
-              <p className="text-[10px] text-meta uppercase tracking-wider">Fleet Spend</p>
-              <span className="text-sm md:text-base font-bold font-mono text-primary">{formatCost(fleetSpend)}</span>
-            </div>
-          </div>
+        /* Vertical List of Compact Cards */
+        <div className="space-y-2.5">
+          {projects.map((project, idx) => {
+            const projectTasks = tasks.filter((t) => t.project_id === project.id);
+            const doneTasks = projectTasks.filter((t) => t.status === 'done');
+            const activeTasks = projectTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
 
-          {/* Compact Clean Dark-Mode Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-3.5">
-            {projects.map((project, idx) => {
-              const projectTasks = tasks.filter((t) => t.project_id === project.id);
-              const doneTasks = projectTasks.filter((t) => t.status === 'done');
-              const activeTasks = projectTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
-              const spend = projectMonthlySpend(costEvents, project.id);
+            // Determine thin progress percentage
+            const progressPct =
+              typeof project.progress === 'number'
+                ? project.progress
+                : projectTasks.length > 0
+                ? Math.round((doneTasks.length / projectTasks.length) * 100)
+                : (60 + idx * 11) % 100;
 
-              // Calculate thin progress percentage (default fallback 65% for active roadmap)
-              const progressPct =
-                projectTasks.length > 0
-                  ? Math.round((doneTasks.length / projectTasks.length) * 100)
-                  : (60 + (idx * 11)) % 100;
-
-              // Derive next step & last update
-              const activeTask = activeTasks[0];
-              const nextStep = activeTask
-                ? activeTask.prompt.slice(0, 75) + (activeTask.prompt.length > 75 ? '…' : '')
+            // One-line next step
+            const nextStep =
+              project.next_step ||
+              (activeTasks[0]
+                ? activeTasks[0].prompt.slice(0, 90) + (activeTasks[0].prompt.length > 90 ? '…' : '')
                 : project.status === 'production'
                 ? 'Edge probe latency continuous telemetry'
-                : 'Run Schemathesis contract regression suite';
+                : 'Awaiting next instruction directive from Supervisor');
 
-              const lastUpdate = project.updated_at
-                ? formatRelative(project.updated_at)
-                : 'Recently active';
+            // Relative last update
+            const lastUpdate = project.updated_at
+              ? formatRelative(project.updated_at)
+              : 'Recently active';
 
-              const statusBadge = project.status || 'planning';
-              const statusColor =
-                statusBadge === 'production'
-                  ? 'bg-emerald-950/70 text-emerald-400 border-emerald-500/30'
-                  : statusBadge === 'testing'
-                  ? 'bg-amber-950/70 text-amber-300 border-amber-500/30'
-                  : statusBadge === 'building'
-                  ? 'bg-cyan-950/70 text-cyan-300 border-cyan-500/30'
-                  : 'bg-white/5 text-muted border-white/10';
+            // Status color mapping
+            const statusBadge = project.status || 'planning';
+            const statusStyle =
+              statusBadge === 'production'
+                ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/30'
+                : statusBadge === 'testing'
+                ? 'bg-amber-950/60 text-amber-300 border-amber-500/30'
+                : statusBadge === 'building'
+                ? 'bg-indigo-950/60 text-indigo-300 border-indigo-500/30'
+                : 'bg-white/5 text-[#8e95a3] border-white/10';
 
-              return (
-                <div
-                  key={project.id}
-                  onClick={() => navigate({ kind: 'project', projectId: project.id, tab: 'work' })}
-                  className="p-3.5 rounded-xl border border-[color:var(--border-app)] bg-[color:var(--bg-card)] hover:border-white/20 transition-all cursor-pointer flex flex-col justify-between group space-y-3 shadow-xs"
-                >
-                  <div className="space-y-2.5">
-                    {/* Top Row: Name, Status Badge, External Links */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-xs" />
-                        <h3 className="font-bold text-xs md:text-sm text-main truncate font-mono tracking-tight group-hover:text-primary transition-colors">
-                          {project.name.split(' (')[0]}
-                        </h3>
-                        <div
-                          className="flex items-center gap-1 shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {(project as { vercel_deployment_url?: string }).vercel_deployment_url && (
-                            <a
-                              href={(project as { vercel_deployment_url?: string }).vercel_deployment_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1 rounded bg-app/80 hover:bg-white/10 text-muted hover:text-main transition-colors"
-                              title="Open Deployment"
-                            >
-                              <VercelLogo className="w-2.5 h-2.5 text-main" />
-                            </a>
-                          )}
-                          {((project as { github_repo_url?: string }).github_repo_url || project.repo_url) && (
-                            <a
-                              href={(project as { github_repo_url?: string }).github_repo_url || project.repo_url || undefined}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1 rounded bg-app/80 hover:bg-white/10 text-muted hover:text-main transition-colors"
-                              title="Open Repository"
-                            >
-                              <GitHubLogo className="w-2.5 h-2.5 text-main" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-
-                      <span
-                        className={`text-[9px] font-mono uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border shrink-0 ${statusColor}`}
-                      >
-                        {statusBadge}
+            return (
+              <div
+                key={project.id}
+                onClick={() => navigate({ kind: 'project', projectId: project.id, tab: 'work' })}
+                className="p-3.5 rounded-xl border border-white/[0.08] bg-[#121316] hover:bg-[#15171d] hover:border-indigo-500/30 transition-all cursor-pointer space-y-2.5 group"
+              >
+                {/* Top Row: Name, Archetype pill, Status badge */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <h3 className="font-bold text-xs sm:text-sm text-[#f3f4f6] font-mono truncate group-hover:text-indigo-300 transition-colors">
+                      {project.name.split(' (')[0]}
+                    </h3>
+                    {project.archetype && (
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[#8e95a3] shrink-0 hidden sm:inline">
+                        {project.archetype}
                       </span>
-                    </div>
-
-                    {/* Thin Progress Bar + Percentage */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between text-[10px] font-mono text-muted">
-                        <span className="flex items-center gap-1">
-                          <Cpu className="w-3 h-3 text-[#F0B230]" />
-                          <span>Progress</span>
-                        </span>
-                        <span className="font-bold text-main">{progressPct}%</span>
-                      </div>
-                      <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#F0B230] to-emerald-400 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.min(100, Math.max(4, progressPct))}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Next Step Box */}
-                    <div className="p-2 rounded-lg bg-[color:var(--bg-app)] border border-[color:var(--border-app)] text-[11px] font-mono text-muted space-y-0.5">
-                      <span className="text-[9px] uppercase tracking-wider text-meta block">Next Step:</span>
-                      <p className="text-main line-clamp-1 text-[11px] font-sans">
-                        {nextStep}
-                      </p>
-                    </div>
+                    )}
                   </div>
 
-                  {/* Card Footer: Last Update, Spend & Action */}
-                  <div className="pt-2 border-t border-[color:var(--border-app)] flex items-center justify-between text-[10px] font-mono text-muted">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-meta" />
-                      <span>{lastUpdate}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-[9px] font-mono uppercase tracking-wider font-bold px-1.5 py-0.5 rounded border ${statusStyle}`}
+                    >
+                      {statusBadge}
                     </span>
-
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-main tabular-nums">{formatCost(spend)}</span>
-                      <span className="btn btn-ghost !px-1.5 !py-0.5 text-[10px] text-primary flex items-center gap-0.5">
-                        <span>Work</span>
-                        <ArrowRight className="w-2.5 h-2.5" />
-                      </span>
-                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#8e95a3] opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </>
+
+                {/* Thin Progress Bar + Percentage */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-[#8e95a3]">
+                    <span>Progress</span>
+                    <span className="text-[#f3f4f6] font-bold">{progressPct}%</span>
+                  </div>
+                  <div className="w-full h-1 rounded-full bg-white/5 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-indigo-500 to-emerald-400 rounded-full transition-all duration-300"
+                      style={{ width: `${Math.min(100, Math.max(3, progressPct))}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Bottom Row: Next step box + Relative update */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-0.5 text-xs font-mono">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className="text-[9px] uppercase tracking-wider text-[#8e95a3] shrink-0">
+                      Next:
+                    </span>
+                    <p className="text-[11px] text-[#8e95a3] font-sans truncate">
+                      {nextStep}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1 text-[10px] text-[#8e95a3] shrink-0 self-end sm:self-auto">
+                    <Clock className="w-3 h-3 text-[#636b79]" />
+                    <span>{lastUpdate}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
+      {/* Modal for Project Creation / Attachment */}
       <WorkshopProjectModal
         isOpen={isModalOpen}
         initialMode={modalMode}
         onClose={() => setIsModalOpen(false)}
         onSuccess={(projectId) => {
           setIsModalOpen(false);
+          refetch();
           navigate({ kind: 'project', projectId, tab: 'work' });
         }}
       />

@@ -645,7 +645,7 @@ export const WorkshopProjectModal: React.FC<WorkshopProjectModalProps> = ({
             onClick={handleSubmit}
             className="btn btn-primary text-xs py-2 px-4 flex items-center gap-1.5 disabled:opacity-50"
           >
-            <span>{isSubmitting ? 'Initializing…' : mode === 'attach' ? 'Attach Project' : 'Create Project'}</span>
+            <span>{isSubmitting ? 'Initializing…' : mode === 'attach' ? 'Attach & Start Monitoring' : 'Create Project & Start Planning'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

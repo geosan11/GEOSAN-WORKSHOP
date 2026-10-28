@@ -9,20 +9,15 @@ import { NavigationProvider, useNavigation } from './lib/navigation';
 import { DensityProvider } from './lib/density';
 import { ThemeProvider } from './lib/theme';
 import { FontScaleProvider } from './lib/fontScale';
-import { TopBar } from './components/TopBar';
-import { MobileNavBar } from './components/MobileNavBar';
-import { LoadingState } from './components/LoadingState';
 import { CommandPalette } from './components/CommandPalette';
-import { SupabaseSidebar } from './components/SupabaseSidebar';
+import { WorkshopSidebar } from './components/WorkshopSidebar';
+import { WorkshopProjectModal } from './components/WorkshopProjectModal';
+import { LoadingState } from './components/LoadingState';
 
 // Screens
 import { LoginScreen } from './screens/LoginScreen';
-import { PortfolioScreen } from './screens/Portfolio';
 import { ProjectsScreen } from './screens/ProjectsScreen';
 import { RunsScreen } from './screens/Runs';
-import { KnowledgeVaultScreen } from './screens/KnowledgeVault';
-import { CostCenterScreen } from './screens/CostCenter';
-import { MonitoringScreen } from './screens/Monitoring';
 import { SettingsScreen } from './screens/Settings';
 import { ProjectDetailScreen } from './screens/ProjectDetail';
 import { isDemoMode, supabase } from './lib/supabase';
@@ -30,8 +25,9 @@ import { AlertTriangle, X } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const { session, loading } = useAuth();
-  const { screen } = useNavigation();
+  const { screen, navigate } = useNavigation();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = React.useState(false);
   const [supabaseError, setSupabaseError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -54,7 +50,7 @@ const AppContent: React.FC = () => {
   // While auth.loading is true, show minimal checking session splash
   if (loading) {
     return (
-      <div className="min-h-screen bg-app flex flex-col items-center justify-center gap-3">
+      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-3">
         <LoadingState type="fullscreen" message="Checking session…" />
       </div>
     );
@@ -66,30 +62,27 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-main)] flex">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#f3f4f6] flex font-sans selection:bg-indigo-500/30 selection:text-indigo-200">
       <a
         href="#main-content"
-        className="sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-[color:var(--color-on-primary)] focus:font-bold focus:text-xs focus:w-auto focus:h-auto focus:m-0 focus:overflow-visible focus:clip-auto focus:whitespace-normal"
+        className="sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-indigo-600 focus:text-white focus:font-bold focus:text-xs"
       >
         Skip to main content
       </a>
 
-      {/* Fleet Sidebar Navigation (Desktop) */}
-      <div className="hidden md:block">
-        <SupabaseSidebar
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
-        />
-      </div>
+      {/* Locked Narrow Left Sidebar */}
+      <WorkshopSidebar
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        onOpenNewProject={() => setIsNewProjectModalOpen(true)}
+      />
 
-      {/* Main Content View */}
+      {/* Main Content Area — Takes the Rest of the Screen */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'md:pl-16' : 'md:pl-[14rem]'
-          }`}
+        className={`flex-1 flex flex-col min-w-0 transition-all duration-200 ${
+          sidebarCollapsed ? 'pl-14' : 'pl-[13.5rem]'
+        }`}
       >
-        {/* Fixed Header */}
-        <TopBar />
-
         {/* Runtime Supabase Connection Error Banner */}
         {supabaseError && (
           <div className="bg-rose-950/80 border-b border-rose-500/40 px-4 py-2 text-xs text-rose-300 flex items-center justify-between font-mono animate-in fade-in duration-200">
@@ -107,20 +100,18 @@ const AppContent: React.FC = () => {
           </div>
         )}
 
-        {/* Scrollable Content Area */}
+        {/* Scrollable Content View */}
         <main
           id="main-content"
-          className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom,20px))] md:pb-8 overflow-y-auto"
+          className="flex-1 overflow-y-auto"
           tabIndex={-1}
         >
-          {(screen.kind === 'inbox' || screen.kind === 'portfolio') && <PortfolioScreen />}
-          {screen.kind === 'projects' && <ProjectsScreen />}
+          {(screen.kind === 'projects' || screen.kind === 'inbox' || screen.kind === 'portfolio') && (
+            <ProjectsScreen />
+          )}
           {(screen.kind === 'runs' || screen.kind === 'console') && (
             <RunsScreen initialRunId={(screen as { runId?: string }).runId} />
           )}
-          {screen.kind === 'knowledge' && <KnowledgeVaultScreen />}
-          {screen.kind === 'costs' && <CostCenterScreen />}
-          {screen.kind === 'monitoring' && <MonitoringScreen />}
           {screen.kind === 'settings' && <SettingsScreen />}
           {screen.kind === 'project' && (
             <ProjectDetailScreen
@@ -143,12 +134,20 @@ const AppContent: React.FC = () => {
           )}
         </main>
 
-        {/* Global Command Palette (Cmd-K / Ctrl-K) */}
+        {/* Global Command Palette */}
         <CommandPalette />
-
-        {/* Mobile Fixed Bottom Tab Bar */}
-        <MobileNavBar />
       </div>
+
+      {/* App Shell Modal for New Project */}
+      <WorkshopProjectModal
+        isOpen={isNewProjectModalOpen}
+        initialMode="create"
+        onClose={() => setIsNewProjectModalOpen(false)}
+        onSuccess={(projectId) => {
+          setIsNewProjectModalOpen(false);
+          navigate({ kind: 'project', projectId, tab: 'work' });
+        }}
+      />
     </div>
   );
 };
