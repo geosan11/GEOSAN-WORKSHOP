@@ -93,26 +93,26 @@ html.light {
   color-scheme: light;
 }
 
-/* GEOSAN Workshop locked dark design: near-black background, restrained indigo accents */
+/* GEOSAN Workshop locked dark design: near-black background (#09090b), compact cards (#111113) */
 .dark,
 html.dark {
   --color-gold: #6366f1;
   --color-gold-light: #818cf8;
   --color-gold-deep: #4f46e5;
   --color-gold-ink: #ffffff;
-  --color-ink: #f3f4f6;
-  --color-on-ink: #0a0a0a;
-  --color-cream: #0a0a0a;
-  --color-cream-card: #121316;
-  --color-surface: #0a0a0a;
-  --color-obsidian: #0a0a0a;
-  --color-surface-1: #121316;
-  --color-surface-2: #181a20;
-  --color-surface-3: #1f222a;
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.14);
-  --color-text: #f3f4f6;
-  --color-text-sub: #8e95a3;
+  --color-ink: #f4f4f5;
+  --color-on-ink: #09090b;
+  --color-cream: #09090b;
+  --color-cream-card: #111113;
+  --color-surface: #09090b;
+  --color-obsidian: #09090b;
+  --color-surface-1: #111113;
+  --color-surface-2: #18181b;
+  --color-surface-3: #27272a;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-strong: rgba(255, 255, 255, 0.12);
+  --color-text: #f4f4f5;
+  --color-text-sub: #a1a1aa;
   --color-success: #10B981;
   --color-error: #EF4444;
   --color-warning: #F59E0B;
@@ -129,12 +129,12 @@ html.dark {
   --color-warning-tint: rgba(245, 158, 11, 0.12);
   --color-info-tint: rgba(99, 102, 241, 0.12);
 
-  --bg-app: #0a0a0a;
-  --bg-card: #121316;
-  --bg-card-elevated: #181a20;
-  --border-app: rgba(255, 255, 255, 0.08);
-  --text-main: #f3f4f6;
-  --text-muted: #8e95a3;
+  --bg-app: #09090b;
+  --bg-card: #111113;
+  --bg-card-elevated: #161619;
+  --border-app: rgba(255, 255, 255, 0.06);
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
 
   --color-primary: #6366f1;
   --color-primary-hover: #818cf8;

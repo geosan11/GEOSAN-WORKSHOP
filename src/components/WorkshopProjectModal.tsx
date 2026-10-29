@@ -346,12 +346,12 @@ export const WorkshopProjectModal: React.FC<WorkshopProjectModalProps> = ({
 
           <div className="flex items-center gap-2">
             {/* Mode Toggle Switch */}
-            <div className="p-0.5 rounded-lg bg-black/30 border border-white/5 flex items-center text-[10px]">
+            <div className="p-0.5 rounded-lg bg-zinc-900 border border-white/[0.06] flex items-center text-[10px]">
               <button
                 type="button"
                 onClick={() => setMode('create')}
-                className={`px-2 py-1 rounded-md font-bold transition-all ${
-                  mode === 'create' ? 'bg-primary text-[#0A1420]' : 'text-muted hover:text-main'
+                className={`px-2 py-1 rounded-md font-medium transition-all ${
+                  mode === 'create' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
                 New
@@ -359,8 +359,8 @@ export const WorkshopProjectModal: React.FC<WorkshopProjectModalProps> = ({
               <button
                 type="button"
                 onClick={() => setMode('attach')}
-                className={`px-2 py-1 rounded-md font-bold transition-all ${
-                  mode === 'attach' ? 'bg-primary text-[#0A1420]' : 'text-muted hover:text-main'
+                className={`px-2 py-1 rounded-md font-medium transition-all ${
+                  mode === 'attach' ? 'bg-indigo-600 text-white' : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
                 Attach

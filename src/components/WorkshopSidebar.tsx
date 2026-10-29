@@ -33,26 +33,26 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
 
   return (
     <aside
-      className={`fixed left-0 top-0 bottom-0 z-40 bg-[#0c0d11] border-r border-white/[0.08] text-[#f3f4f6] flex flex-col transition-all duration-200 font-mono text-xs select-none ${
+      className={`fixed left-0 top-0 bottom-0 z-40 bg-[#09090b] border-r border-white/[0.06] text-zinc-200 flex flex-col transition-all duration-150 ease-out font-mono text-xs select-none ${
         collapsed ? 'w-14' : 'w-[13.5rem]'
       }`}
     >
       {/* Brand Header */}
-      <div className="p-3 border-b border-white/[0.08] flex items-center justify-between">
+      <div className="p-3 border-b border-white/[0.06] flex items-center justify-between">
         <button
           type="button"
           onClick={() => navigate({ kind: 'projects' })}
-          className="flex items-center gap-2.5 text-left group focus:outline-none"
+          className="flex items-center gap-2.5 text-left group focus-visible:ring-1 focus-visible:ring-indigo-500/50 rounded-md outline-none"
         >
-          <div className="w-6 h-6 rounded-md bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 group-hover:border-indigo-400 transition-colors shrink-0">
+          <div className="w-6 h-6 rounded-md bg-indigo-600/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:border-indigo-400 transition-colors shrink-0">
             <Radio className="w-3.5 h-3.5" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-extrabold text-xs tracking-wider text-[#f3f4f6] uppercase">
+              <span className="font-bold text-xs tracking-wider text-zinc-100 uppercase">
                 GEOSAN
               </span>
-              <span className="text-[9px] text-[#8e95a3] tracking-normal font-sans">
+              <span className="text-[9px] text-zinc-500 tracking-normal font-sans">
                 Workshop
               </span>
             </div>
@@ -62,7 +62,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="p-1 rounded text-[#8e95a3] hover:text-[#f3f4f6] hover:bg-white/5 transition-colors focus:outline-none"
+          className="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] transition-colors duration-150 ease-out focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none"
           title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
         >
           {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
@@ -75,10 +75,10 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         <button
           type="button"
           onClick={() => navigate({ kind: 'projects' })}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all text-left ${
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
             isProjectsActive
-              ? 'bg-indigo-600/15 text-indigo-300 border border-indigo-500/30'
-              : 'text-[#8e95a3] hover:text-[#f3f4f6] hover:bg-white/[0.04] border border-transparent'
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
           }`}
           title="Projects"
         >
@@ -90,7 +90,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         <button
           type="button"
           onClick={onOpenNewProject}
-          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium text-[#8e95a3] hover:text-indigo-300 hover:bg-indigo-500/10 border border-transparent hover:border-indigo-500/20 transition-all text-left"
+          className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium text-zinc-400 hover:text-indigo-300 hover:bg-indigo-500/10 border border-transparent hover:border-indigo-500/20 transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none"
           title="New Project"
         >
           <FolderPlus className="w-4 h-4 text-indigo-400 shrink-0" />
@@ -101,10 +101,10 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         <button
           type="button"
           onClick={() => navigate({ kind: 'runs' })}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all text-left ${
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
             isAgentsActive
-              ? 'bg-indigo-600/15 text-indigo-300 border border-indigo-500/30'
-              : 'text-[#8e95a3] hover:text-[#f3f4f6] hover:bg-white/[0.04] border border-transparent'
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
           }`}
           title="Agents"
         >
@@ -116,10 +116,10 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         <button
           type="button"
           onClick={() => navigate({ kind: 'settings' })}
-          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all text-left ${
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
             isSettingsActive
-              ? 'bg-indigo-600/15 text-indigo-300 border border-indigo-500/30'
-              : 'text-[#8e95a3] hover:text-[#f3f4f6] hover:bg-white/[0.04] border border-transparent'
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
           }`}
           title="Settings"
         >
@@ -128,34 +128,41 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         </button>
       </nav>
 
-      {/* Footer Info: Demo Mode Badge & User Logout */}
-      <div className="p-2.5 border-t border-white/[0.08] space-y-2">
-        {isDemoMode && (
-          <div
-            className={`px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] flex items-center gap-1.5 ${
-              collapsed ? 'justify-center' : ''
-            }`}
-            title="Running in local demo mode without live Supabase database"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-            {!collapsed && <span>Demo mode</span>}
+      {/* Sidebar Footer */}
+      <div className="p-3 border-t border-white/[0.06] space-y-2">
+        {/* Demo Mode Badge */}
+        {isDemoMode && !collapsed && (
+          <div className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-300/90 text-[10px] flex items-center justify-between">
+            <span className="font-bold">Demo Mode</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-1 pt-0.5 text-[10px] text-[#8e95a3]">
-          {!collapsed && (
-            <span className="truncate" title={user?.email || 'operator@geosan.internal'}>
-              {user?.email ? user.email.split('@')[0] : 'operator'}
-            </span>
+        {/* User Session Info / Sign Out */}
+        <div className="flex items-center justify-between">
+          {!collapsed ? (
+            <div className="min-w-0 pr-2">
+              <p className="text-[11px] text-zinc-300 truncate font-sans">
+                {user?.email || 'operator'}
+              </p>
+              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">
+                Active
+              </p>
+            </div>
+          ) : (
+            <div className="w-2 h-2 rounded-full bg-emerald-400 mx-auto" title="Active" />
           )}
-          <button
-            type="button"
-            onClick={signOut}
-            className="p-1 rounded text-[#8e95a3] hover:text-rose-400 hover:bg-white/5 transition-colors ml-auto"
-            title="Sign out"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
+
+          {!collapsed && (
+            <button
+              type="button"
+              onClick={signOut}
+              className="p-1.5 rounded text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] transition-colors focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none shrink-0"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </aside>

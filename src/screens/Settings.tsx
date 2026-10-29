@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { useTheme } from '../lib/theme';
 import { useFontScale, type FontScale } from '../lib/fontScale';
-import { LogOut, Key, Github, Sparkles, Check, Sun, Moon } from 'lucide-react';
+import { LogOut, Key, Github, Sparkles, Moon, Sun } from 'lucide-react';
 import { useToast } from '../components/Toast';
 import { isDemoMode } from '../lib/supabase';
 import { seedDemoScenario } from '../lib/demoScenario';
 
-const FONT_SCALES: { id: FontScale; label: string; hint: string }[] = [
-  { id: 'small', label: 'Small', hint: '87.5% compact scale' },
-  { id: 'medium', label: 'Medium', hint: '100% baseline scale' },
-  { id: 'large', label: 'Large', hint: '115% comfortable scale' },
+const FONT_SCALE_STEPS: { id: FontScale; label: string; factor: string; index: number }[] = [
+  { id: 'small', label: 'Small', factor: '0.9×', index: 0 },
+  { id: 'medium', label: 'Medium', factor: '1.0×', index: 1 },
+  { id: 'large', label: 'Large', factor: '1.15×', index: 2 },
 ];
 
 export const SettingsScreen: React.FC = () => {
@@ -40,63 +40,96 @@ export const SettingsScreen: React.FC = () => {
     );
   };
 
+  const currentScaleIndex = FONT_SCALE_STEPS.find((s) => s.id === scale)?.index ?? 1;
+
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const idx = parseInt(e.target.value, 10);
+    const selected = FONT_SCALE_STEPS.find((s) => s.index === idx);
+    if (selected) {
+      setScale(selected.id);
+    }
+  };
+
   return (
-    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6 font-sans text-neutral-200">
+    <div className="min-h-full p-4 sm:p-6 max-w-3xl mx-auto space-y-4 font-sans text-zinc-200">
       {/* Header */}
-      <div className="space-y-1 pb-4 border-b border-[#1f2227]">
-        <h1 className="text-lg font-semibold text-white tracking-tight">Settings</h1>
-        <p className="text-xs text-neutral-400">
+      <div className="space-y-1 pb-3 border-b border-white/[0.06]">
+        <h1 className="text-[18px] sm:text-[20px] font-semibold text-zinc-100 tracking-tight">
+          Settings
+        </h1>
+        <p className="text-[13px] text-zinc-400">
           Interface scale, connected providers, and session preferences.
         </p>
       </div>
 
-      {/* Interface Scale */}
-      <div className="p-4 rounded-xl bg-[#121316] border border-[#1f2227] space-y-3">
-        <div className="space-y-0.5">
-          <span className="text-xs font-semibold text-white font-mono uppercase tracking-wider block">
-            Interface Scale
+      {/* ── Interface Scale Slider ── */}
+      <div className="p-3.5 rounded-xl bg-[#111113] border border-white/[0.06] space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider block">
+              Interface Scale
+            </span>
+            <p className="text-[12px] text-zinc-400 font-sans mt-0.5">
+              Scales typography, padding, and icons across the entire interface.
+            </p>
+          </div>
+          <span className="text-xs font-mono font-medium text-indigo-400 px-2 py-0.5 rounded bg-indigo-950/40 border border-indigo-500/25 tabular-nums">
+            {FONT_SCALE_STEPS[currentScaleIndex].label} ({FONT_SCALE_STEPS[currentScaleIndex].factor})
           </span>
-          <p className="text-xs text-neutral-400">
-            Adjust typography and spacing globally via the root font scale.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2" role="radiogroup" aria-label="Interface scale">
-          {FONT_SCALES.map((s) => {
-            const isSelected = scale === s.id;
-            return (
+        {/* Clean Range Slider Track */}
+        <div className="pt-2 pb-1 space-y-2">
+          <input
+            type="range"
+            min={0}
+            max={2}
+            step={1}
+            value={currentScaleIndex}
+            onChange={handleSliderChange}
+            aria-label="Interface scale slider"
+            className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 transition-all focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/50"
+          />
+
+          <div className="flex justify-between text-[11px] font-mono text-zinc-500 px-1">
+            {FONT_SCALE_STEPS.map((s) => (
               <button
                 key={s.id}
                 type="button"
-                role="radio"
-                aria-checked={isSelected}
                 onClick={() => setScale(s.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-[#181a20] text-neutral-400 hover:text-white border border-[#22252c]'
+                className={`transition-colors duration-150 ease-out hover:text-zinc-300 ${
+                  scale === s.id ? 'text-indigo-400 font-bold' : ''
                 }`}
-                title={s.hint}
               >
-                {s.label} ({s.id === 'small' ? '87.5%' : s.id === 'medium' ? '100%' : '115%'})
+                {s.label} ({s.factor})
               </button>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+
+        {/* Live sample preview */}
+        <div className="p-2.5 rounded-lg bg-[#09090b] border border-white/[0.04] flex items-center justify-between text-xs">
+          <span className="text-zinc-400 font-sans">
+            Live sample text scaling:
+          </span>
+          <span className="font-mono text-zinc-200">
+            Commit 7793bfa · 14 invariants checked
+          </span>
         </div>
       </div>
 
-      {/* Connected Providers */}
-      <div className="p-4 rounded-xl bg-[#121316] border border-[#1f2227] space-y-3">
-        <div className="space-y-0.5">
-          <span className="text-xs font-semibold text-white font-mono uppercase tracking-wider block">
+      {/* ── Connected Providers ── */}
+      <div className="p-3.5 rounded-xl bg-[#111113] border border-white/[0.06] space-y-3">
+        <div>
+          <span className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider block">
             Connected Providers
           </span>
-          <p className="text-xs text-neutral-400">
+          <p className="text-[12px] text-zinc-400 font-sans mt-0.5">
             Foundation models and cloud services available to the supervisor and agents.
           </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5 font-mono text-xs">
           {providers.map((p) => {
             const isConnected = p.status === 'Connected';
             const isDemo = p.status === 'Demo';
@@ -104,48 +137,53 @@ export const SettingsScreen: React.FC = () => {
             return (
               <div
                 key={p.id}
-                className="p-3 rounded-lg border border-[#1f2227] bg-[#0d0e11] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                className="p-2.5 rounded-lg border border-white/[0.04] bg-[#0d0d0f] flex items-center justify-between gap-3 transition-colors duration-150 ease-out hover:bg-[#121215]"
               >
                 <div className="space-y-0.5 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-white font-mono">{p.name}</span>
+                    <span className="font-medium text-zinc-200">{p.name}</span>
                     <span
-                      className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border font-mono ${
+                      className={`text-[9px] uppercase font-bold px-1.5 py-0.2 rounded border tabular-nums ${
                         isConnected
-                          ? 'bg-emerald-950/70 text-emerald-400 border-emerald-500/30'
+                          ? 'bg-emerald-950/60 text-emerald-400 border-emerald-500/25'
                           : isDemo
-                          ? 'bg-amber-950/70 text-amber-300 border-amber-500/30'
-                          : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                          ? 'bg-amber-950/60 text-amber-300 border-amber-500/25'
+                          : 'bg-zinc-900 text-zinc-500 border-white/[0.06]'
                       }`}
                     >
                       {p.status}
                     </span>
                   </div>
-                  <p className="text-[11px] text-neutral-400 truncate">{p.description}</p>
+                  <p className="text-[11px] text-zinc-500 font-sans truncate">{p.description}</p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                <div className="flex items-center gap-2 shrink-0">
                   {p.id === 'github' && !p.enabled && (
                     <button
                       type="button"
                       onClick={() => toast.info('GitHub ready. Add your PAT in ~/.github_token or project settings.')}
-                      className="px-2.5 py-1 rounded text-[11px] font-mono text-neutral-300 hover:text-white bg-[#181a20] border border-[#22252c] flex items-center gap-1.5 transition-colors"
+                      className="h-6 px-2 rounded text-[10px] text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-white/[0.06] flex items-center gap-1 transition-colors"
                     >
-                      <Github className="w-3.5 h-3.5" />
-                      <span>Connect GitHub</span>
+                      <Github className="w-3 h-3" />
+                      <span>Connect</span>
                     </button>
                   )}
 
+                  {/* Clean Toggle Switch */}
                   <button
                     type="button"
+                    role="switch"
+                    aria-checked={p.enabled}
                     onClick={() => toggleProvider(p.id)}
-                    className={`px-2.5 py-1 rounded text-[11px] font-mono font-medium transition-all ${
-                      p.enabled
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200'
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-150 ease-out focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/50 ${
+                      p.enabled ? 'bg-indigo-600' : 'bg-zinc-800'
                     }`}
                   >
-                    {p.enabled ? 'Enabled' : 'Disabled'}
+                    <div
+                      className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform duration-150 ease-out ${
+                        p.enabled ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
@@ -153,22 +191,22 @@ export const SettingsScreen: React.FC = () => {
           })}
         </div>
 
-        <div className="p-3 rounded-lg bg-[#0d0e11] border border-[#1f2227] text-[11px] text-neutral-400 flex items-start gap-2">
-          <Key className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+        <div className="p-2.5 rounded-lg bg-[#09090b] border border-white/[0.04] text-[11px] font-sans text-zinc-500 flex items-start gap-2">
+          <Key className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
           <span>
-            API keys and tokens stay in environment variables or Supabase secrets, not in the client.
+            API keys stay in environment variables or Supabase secrets, not in the client.
           </span>
         </div>
       </div>
 
-      {/* Appearance & Mode */}
-      <div className="p-4 rounded-xl bg-[#121316] border border-[#1f2227] space-y-3">
-        <div className="space-y-0.5">
-          <span className="text-xs font-semibold text-white font-mono uppercase tracking-wider block">
+      {/* ── Appearance & Mode ── */}
+      <div className="p-3.5 rounded-xl bg-[#111113] border border-white/[0.06] space-y-3">
+        <div>
+          <span className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider block">
             Theme & Appearance
           </span>
-          <p className="text-xs text-neutral-400">
-            Select surface theme for high contrast or reading.
+          <p className="text-[12px] text-zinc-400 font-sans mt-0.5">
+            Surface color scheme and contrast preference.
           </p>
         </div>
 
@@ -176,10 +214,10 @@ export const SettingsScreen: React.FC = () => {
           <button
             type="button"
             onClick={() => setTheme('dark')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-all duration-150 ease-out ${
               !isLight
-                ? 'bg-indigo-600 text-white'
-                : 'bg-[#181a20] text-neutral-400 hover:text-white border border-[#22252c]'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-white/[0.04]'
             }`}
           >
             <Moon className="w-3.5 h-3.5" />
@@ -188,10 +226,10 @@ export const SettingsScreen: React.FC = () => {
           <button
             type="button"
             onClick={() => setTheme('light')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium flex items-center gap-1.5 transition-all duration-150 ease-out ${
               isLight
-                ? 'bg-indigo-600 text-white'
-                : 'bg-[#181a20] text-neutral-400 hover:text-white border border-[#22252c]'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-white/[0.04]'
             }`}
           >
             <Sun className="w-3.5 h-3.5" />
@@ -200,50 +238,48 @@ export const SettingsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* Demo Scenario Loader */}
-      <div className="p-4 rounded-xl bg-[#121316] border border-[#1f2227] space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-white font-mono uppercase tracking-wider">
-                Demo Scenario
-              </span>
-              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/30 font-bold">
-                TaskPulse Fleet
-              </span>
-            </div>
-            <p className="text-xs text-neutral-400">
-              Seeds 3 example projects with logs, supervisor plans, and agent assignments.
-            </p>
+      {/* ── Demo Scenario Loader ── */}
+      <div className="p-3.5 rounded-xl bg-[#111113] border border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider">
+              Demo Scenario
+            </span>
+            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/25 font-bold">
+              TaskPulse Fleet
+            </span>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              seedDemoScenario();
-              toast.success('Loaded demo scenario: TaskPulse, EdgeTelemetry & OmniScraper seeded!');
-            }}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium font-mono bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shrink-0 transition-colors"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Load demo scenario</span>
-          </button>
+          <p className="text-[12px] text-zinc-400 font-sans">
+            Seeds 3 example projects with logs, supervisor plans, and agent assignments.
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            seedDemoScenario();
+            toast.success('Loaded demo scenario: TaskPulse, EdgeTelemetry & OmniScraper seeded!');
+          }}
+          className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shrink-0 transition-all duration-150 ease-out shadow-xs"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Load demo scenario</span>
+        </button>
       </div>
 
-      {/* Session & Sign Out */}
-      <div className="p-4 rounded-xl bg-[#121316] border border-[#1f2227] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+      {/* ── Session & Sign Out ── */}
+      <div className="p-3.5 rounded-xl bg-[#111113] border border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
         <div className="space-y-0.5 font-mono">
-          <span className="text-white font-medium block">
+          <span className="text-zinc-200 font-medium block">
             {user?.email || 'operator@geosan.internal'}
           </span>
-          <span className="text-[10px] text-neutral-500 block">
+          <span className="text-[10px] text-zinc-500 block">
             Session: active · GEOSAN-WORKSHOP
           </span>
         </div>
         <button
           type="button"
           onClick={signOut}
-          className="px-3 py-1.5 rounded-lg text-xs font-mono text-neutral-400 hover:text-white bg-[#181a20] border border-[#22252c] hover:border-neutral-700 flex items-center gap-1.5 transition-colors self-start sm:self-auto"
+          className="px-3 py-1.5 rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-white/[0.06] hover:border-white/[0.12] flex items-center gap-1.5 transition-colors self-start sm:self-auto"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Sign out</span>
