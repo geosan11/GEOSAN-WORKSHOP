@@ -4,6 +4,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  --font-scale: 1;
+
   /* Futur × GEOSAN — cream default (see docs/DESIGN_SYSTEM.md) */
   --color-gold: #F0B230;
   --color-gold-light: #FFC857;
@@ -68,58 +70,76 @@
   color-scheme: light;
 }
 
+html {
+  font-size: calc(14px * var(--font-scale, 1));
+  background-color: var(--bg-app);
+  color: var(--text-main);
+}
+
+html[data-scale="small"] {
+  --font-scale: 0.85;
+}
+
+html[data-scale="medium"] {
+  --font-scale: 1;
+}
+
+html[data-scale="large"] {
+  --font-scale: 1.15;
+}
+
 .light,
 html.light {
   color-scheme: light;
 }
 
-/* Operator dark alternate */
+/* GEOSAN Workshop locked dark design: near-black background (#09090b), compact cards (#111113) */
 .dark,
 html.dark {
-  --color-gold: #F0B230;
-  --color-gold-light: #FFBD59;
-  --color-gold-deep: #C98E28;
-  --color-gold-ink: #0A1420;
-  --color-ink: #e6edf3;
-  --color-on-ink: #0d1117;
-  --color-cream: #0d1117;
-  --color-cream-card: #161b22;
-  --color-surface: #0d1117;
-  --color-obsidian: #0d1117;
-  --color-surface-1: #161b22;
-  --color-surface-2: #1c2333;
-  --color-surface-3: #21262d;
-  --color-border: rgba(255, 255, 255, 0.09);
-  --color-border-strong: rgba(255, 255, 255, 0.15);
-  --color-text: #e6edf3;
-  --color-text-sub: #8b98a8;
+  --color-gold: #6366f1;
+  --color-gold-light: #818cf8;
+  --color-gold-deep: #4f46e5;
+  --color-gold-ink: #ffffff;
+  --color-ink: #f4f4f5;
+  --color-on-ink: #09090b;
+  --color-cream: #09090b;
+  --color-cream-card: #111113;
+  --color-surface: #09090b;
+  --color-obsidian: #09090b;
+  --color-surface-1: #111113;
+  --color-surface-2: #18181b;
+  --color-surface-3: #27272a;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-strong: rgba(255, 255, 255, 0.12);
+  --color-text: #f4f4f5;
+  --color-text-sub: #a1a1aa;
   --color-success: #10B981;
   --color-error: #EF4444;
   --color-warning: #F59E0B;
-  --color-info: #06B6D4;
+  --color-info: #6366f1;
 
-  /* Dark foreground tones = the Tailwind shades previously hardcoded in TSX */
-  --color-gold-text: var(--color-gold);
-  --color-success-text: oklch(76.5% 0.177 163.223); /* emerald-400 */
-  --color-warning-text: oklch(82.8% 0.189 84.429); /* amber-400 */
-  --color-info-text: oklch(78.9% 0.154 211.53); /* cyan-400 */
-  --color-danger-text: oklch(71.2% 0.194 13.428); /* rose-400 */
-  --color-success-tint: oklch(26.2% 0.051 172.552); /* emerald-950 */
-  --color-danger-tint: oklch(27.1% 0.105 12.094); /* rose-950 */
-  --color-warning-tint: oklch(27.9% 0.077 45.635); /* amber-950 */
-  --color-info-tint: oklch(30.2% 0.056 229.695); /* cyan-950 */
+  /* Restrained foreground & tint tokens */
+  --color-gold-text: #818cf8;
+  --color-success-text: #34d399; /* emerald-400 */
+  --color-warning-text: #fbbf24; /* amber-400 */
+  --color-info-text: #818cf8; /* indigo-400 */
+  --color-danger-text: #f87171; /* rose-400 */
+  --color-success-tint: rgba(16, 185, 129, 0.12);
+  --color-danger-tint: rgba(239, 68, 68, 0.12);
+  --color-warning-tint: rgba(245, 158, 11, 0.12);
+  --color-info-tint: rgba(99, 102, 241, 0.12);
 
-  --bg-app: #0d1117;
-  --bg-card: #161b22;
-  --bg-card-elevated: #1c2333;
-  --border-app: rgba(255, 255, 255, 0.09);
-  --text-main: #e6edf3;
-  --text-muted: #8b98a8;
+  --bg-app: #09090b;
+  --bg-card: #111113;
+  --bg-card-elevated: #161619;
+  --border-app: rgba(255, 255, 255, 0.06);
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
 
-  --color-primary: var(--color-gold);
-  --color-primary-hover: var(--color-gold-light);
-  --color-on-primary: var(--color-gold-ink);
-  --color-primary-container: rgba(240, 178, 48, 0.14);
+  --color-primary: #6366f1;
+  --color-primary-hover: #818cf8;
+  --color-on-primary: #ffffff;
+  --color-primary-container: rgba(99, 102, 241, 0.12);
   color-scheme: dark;
 }
 

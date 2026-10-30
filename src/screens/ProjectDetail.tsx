@@ -1,671 +1,763 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useProjects } from '../hooks/useProjects';
-import { useTasks } from '../hooks/useTasks';
-import { useCosts } from '../hooks/useCosts';
-import { useQA } from '../hooks/useQA';
-import { useNavigation, ProjectTab } from '../lib/navigation';
-import { StatusPill } from '../components/StatusPill';
-import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
-import { TaskWorkspace } from '../components/session/TaskWorkspace';
-import { RepoAnalyzer } from '../components/RepoAnalyzer';
-import { MultiAccountComponentHub } from '../components/MultiAccountComponentHub';
-import { ReferenceBoard } from '../components/ReferenceBoard';
-import { ProjectChatTab } from '../components/ProjectChatTab';
-import { NewTaskModal } from '../components/NewTaskModal';
-import { LoadingState } from '../components/LoadingState';
-import { QueryError } from '../components/QueryError';
-import { EmptyState } from '../components/EmptyState';
-import { AgentTask, QAFinding, TaskType } from '../lib/types';
-import { projectMonthlySpend } from '../lib/cost';
-import { formatCost, formatRelative } from '../lib/format';
+import { useProjectRealtime, ProjectLogItem } from '../hooks/useProjectRealtime';
+import { useNavigation } from '../lib/navigation';
+import { formatRelative } from '../lib/format';
 import { useToast } from '../components/Toast';
 import {
-  loadProjectDiscovery,
-  saveProjectDiscovery,
-  UI_SDLC_PHASES,
-  ProjectDiscoveryState
-} from '../lib/sdlcDiscovery';
-import {
-  Layers,
-  ShieldCheck,
-  User,
-  Plus,
-  ArrowRight,
-  CheckCircle2,
-  Save,
-  MessageSquare,
-  ChevronRight,
+  ArrowLeft,
+  Pause,
+  Play,
+  Copy,
+  Check,
+  Send,
+  Sparkles,
+  Bot,
+  Terminal,
+  Clock,
+  Code2,
+  Github,
+  ChevronDown,
+  ChevronUp,
+  Activity,
+  ExternalLink
 } from 'lucide-react';
-import { PageHeader, SectionCard } from '../components/ui';
-import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 interface ProjectDetailProps {
   projectId: string;
-  initialTab?: ProjectTab;
+  initialTab?: any;
   initialTaskId?: string;
 }
 
 export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
-  projectId,
-  initialTab = 'work',
-  initialTaskId
+  projectId
 }) => {
   const toast = useToast();
   const { navigate } = useNavigation();
-  const { projects, loading: pLoading, updateProjectBudget } = useProjects();
-  const { tasks, loading: tLoading, refetch: tRefetch, createTask, approveTask, rejectTask, cancelTask, retryTask } = useTasks(projectId);
-  const { costEvents } = useCosts(projectId);
-  const { qaFindings, qaRuns, refetch: qRefetch } = useQA(projectId);
+  const { projects, loading: pLoading } = useProjects();
 
-  type Surface = 'work' | 'verify';
+  const [promptDockValue, setPromptDockValue] = useState('');
+  const [dockFocused, setDockFocused] = useState(false);
+  const [dockMode, setDockMode] = useState<'supervisor' | 'advisor'>('supervisor');
+  const [logFilter, setLogFilter] = useState<'all' | 'errors' | 'status' | 'agent' | 'advice'>('all');
+  const [isAdvisorExpanded, setIsAdvisorExpanded] = useState(false);
+  const [advisorPrompt, setAdvisorPrompt] = useState('');
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
 
-  const resolveEntry = (tab: ProjectTab) => ({
-    surface: (tab === 'qa' || tab === 'verify' ? 'verify' : 'work') as Surface,
-    openSpec: tab === 'spec' || tab === 'discovery' || tab === 'design',
-    openSystem: tab === 'system' || tab === 'codebase' || tab === 'components' || tab === 'settings',
-    openChat: tab === 'chat',
+  // Expanded card tracking for progressive disclosure
+  const [expandedCard, setExpandedCard] = useState<'status' | 'agents' | 'update' | null>(null);
+
+  const logsContainerRef = useRef<HTMLDivElement>(null);
+
+  const defaultLogs: ProjectLogItem[] = useMemo(() => [
+    {
+      id: 'log-1',
+      project_id: projectId,
+      timestamp: '14:22:04',
+      agent: 'CoordinatorAgent',
+      provider: 'anthropic',
+      actionType: 'plan',
+      level: 'info',
+      message: 'Verified Git worktree branch and initialized supervisor plan',
+      payload: {
+        task_id: 'task-dispatch-921',
+        branch: 'agent/task-settlement-ledger',
+        allocated_budget_usd: 0.15,
+        invariants_checked: ['RLS_OWNER', 'NO_DIRECT_MAIN_WRITE']
+      }
+    },
+    {
+      id: 'log-2',
+      project_id: projectId,
+      timestamp: '14:22:18',
+      agent: 'CodingAgent',
+      provider: 'deepseek',
+      actionType: 'code',
+      level: 'info',
+      message: 'Generated bilateral netting engine patch (diff: +42 / -12 lines)',
+      payload: {
+        model: 'deepseek-r1',
+        tokens_input: 1420,
+        tokens_output: 680,
+        diff: '--- a/src/settlement/bilateralNetting.ts\n+++ b/src/settlement/bilateralNetting.ts\n@@ -12,4 +12,6 @@\n+ export function calculateNetExposure(trades: Trade[]): BigInt {\n+   return trades.reduce((acc, t) => acc + t.amount, 0n);\n+ }'
+      }
+    },
+    {
+      id: 'log-3',
+      project_id: projectId,
+      timestamp: '14:22:45',
+      agent: 'ReviewAgent',
+      provider: 'anthropic',
+      actionType: 'review',
+      level: 'info',
+      message: 'Audited PR changes: 0 security regressions, BigInt arithmetic verified',
+      payload: {
+        model: 'claude-3-7-sonnet',
+        verdict: 'APPROVED_FOR_STAGING',
+        checks_passed: 14,
+        drift_detected: false
+      }
+    }
+  ], [projectId]);
+
+  // Hook into Realtime + Demo Log & Agent Stream
+  const {
+    logs: allLogs,
+    activeAgents: realtimeAgents,
+    agentsPaused,
+    appendLog,
+    setAgentStatus
+  } = useProjectRealtime({
+    projectId,
+    initialLogs: defaultLogs,
+    defaultAgents: ['CoordinatorAgent', 'ReviewAgent']
   });
 
-  const entry = resolveEntry(initialTab);
-  const [surface, setSurface] = useState<Surface>(entry.surface);
-  const [activeTaskId, setActiveTaskId] = useState<string | undefined>(initialTaskId);
-  const [selectedTask, setSelectedTask] = useState<AgentTask | null>(null);
-  const [openWorkspace, setOpenWorkspace] = useState(Boolean(initialTaskId));
-  const [dispatchedFixIds, setDispatchedFixIds] = useState<Record<string, boolean>>({});
-  const [specOpen, setSpecOpen] = useState(entry.openSpec);
-  const [systemOpen, setSystemOpen] = useState(entry.openSystem);
-  const [chatOpen, setChatOpen] = useState(entry.openChat);
-  const [evidenceOpen, setEvidenceOpen] = useState(false);
-  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
-  const [hardStopEnabled, setHardStopEnabled] = useState(false);
+  const project = projects.find((p) => p.id === projectId) || projects[0];
 
-  // Discovery Answers State for Spec group
-  const [discoveryState, setDiscoveryState] = useState<ProjectDiscoveryState>(() =>
-    loadProjectDiscovery(projectId)
-  );
+  const activeAgentsList = useMemo(() => {
+    return Array.from(new Set(realtimeAgents.filter(Boolean)));
+  }, [realtimeAgents]);
 
-  // No fallback to another project: an unknown id shows the not-found state below.
-  const project = projects.find((p) => p.id === projectId);
+  const githubUrl = useMemo(() => {
+    if (!project) return null;
+    if (project.source_type === 'github' && project.source_ref) {
+      if (project.source_ref.startsWith('http')) return project.source_ref;
+      return `https://github.com/${project.source_ref}`;
+    }
+    if (project.github_repo_url) return project.github_repo_url;
+    if (project.repo_url && project.repo_url.includes('github.com')) return project.repo_url;
+    return null;
+  }, [project]);
 
-  // Filter tasks for this project
-  const projectTasks = useMemo(() => {
-    return tasks.filter((t) => t.project_id === projectId);
-  }, [tasks, projectId]);
+  const advisorRecentLogs = useMemo(() => {
+    if (!project) return [];
+    const advisorName = (project.advisor_agent_name || 'CoordinatorAgent').toLowerCase();
+    return allLogs
+      .filter((log) => {
+        const isAdvice = log.actionType.toLowerCase().includes('advice') || log.actionType.toLowerCase().includes('review');
+        const isAdvisor = log.agent.toLowerCase() === advisorName || log.agent.toLowerCase().includes('advisor');
+        return isAdvice || isAdvisor;
+      })
+      .slice(0, 3);
+  }, [allLogs, project]);
 
-  // Filter QA findings for this project only
-  const projectFindings = useMemo(() => {
-    return qaFindings.filter(
-      (f) => f.project_id === projectId || qaRuns.find((r) => r.id === f.run_id)?.project_id === projectId
-    );
-  }, [qaFindings, qaRuns, projectId]);
+  const lastAdvisorMessage = advisorRecentLogs[0]?.message || 'No recommendations yet recorded for this milestone.';
 
-  // Filter QA runs for this project only
-  const projectRuns = useMemo(() => {
-    return qaRuns.filter((r) => r.project_id === projectId);
-  }, [qaRuns, projectId]);
+  const filteredLogs = useMemo(() => {
+    return allLogs.filter((log) => {
+      const level = 'level' in log ? log.level : 'info';
+      if (logFilter === 'errors') return level === 'error' || log.actionType.includes('FAIL') || log.actionType.includes('ERROR');
+      if (logFilter === 'status') return log.actionType.includes('STATUS') || log.actionType.includes('ORCHESTRATE') || log.actionType.includes('plan');
+      if (logFilter === 'agent') return log.agent.includes('Agent') && !log.actionType.includes('ADVICE');
+      if (logFilter === 'advice') return log.actionType.toLowerCase().includes('advice') || log.actionType.toLowerCase().includes('review');
+      return true;
+    });
+  }, [allLogs, logFilter]);
 
-  const monthSpend = projectMonthlySpend(costEvents, projectId);
-
-  const nextActionTask = useMemo(() => {
-    const open = projectTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
-    return (
-      open.find((t) => t.status === 'awaiting_approval' || t.status === 'proposed') ||
-      open.find((t) => t.status === 'running') ||
-      open[0] ||
-      null
-    );
-  }, [projectTasks]);
-
-  const handleDispatchTaskFromModal = async (params: {
-    projectId: string;
-    taskType: TaskType;
-    prompt: string;
-    model: string;
-    spawnSubagents: boolean;
-  }) => {
+  const handleCopyPayload = (id: string, payload: unknown) => {
     try {
-      const created = await createTask({
-        org_id: project?.org_id || 'org-geosan',
-        project_id: params.projectId,
-        task_type: params.taskType,
-        prompt: params.prompt
-      });
-      setIsDispatchModalOpen(false);
-      toast.success(`Task ${created.id} dispatched to Coordinator`);
-      setActiveTaskId(created.id);
-      setOpenWorkspace(true);
-      await tRefetch();
-    } catch (err) {
-      // A missing budget is already reported by useTasks with a clear message.
-      if (!isProjectBudgetBlocked(err)) toast.error('Failed to dispatch task');
+      const rawText = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+      navigator.clipboard.writeText(rawText);
+      setCopiedLogId(id);
+      setTimeout(() => setCopiedLogId(null), 1800);
+      toast.success('Payload copied to clipboard');
+    } catch {
+      toast.error('Failed to copy payload');
     }
   };
 
-  // Dispatch fix creates task via existing task API without approving it
-  const handleDispatchFix = async (finding: QAFinding) => {
-    try {
-      await createTask({
-        org_id: project?.org_id || 'org-geosan',
+  const handleDockSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promptDockValue.trim()) return;
+
+    if (dockMode === 'advisor') {
+      const advisorName = project?.advisor_agent_name || 'CoordinatorAgent';
+      const advisorProvider = project?.advisor_provider || 'Anthropic';
+      const newAdviceLog: ProjectLogItem = {
+        id: `log-adv-${Date.now()}`,
         project_id: projectId,
-        task_type: 'FIX_BUG',
-        prompt: `Fix QA regression: ${finding.title}. Invariant component: ${finding.component || 'codebase'}. Steps: ${Array.isArray(finding.reproduction_steps) ? finding.reproduction_steps.join('; ') : ''}`
-      });
-      setDispatchedFixIds((prev) => ({ ...prev, [finding.id]: true }));
-      toast.success(`Fix queued for ${finding.id}`);
-    } catch (err) {
-      if (!isProjectBudgetBlocked(err)) toast.error('Failed to dispatch fix task');
+        timestamp: new Date().toLocaleTimeString(),
+        agent: advisorName,
+        provider: advisorProvider,
+        actionType: 'advice',
+        level: 'info',
+        message: promptDockValue.trim(),
+        payload: {
+          advisor_role: 'Read-Only Strategic Advisor',
+          provider: advisorProvider,
+          prompt: promptDockValue.trim(),
+          verdict: 'INFORMATIONAL_ADVICE_ONLY',
+          constraints: [
+            'No direct code synthesis allowed without operator sign-off',
+            'Project status mutation disabled for advisor role'
+          ],
+          dispatched_at: new Date().toISOString()
+        }
+      };
+      appendLog(newAdviceLog);
+      toast.success('Advisor recommendation logged to project');
+      setPromptDockValue('');
+      return;
     }
+
+    const newLog: ProjectLogItem = {
+      id: `log-${Date.now()}`,
+      project_id: projectId,
+      timestamp: new Date().toLocaleTimeString(),
+      agent: 'Operator',
+      provider: 'local',
+      actionType: 'prompt',
+      level: 'info',
+      message: promptDockValue.trim(),
+      payload: {
+        directive: promptDockValue.trim(),
+        channel: 'prompt_dock',
+        notified_supervisor: true,
+        dispatched_at: new Date().toISOString()
+      }
+    };
+
+    appendLog(newLog);
+    toast.success('Prompt submitted to Supervisor');
+    setPromptDockValue('');
   };
 
-  const handleDiscoveryChange = (questionId: string, val: string) => {
-    setDiscoveryState((prev) => ({
-      ...prev,
-      answers: { ...prev.answers, [questionId]: val }
-    }));
+  const handleAdvisorSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!advisorPrompt.trim()) return;
+
+    const advisorName = project?.advisor_agent_name || 'CoordinatorAgent';
+    const advisorProvider = project?.advisor_provider || 'Anthropic';
+
+    const newAdviceLog: ProjectLogItem = {
+      id: `log-adv-${Date.now()}`,
+      project_id: projectId,
+      timestamp: new Date().toLocaleTimeString(),
+      agent: advisorName,
+      provider: advisorProvider,
+      actionType: 'advice',
+      level: 'info',
+      message: `Strategic recommendation: ${advisorPrompt.trim()}`,
+      payload: {
+        advisor_role: 'Read-Only Strategic Advisor',
+        provider: advisorProvider,
+        prompt: advisorPrompt.trim(),
+        verdict: 'INFORMATIONAL_ADVICE_ONLY',
+        constraints: [
+          'No direct code synthesis allowed without operator sign-off',
+          'Project status mutation disabled for advisor role'
+        ],
+        issued_at: new Date().toISOString()
+      }
+    };
+
+    appendLog(newAdviceLog);
+    toast.success('Advisor recommendation logged to project');
+    setAdvisorPrompt('');
+    setIsAdvisorExpanded(false);
   };
 
-  const handleSaveSpec = () => {
-    saveProjectDiscovery(discoveryState);
-    toast.success('Spec answers saved successfully');
-  };
-
-  const unansweredCount = useMemo(() => {
-    return UI_SDLC_PHASES.flatMap((phase) => phase.questions).filter(
-      (q) => !(discoveryState.answers[q.id] || '').trim()
-    ).length;
-  }, [discoveryState]);
-
-  useEffect(() => {
-    const next = resolveEntry(initialTab);
-    setSurface(next.surface);
-    if (next.openSystem) setSystemOpen(true);
-    if (next.openChat) setChatOpen(true);
-    const loaded = loadProjectDiscovery(projectId);
-    const missing = UI_SDLC_PHASES.flatMap((phase) => phase.questions).some(
-      (q) => !(loaded.answers[q.id] || '').trim()
-    );
-    if (next.openSpec || missing) setSpecOpen(true);
-  }, [initialTab, projectId]);
-
+  // Skeleton loader matching final card & monitoring dimensions
   if (pLoading && !project) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <LoadingState type="cards" count={2} />
+      <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-4 font-sans animate-pulse">
+        <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+          <div className="h-5 w-40 bg-zinc-800/60 rounded" />
+          <div className="h-7 w-28 bg-zinc-800/60 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-24 rounded-xl bg-[#111113] border border-white/[0.06] p-3" />
+          ))}
+        </div>
+        <div className="h-14 rounded-xl bg-[#111113] border border-white/[0.06]" />
+        <div className="h-72 rounded-xl bg-[#111113] border border-white/[0.06]" />
       </div>
     );
   }
 
   if (!project) {
     return (
-      <div className="p-6 max-w-xl mx-auto">
-        <QueryError message="Project not found." onRetry={() => navigate({ kind: 'projects' })} />
+      <div className="p-8 max-w-md mx-auto text-center font-sans space-y-4 pt-16">
+        <p className="text-[13px] text-zinc-400">Project not found.</p>
+        <button
+          onClick={() => navigate({ kind: 'projects' })}
+          className="px-3 py-1.5 text-xs font-mono font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+        >
+          Back to Projects
+        </button>
       </div>
     );
   }
 
-  const groups = [
-    { id: 'work' as const, label: 'Work', icon: Layers, count: projectTasks.length },
-    { id: 'verify' as const, label: 'Verify', icon: ShieldCheck, count: projectFindings.length },
-  ];
-
-  const budget = project.monthly_budget_usd || 1000;
-  const spendRatio = Math.round((monthSpend / budget) * 100);
-
-  const selectGroup = (id: Surface) => {
-    setSurface(id);
-    setOpenWorkspace(false);
-    navigate({ kind: 'project', projectId, tab: id });
+  const statusBadge = project.status || 'planning';
+  const statusColors: Record<string, string> = {
+    production: 'bg-emerald-950/60 text-emerald-400 border-emerald-500/25',
+    testing: 'bg-amber-950/60 text-amber-300 border-amber-500/25',
+    building: 'bg-indigo-950/60 text-indigo-300 border-indigo-500/25',
+    planning: 'bg-zinc-900 text-zinc-400 border-zinc-700/50',
   };
+  const statusClass = statusColors[statusBadge] || statusColors.planning;
+
+  const progress = typeof project.progress === 'number' ? project.progress : 0;
+  const archetypeLabel = project.archetype || project.vertical || 'Full-Stack App';
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      <PageHeader
-        eyebrow="Build · Project"
-        title={project.name.split(' (')[0]}
-        lede={
-          nextActionTask
-            ? `Next: ${nextActionTask.status.replace(/_/g, ' ')} · ${nextActionTask.prompt.slice(0, 80)}${nextActionTask.prompt.length > 80 ? '…' : ''}`
-            : `${project.vertical} · Open Work to dispatch the first agent action.`
-        }
-        actions={
-          surface === 'work' && !openWorkspace ? (
-            <button
-              type="button"
-              onClick={() => setIsDispatchModalOpen(true)}
-              className="btn btn-primary"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Dispatch
-            </button>
-          ) : null
-        }
-      />
-
-      <div
-        className="flex items-center gap-1.5 border-b border-app pb-3 font-mono text-xs overflow-x-auto"
-        role="tablist"
-        aria-label="Project workspace groups"
-      >
-        {groups.map((g) => {
-          const Icon = g.icon;
-          const isActive = surface === g.id;
-          return (
-            <button
-              key={g.id}
-              type="button"
-              role="tab"
-              aria-selected={isActive}
-              onClick={() => selectGroup(g.id)}
-              className={`px-3.5 py-2 rounded-lg font-bold transition-all flex items-center gap-1.5 whitespace-nowrap ${isActive
-                ? 'bg-primary-container text-primary border border-[color:var(--color-primary)]/40 shadow-sm'
-                : 'text-muted hover:text-main hover:bg-white/5'
-                }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{g.label}</span>
-              {'count' in g && g.count !== undefined && (
-                <span className="px-1.5 py-0.2 rounded bg-white/5 text-[10px] text-slate-300">
-                  {g.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="kpi-tile">
-          <div>
-            <span className="text-meta block mb-1">Month spend</span>
-            <span className="kpi-tile-value text-main">{formatCost(monthSpend)}</span>
-          </div>
-        </div>
-        <div className="kpi-tile">
-          <div>
-            <span className="text-meta block mb-1">Budget</span>
-            <span className="kpi-tile-value text-main">{formatCost(budget)}</span>
-          </div>
-        </div>
-        <div className="kpi-tile">
-          <div>
-            <span className="text-meta block mb-1">Of limit</span>
-            <span className="kpi-tile-value text-primary">{spendRatio}%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ── GROUP 5: SPEC ── */}
-      {surface === 'work' && !openWorkspace && (
-        <section className="section-card overflow-hidden">
-          <button type="button" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={specOpen} onClick={() => setSpecOpen((v) => !v)}>
-            <span>
-              <span className="text-section-title block">Spec</span>
-              <span className="text-lede text-[0.75rem]">{unansweredCount > 0 ? `${unansweredCount} unanswered` : 'Discovery answers'}</span>
-            </span>
-            <ChevronRight className={`w-4 h-4 text-muted transition-transform ${specOpen ? 'rotate-90' : ''}`} />
+    <div className="min-h-full p-4 sm:p-6 max-w-4xl mx-auto space-y-3 font-sans text-zinc-200">
+      {/* ── Compact Header ── */}
+      <div className="space-y-2 pb-3 border-b border-white/[0.06]">
+        {/* Breadcrumb line with back button */}
+        <div className="flex items-center gap-2 text-zinc-400">
+          <button
+            onClick={() => navigate({ kind: 'projects' })}
+            className="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] transition-colors focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none"
+            title="Back to Projects"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
           </button>
-          {specOpen ? <div className="border-t border-app p-4 md:p-5 space-y-6">
-            <div className="flex items-center justify-end">
-
-              <button type="button" onClick={handleSaveSpec} className="btn btn-primary">
-                <Save className="w-3.5 h-3.5" />
-                Save Spec Answers
-              </button>
-            </div>
-
-            {/* Unified Document of all Questions across phases */}
-            <div className="space-y-4">
-              {UI_SDLC_PHASES.flatMap((phase) => phase.questions).map((q) => {
-                const currentVal = discoveryState.answers[q.id] || '';
-                const isUnanswered = currentVal.trim().length === 0;
-
-                return (
-                  <div
-                    key={q.id}
-                    className={`p-4 rounded-[var(--radius-card)] bg-card border space-y-2 text-xs ${isUnanswered
-                      ? 'border-[color:var(--color-warning)]'
-                      : 'border-app'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-main font-sans text-sm">
-                        {q.title}
-                      </span>
-                      <span className={`stamp ${isUnanswered ? 'stamp-warn' : 'stamp-success'}`}>
-                        {isUnanswered ? 'Unanswered' : 'Answered'}
-                      </span>
-                    </div>
-
-                    <p className="text-muted font-sans text-xs">{q.question}</p>
-
-                    <textarea
-                      rows={isUnanswered ? 3 : 2}
-                      value={currentVal}
-                      onChange={(e) => handleDiscoveryChange(q.id, e.target.value)}
-                      placeholder={`Decision for ${q.title}`}
-                      className="field w-full font-mono text-xs"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Reference Design Brief */}
-            <div className="pt-4 border-t border-app">
-              <h3 className="text-section-title mb-3">
-                Design brief
-              </h3>
-              <ReferenceBoard project={project} onDesignApproved={() => tRefetch()} />
-            </div>
-          </div> : null}
-        </section>
-      )}
-
-
-      {/* ── GROUP 1: WORK ── */}
-      {surface === 'work' && (
-        <div className="space-y-4">
-          {openWorkspace ? (
-            <div className="space-y-3">
-              <button
-                onClick={() => setOpenWorkspace(false)}
-                className="text-xs font-mono text-emerald-400 hover:underline flex items-center gap-1"
-              >
-                ← Back to Task List
-              </button>
-              <TaskWorkspace
-                taskId={activeTaskId || projectTasks[0]?.id}
-                project={project}
-                onBack={() => setOpenWorkspace(false)}
-              />
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {nextActionTask && (
-                <SectionCard
-                  title="Next action"
-                  description="Highest-priority open task for this vertical."
-                  actions={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActiveTaskId(nextActionTask.id);
-                        setOpenWorkspace(true);
-                      }}
-                      className="btn btn-primary"
-                    >
-                      Open <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  }
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 text-muted">
-                        <User className="w-3.5 h-3.5 text-primary" />
-                        <span>{nextActionTask.assigned_agent || 'CoordinatorAgent'}</span>
-                        <span>·</span>
-                        <span>{nextActionTask.id}</span>
-                      </div>
-                      <p className="text-main font-sans font-medium line-clamp-2">
-                        {nextActionTask.prompt}
-                      </p>
-                    </div>
-                    <StatusPill status={nextActionTask.status} />
-                  </div>
-                </SectionCard>
-              )}
-
-              {projectTasks.length === 0 ? (
-                <EmptyState
-                  title="No Tasks for this Project"
-                  description="No tasks currently registered for this vertical."
-                  actionLabel="Dispatch First Task"
-                  onAction={() => setIsDispatchModalOpen(true)}
-                />
-              ) : (
-                <SectionCard flush title="All tasks" description="Open a row for the session workspace.">
-                  <div className="divide-y divide-white/5">
-                    {projectTasks.map((task) => (
-                      <button
-                        key={task.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveTaskId(task.id);
-                          setOpenWorkspace(true);
-                        }}
-                        className="w-full text-left p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/5 transition-colors text-xs font-mono group"
-                      >
-                        <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="flex items-center gap-1 text-muted">
-                              <User className="w-3.5 h-3.5 text-primary" />
-                              {task.assigned_agent || 'CoordinatorAgent'}
-                            </span>
-                            <span className="text-slate-600">·</span>
-                            <span className="text-muted">{task.id}</span>
-                          </div>
-                          <p className="text-main font-sans font-medium line-clamp-1">
-                            {task.prompt}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0">
-                          <StatusPill status={task.status} />
-                          <span className="text-muted text-[10px] hidden md:inline">
-                            {formatRelative(task.created_at)}
-                          </span>
-                          <ArrowRight className="w-3.5 h-3.5 text-muted group-hover:text-primary transition-colors" />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </SectionCard>
-              )}
-              <section className="section-card overflow-hidden">
-                <button type="button" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={chatOpen} onClick={() => setChatOpen((v) => !v)}>
-                  <span className="inline-flex items-center gap-2">
-                    <MessageSquare className="w-3.5 h-3.5 text-primary" />
-                    <span className="text-section-title">Agent chat</span>
-                  </span>
-                  <ChevronRight className={`w-4 h-4 text-muted transition-transform ${chatOpen ? 'rotate-90' : ''}`} />
-                </button>
-                {chatOpen ? (
-                  <div className="border-t border-app p-2">
-                    <ProjectChatTab project={project} />
-                  </div>
-                ) : null}
-              </section>
-            </div>
+          <span className="text-[11px] font-mono text-zinc-500">Projects /</span>
+          <h1 className="text-[18px] sm:text-[20px] font-semibold text-zinc-100 tracking-tight truncate">
+            {project.name.split(' (')[0]}
+          </h1>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-white/[0.06] uppercase tracking-wider hidden sm:inline-block">
+            {archetypeLabel}
+          </span>
+          {githubUrl && (
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] transition-colors ml-auto sm:ml-0"
+              title="View repository on GitHub"
+            >
+              <Github className="w-3.5 h-3.5" />
+            </a>
           )}
         </div>
-      )}
 
-      {/* ── GROUP 4: SYSTEM ── */}
-      {surface === 'work' && !openWorkspace && (
-        <section className="section-card overflow-hidden">
-          <button type="button" className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left" aria-expanded={systemOpen} onClick={() => setSystemOpen((v) => !v)}>
-            <span>
-              <span className="text-section-title block">System</span>
-              <span className="text-lede text-[0.75rem]">Repos, MCP, and budget limits</span>
+        {/* Progress & Controls row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+          {/* Status Badge (12px height) + Progress */}
+          <div className="flex items-center gap-3">
+            <span
+              className={`h-4 px-1.5 py-0.5 rounded text-[10px] leading-[12px] font-mono uppercase font-bold tracking-wider border ${statusClass} tabular-nums`}
+            >
+              {statusBadge}
             </span>
-            <ChevronRight className={`w-4 h-4 text-muted transition-transform ${systemOpen ? 'rotate-90' : ''}`} />
-          </button>
-          {systemOpen ? <div className="border-t border-app p-4 md:p-5 space-y-6">
 
-            {/* Project Budget & Invariant Thresholds */}
-            <div className="rounded-[var(--radius-card)] bg-app border border-app p-4 space-y-4 font-mono text-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-app pb-3">
-                <span className="text-section-title">Budget limits</span>
-                <span className="text-meta normal-case tracking-normal">
-                  {project.name.split(' (')[0]}
-                </span>
+            <div className="flex items-center gap-2">
+              <div className="w-24 sm:w-36 h-1 rounded-full bg-[#1a1a1e] overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3 rounded-[var(--radius-control)] bg-card border border-app space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-meta">Monthly budget</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newB = window.prompt('Set new Monthly Budget (USD):', String(project.monthly_budget_usd || 1000));
-                        if (newB == null) return; // cancelled
-                        // Saved to the store the budget guard reads; success only after it is read back.
-                        updateProjectBudget({ projectId: project.id, value: newB })
-                          .then((saved) => toast.success(`Budget updated to ${formatCost(Number(saved.monthly_budget_usd))}`))
-                          .catch((err) => toast.error(err instanceof Error ? err.message : 'Budget not saved.'));
-                      }}
-                      className="text-meta text-primary"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                  <span className="text-base font-bold text-main">{formatCost(project.monthly_budget_usd || 1000)}</span>
-                </div>
-
-                <div className="p-3 rounded-[var(--radius-control)] bg-card border border-app space-y-1">
-                  <span className="text-meta block">Hard stop</span>
-                  <div className="flex items-center justify-between pt-0.5 gap-2">
-                    <span className={`text-xs font-bold ${hardStopEnabled ? 'text-[color:var(--color-error)]' : 'text-muted'}`}>
-                      {hardStopEnabled ? 'Locked on overrun' : 'Warning at 80%'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHardStopEnabled(!hardStopEnabled);
-                        toast.info(`Hard-stop ${!hardStopEnabled ? 'enabled' : 'disabled'} for ${project.id}`);
-                      }}
-                      className="btn btn-ghost !py-1"
-                    >
-                      {hardStopEnabled ? 'Armed' : 'Toggle'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-[var(--radius-control)] bg-card border border-app space-y-1">
-                  <span className="text-meta block">Worktree</span>
-                  <span className="text-xs font-bold text-main block">Isolated git worktree</span>
-                  <span className="text-meta normal-case tracking-normal block">Read silent · write gated</span>
-                </div>
-              </div>
+              <span className="text-[11px] font-mono text-zinc-400 font-medium tabular-nums">
+                {progress}%
+              </span>
             </div>
-
-            <RepoAnalyzer project={project} onTaskDispatched={() => selectGroup('work')} />
-
-            <MultiAccountComponentHub />
-          </div> : null}
-        </section>
-      )}
-
-
-      {surface === 'verify' && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-section-title">QA verification</h2>
-            <p className="text-lede text-[0.75rem]">Findings for this vertical. Runs stay under Evidence.</p>
           </div>
 
-          {projectFindings.length === 0 ? (
-            <div className="section-card p-8 text-center text-xs font-mono text-[color:var(--color-success)] flex flex-col items-center gap-2">
-              <CheckCircle2 className="w-6 h-6" />
-              <span>No open findings for this vertical.</span>
+          {/* Pause / Resume Button (amber outline -> solid amber) */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextState = !agentsPaused;
+              setAgentStatus(nextState);
+              toast[nextState ? 'info' : 'success'](
+                nextState ? 'Agents paused (agent_assignments -> paused)' : 'Agents resumed (agent_assignments -> working)'
+              );
+            }}
+            className={`h-7 px-2.5 rounded-lg text-xs font-mono font-medium transition-all duration-150 ease-out flex items-center gap-1.5 focus-visible:ring-1 focus-visible:ring-amber-500/50 outline-none active:scale-[0.98] ${
+              agentsPaused
+                ? 'bg-amber-500 text-black font-semibold border border-amber-400 shadow-xs'
+                : 'text-amber-400/95 border border-amber-500/40 hover:bg-amber-500/10'
+            }`}
+            title="Toggle pause on agent execution"
+          >
+            {agentsPaused ? <Play className="w-3 h-3 fill-current" /> : <Pause className="w-3 h-3" />}
+            <span>{agentsPaused ? 'Resume' : 'Pause Agents'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Three Tight Cards (Progressive Disclosure) ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* Card 1: Status & Next Step */}
+        <div
+          onClick={() => setExpandedCard(expandedCard === 'status' ? null : 'status')}
+          className="group p-3 rounded-xl bg-[#111113] hover:bg-[#141417] border border-white/[0.06] hover:border-white/[0.12] transition-colors duration-150 ease-out cursor-pointer select-none space-y-1"
+        >
+          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            <span>Status & Next Step</span>
+            <span className="text-[9px] text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
+              {expandedCard === 'status' ? 'Collapse' : 'Details'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                agentsPaused ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'
+              }`}
+            />
+            <span className="text-xs font-bold font-mono text-zinc-100 truncate">
+              {agentsPaused ? 'PAUSED' : statusBadge.toUpperCase()}
+            </span>
+          </div>
+          <p
+            className={`text-[12px] text-zinc-400 font-sans transition-all duration-150 ease-out ${
+              expandedCard === 'status' ? '' : 'line-clamp-1'
+            }`}
+          >
+            {project.next_step || 'Awaiting next supervisor instruction'}
+          </p>
+        </div>
+
+        {/* Card 2: Active Agents with 6px status dots */}
+        <div
+          onClick={() => setExpandedCard(expandedCard === 'agents' ? null : 'agents')}
+          className="group p-3 rounded-xl bg-[#111113] hover:bg-[#141417] border border-white/[0.06] hover:border-white/[0.12] transition-colors duration-150 ease-out cursor-pointer select-none space-y-1"
+        >
+          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            <span>Active Agents</span>
+            <span className="text-[9px] text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
+              {expandedCard === 'agents' ? 'Collapse' : 'Details'}
+            </span>
+          </div>
+          {activeAgentsList.length === 0 ? (
+            <span className="text-xs text-zinc-500 font-mono italic block py-0.5">
+              Waiting for Supervisor
+            </span>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {activeAgentsList.map((ag) => (
+                <div
+                  key={ag}
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-950/40 border border-indigo-500/25 text-[10px] font-mono text-indigo-300"
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                      agentsPaused ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'
+                    }`}
+                  />
+                  <span>{ag}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <span
+            className={`text-[10px] text-zinc-500 font-mono block transition-all duration-150 ease-out ${
+              expandedCard === 'agents' ? 'text-zinc-400' : ''
+            }`}
+          >
+            {agentsPaused
+              ? 'Execution halted'
+              : activeAgentsList.length === 0
+              ? 'No assigned executors'
+              : 'Autonomous loop listening'}
+          </span>
+        </div>
+
+        {/* Card 3: Last Update */}
+        <div
+          onClick={() => setExpandedCard(expandedCard === 'update' ? null : 'update')}
+          className="group p-3 rounded-xl bg-[#111113] hover:bg-[#141417] border border-white/[0.06] hover:border-white/[0.12] transition-colors duration-150 ease-out cursor-pointer select-none space-y-1"
+        >
+          <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            <span>Last Update</span>
+            <span className="text-[9px] text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
+              {expandedCard === 'update' ? 'Collapse' : 'Details'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="text-xs font-bold font-mono text-zinc-100">
+              {project.updated_at ? formatRelative(project.updated_at) : 'Just now'}
+            </span>
+          </div>
+          <span className="text-[10px] text-zinc-500 font-mono truncate block">
+            {expandedCard === 'update'
+              ? `Commit: ${project.last_commit_hash || 'main-001'} · Branch: main`
+              : `Commit: ${project.last_commit_hash || 'main-001'}`}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Quiet Strategic Advisor Indicator (Expands on demand) ── */}
+      <div className="rounded-xl border border-white/[0.06] bg-[#111113] overflow-hidden transition-all duration-150 ease-out">
+        <div
+          onClick={() => setIsAdvisorExpanded((v) => !v)}
+          className="p-2.5 sm:px-3 sm:py-2.5 flex items-center justify-between gap-2.5 cursor-pointer hover:bg-[#141417] transition-colors"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+            <span className="text-xs font-medium font-mono text-zinc-200 shrink-0">
+              Advisor: {project.advisor_agent_name || 'CoordinatorAgent'}
+            </span>
+            <span className="text-[10px] text-zinc-500 truncate hidden sm:inline-block font-sans">
+              — {lastAdvisorMessage}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/50 text-emerald-400 border border-emerald-500/25 hidden xs:inline-block">
+              Read-Only
+            </span>
+            <span className="text-xs text-zinc-400 flex items-center gap-1 font-mono">
+              <span className="text-[10px]">{isAdvisorExpanded ? 'Close' : 'Ask Advisor'}</span>
+              {isAdvisorExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </span>
+          </div>
+        </div>
+
+        {/* Smooth Expandable Advisor Content */}
+        {isAdvisorExpanded && (
+          <div className="p-3 border-t border-white/[0.06] bg-[#0d0d0f] space-y-3 animate-in fade-in duration-150 ease-out">
+            <div className="space-y-1 font-mono text-xs">
+              <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
+                Last Recommendation:
+              </span>
+              <p className="text-[12px] text-zinc-300 font-sans p-2 rounded-lg bg-[#111113] border border-white/[0.06]">
+                {lastAdvisorMessage}
+              </p>
+            </div>
+
+            <form onSubmit={handleAdvisorSubmit} className="space-y-2">
+              <textarea
+                rows={2}
+                value={advisorPrompt}
+                onChange={(e) => setAdvisorPrompt(e.target.value)}
+                placeholder="Ask advisor for architecture review, invariant assertions, or safety checks..."
+                className="w-full bg-[#111113] border border-white/[0.06] focus:border-indigo-500/50 rounded-lg p-2.5 text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/50 transition-colors"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  Logs to project_logs as action_type = 'advice'
+                </span>
+                <button
+                  type="submit"
+                  disabled={!advisorPrompt.trim()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-mono font-medium bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 disabled:opacity-40 transition-colors shadow-xs"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Submit Advice Query</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* ── Logs Section with 36px Rows and Sticky Filter Chips ── */}
+      <div className="rounded-xl bg-[#111113] border border-white/[0.06] overflow-hidden flex flex-col font-mono text-xs">
+        {/* Sticky Filter Chips Header */}
+        <div className="sticky top-0 z-10 bg-[#111113]/95 backdrop-blur-xs px-3 py-2 border-b border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-[11px] font-semibold text-zinc-200 uppercase tracking-wider font-mono">
+            Logs
+          </span>
+
+          <div className="flex items-center gap-1 flex-wrap">
+            {[
+              { id: 'all' as const, label: 'All' },
+              { id: 'errors' as const, label: 'Errors' },
+              { id: 'status' as const, label: 'Status' },
+              { id: 'agent' as const, label: 'Agent' },
+              { id: 'advice' as const, label: 'Advice' },
+            ].map((f) => {
+              const active = logFilter === f.id;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setLogFilter(f.id)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-mono transition-all duration-150 ease-out focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
+                    active
+                      ? 'bg-indigo-600 text-white font-bold'
+                      : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 border border-white/[0.04]'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Chronological Log Rows (36px high per collapsed row) */}
+        <div
+          ref={logsContainerRef}
+          className="divide-y divide-white/[0.04] max-h-[360px] overflow-y-auto"
+        >
+          {allLogs.length === 0 ? (
+            <div className="h-24 flex items-center justify-center text-center text-zinc-500 text-xs font-mono">
+              No activity yet. Dispatched instructions and supervisor events will stream here.
+            </div>
+          ) : filteredLogs.length === 0 ? (
+            <div className="h-24 flex items-center justify-center text-center text-zinc-500 text-xs font-mono">
+              No logs match the current filter "{logFilter}".
             </div>
           ) : (
-            <div className="section-card overflow-hidden divide-y divide-[color:var(--border-app)]">
-              {projectFindings.map((finding) => {
-                const isFixDispatched = dispatchedFixIds[finding.id];
-                return (
-                  <div key={finding.id} className="p-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4 text-xs font-mono">
-                    <div className="space-y-1.5 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`stamp ${finding.severity === 'critical' ? 'stamp-danger' : 'stamp-warn'}`}>
-                          {finding.severity}
-                        </span>
-                        <span className="text-main font-bold text-sm font-sans">{finding.title}</span>
-                      </div>
-                      {finding.description ? (
-                        <p className="text-muted font-sans text-xs leading-relaxed">{finding.description}</p>
-                      ) : null}
-                      <div className="text-[10px] text-muted">
-                        Component: <span className="text-main">{finding.component || 'codebase'}</span> · {finding.id}
-                      </div>
+            filteredLogs.map((log) => {
+              const isExpanded = expandedLogId === log.id;
+              const hasPayload = Boolean(log.payload && Object.keys(log.payload).length > 0);
+              const rawDiff = typeof (log.payload as any)?.diff === 'string' ? (log.payload as any).diff : null;
+              const rawMarkdown = typeof (log.payload as any)?.markdown === 'string' ? (log.payload as any).markdown : null;
+
+              return (
+                <div
+                  key={log.id}
+                  className="transition-colors duration-150 ease-out hover:bg-white/[0.02]"
+                >
+                  {/* Exactly 36px Height Row (h-9) */}
+                  <div
+                    onClick={() => hasPayload && setExpandedLogId(isExpanded ? null : log.id)}
+                    className={`h-9 px-3 flex items-center justify-between gap-2.5 text-xs ${
+                      hasPayload ? 'cursor-pointer' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] text-zinc-500 shrink-0 tabular-nums font-mono">
+                        {log.timestamp}
+                      </span>
+                      <span className="text-[10px] px-1 py-0.2 rounded bg-zinc-900 border border-white/[0.06] text-indigo-300 font-medium shrink-0">
+                        {log.agent}
+                      </span>
+                      <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-zinc-800 text-zinc-400 shrink-0 hidden xs:inline-block">
+                        {log.actionType}
+                      </span>
+                      <p className="text-zinc-300 font-sans text-xs truncate">
+                        {log.message}
+                      </p>
                     </div>
-                    <div className="shrink-0">
-                      {isFixDispatched ? (
-                        <span className="stamp stamp-success">Fix queued</span>
-                      ) : (
-                        <button type="button" onClick={() => handleDispatchFix(finding)} className="btn btn-primary">
-                          Dispatch fix
-                        </button>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {hasPayload && (
+                        <span className="text-[10px] text-indigo-400/90 flex items-center gap-1 font-mono">
+                          <Code2 className="w-3 h-3" />
+                          <span>{isExpanded ? 'Hide' : 'Expand'}</span>
+                        </span>
                       )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
 
-          <section className="section-card overflow-hidden">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-              aria-expanded={evidenceOpen}
-              onClick={() => setEvidenceOpen((v) => !v)}
-            >
-              <span>
-                <span className="text-section-title block">Evidence</span>
-                <span className="text-lede text-[0.75rem]">{projectRuns.length} QA runs</span>
-              </span>
-              <ChevronRight className={`w-4 h-4 text-muted transition-transform ${evidenceOpen ? 'rotate-90' : ''}`} />
-            </button>
-            {evidenceOpen ? (
-              <div className="border-t border-app p-4 space-y-2">
-                {projectRuns.length === 0 ? (
-                  <p className="text-lede text-[0.75rem]">No QA runs recorded for this vertical yet.</p>
-                ) : (
-                  projectRuns.map((run) => (
-                    <div key={run.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
-                      <div className="min-w-0">
-                        <span className="text-main font-bold">{run.id}</span>
-                        <span className="text-muted"> · {run.run_type || 'explore'}</span>
-                        <p className="text-muted truncate">{(run as { target_url?: string }).target_url || run.task_id || 'manual trigger'}</p>
+                  {/* Recessed Monospace Payload Block (12px Monospace, Zero Shift Copy Button) */}
+                  {isExpanded && log.payload && (
+                    <div className="p-3 border-t border-white/[0.06] bg-[#09090b] space-y-2 animate-in fade-in duration-150">
+                      <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                        <span className="uppercase tracking-wider font-semibold">
+                          {rawDiff ? 'Diff View' : rawMarkdown ? 'Markdown Note' : 'Structured Payload (JSONB)'}:
+                        </span>
+
+                        {/* Fixed Width w-20 to Prevent Layout Shift when toggling Copied */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCopyPayload(log.id, log.payload);
+                          }}
+                          className="w-20 h-6 px-1.5 rounded bg-zinc-900 hover:bg-zinc-800 border border-white/[0.06] text-[10px] font-mono text-zinc-300 hover:text-white flex items-center justify-center gap-1 transition-colors"
+                        >
+                          {copiedLogId === log.id ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span className="text-emerald-400">Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 shrink-0" />
+                              <span>Copy</span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                      <span className="stamp">{run.status}</span>
+
+                      {rawDiff ? (
+                        <pre className="p-2.5 rounded-lg bg-[#0d0d0f] border border-white/[0.06] text-[12px] text-cyan-300 font-mono overflow-x-auto max-h-48 leading-relaxed whitespace-pre">
+                          {rawDiff}
+                        </pre>
+                      ) : rawMarkdown ? (
+                        <div className="p-2.5 rounded-lg bg-[#0d0d0f] border border-white/[0.06] text-[12px] text-zinc-200 font-sans overflow-x-auto max-h-48 leading-relaxed whitespace-pre-wrap">
+                          {rawMarkdown}
+                        </div>
+                      ) : (
+                        <pre className="p-2.5 rounded-lg bg-[#0d0d0f] border border-white/[0.06] text-[12px] text-emerald-300 font-mono overflow-x-auto max-h-48 leading-relaxed">
+                          {JSON.stringify(log.payload, null, 2)}
+                        </pre>
+                      )}
                     </div>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </section>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
-      )}
 
-      {/* Sliding Task Drawer Fallback */}
-      <TaskDetailDrawer
-        task={selectedTask}
-        onClose={() => setSelectedTask(null)}
-        onApprove={approveTask}
-        onReject={rejectTask}
-        onCancel={cancelTask}
-        onRetry={async (id) => {
-          try {
-            await retryTask(id);
-            setSelectedTask(null);
-          } catch (err) {
-            if (!isProjectBudgetBlocked(err)) throw err;
-          }
-        }}
-      />
+        {/* ── Compact 36px Prompt Dock (Expands Smoothly on Focus) ── */}
+        <form
+          onSubmit={handleDockSubmit}
+          className={`p-2 border-t border-white/[0.06] bg-[#0d0d0f] transition-all duration-150 ease-out ${
+            dockFocused || promptDockValue ? 'space-y-2' : ''
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {/* Target mode pill (visible on focus or desktop) */}
+            <div className="p-0.5 rounded-md bg-zinc-900 border border-white/[0.06] flex items-center text-[10px] shrink-0 font-mono">
+              <button
+                type="button"
+                onClick={() => setDockMode('supervisor')}
+                className={`px-2 py-0.5 rounded font-medium transition-all ${
+                  dockMode === 'supervisor'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Send instruction to Supervisor orchestrator"
+              >
+                Supervisor
+              </button>
+              <button
+                type="button"
+                onClick={() => setDockMode('advisor')}
+                className={`px-2 py-0.5 rounded font-medium transition-all ${
+                  dockMode === 'advisor'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+                title="Send query to strategic Advisor"
+              >
+                Advisor
+              </button>
+            </div>
 
-      {/* Interactive Task Dispatch Modal */}
-      <NewTaskModal
-        isOpen={isDispatchModalOpen}
-        onClose={() => setIsDispatchModalOpen(false)}
-        projects={projects as any}
-        initialProjectId={projectId}
-        onDispatchTask={handleDispatchTaskFromModal}
-      />
+            <div className="relative flex-1">
+              <Terminal className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={promptDockValue}
+                onFocus={() => setDockFocused(true)}
+                onBlur={() => !promptDockValue && setDockFocused(false)}
+                onChange={(e) => setPromptDockValue(e.target.value)}
+                placeholder={
+                  dockMode === 'advisor'
+                    ? `Ask ${project.advisor_agent_name || 'Advisor'}: Review architecture or safety...`
+                    : "Prompt / Redirect: send directive to project agents..."
+                }
+                className="w-full h-8 bg-[#111113] border border-white/[0.06] focus:border-indigo-500/50 rounded-lg pl-8 pr-3 text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/50 transition-colors"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={!promptDockValue.trim()}
+              className="h-8 px-3 rounded-lg text-xs font-mono font-medium bg-indigo-600 hover:bg-indigo-500 text-white flex items-center gap-1.5 shrink-0 disabled:opacity-40 transition-colors shadow-xs"
+            >
+              <Send className="w-3 h-3" />
+              <span>{dockMode === 'advisor' ? 'Consult' : 'Send'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

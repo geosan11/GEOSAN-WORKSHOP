@@ -8,7 +8,6 @@ import { SeverityBadge } from '../SeverityBadge';
 import { PlanApproval } from '../PlanApproval';
 import { formatRelative, formatCost } from '../../lib/format';
 import { getDesignBrief } from '../../lib/designBrief';
-import { VERTICAL_KITS } from '../../data/verticalKits';
 import {
   DEMO_WORKLOG_RUNNING,
   DEMO_WORKLOG_APPROVAL,
@@ -294,12 +293,11 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
 
             {/* CodingAgent Design Context Bar */}
             {(() => {
-              const brief = getDesignBrief(project.id, project.vertical);
-              const kit = VERTICAL_KITS[brief.kit_id] || VERTICAL_KITS.ehi;
+              const brief = getDesignBrief(project.id);
               return (
                 <div className="flex items-center gap-2 mt-1.5 font-mono text-[10px] text-[#8b98a8] flex-wrap">
                   <span className="px-2 py-0.5 rounded bg-[#0d1117] border border-white/5 text-[#FFBD59]">
-                    KIT: {kit.verticalName}
+                    KIT: {brief.kit_name || 'None'}
                   </span>
                   <span className="px-2 py-0.5 rounded bg-[#0d1117] border border-white/5 text-cyan-300">
                     OBJECT: {brief.signature_object}
@@ -764,7 +762,7 @@ export const TaskWorkspace: React.FC<TaskWorkspaceProps> = ({ taskId, project, o
 
               {/* Design Contract QA Check */}
               {(() => {
-                const brief = getDesignBrief(project.id, project.vertical);
+                const brief = getDesignBrief(project.id);
                 const isApproved = brief.status === 'approved' && Boolean(brief.approved_fixture_hash);
                 return (
                   <div className={`p-3.5 rounded-xl border space-y-1.5 ${

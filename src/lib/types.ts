@@ -52,7 +52,13 @@ export interface Project {
   vertical: string;
   /** Design-kit preset id (UI/UX preset registry), e.g. 'ledger-debt-line'. Optional. */
   design_kit?: string;
+  archetype?: string;
+  source_type?: string;
+  source_ref?: string;
+  advisor_provider?: string;
+  advisor_agent_name?: string;
   repo_url: string | null;
+  github_repo_url?: string;
   vercel_deployment_url: string | null;
   status: ProjectStatus;
   created_at: string;
@@ -60,9 +66,18 @@ export interface Project {
   agent_instructions?: string;
   monthly_budget_usd?: number;
   health_status?: 'healthy' | 'degraded' | 'down';
+  health?: 'healthy' | 'warning' | 'degraded' | 'down';
+  last_commit_hash?: string;
   uptime_pct?: number;
   last_activity_at?: string;
   git_branch?: string;
+  goal?: string;
+  tech_stack?: string[];
+  main_features?: string;
+  deadline?: string;
+  enabled_providers?: string[];
+  progress?: number;
+  next_step?: string;
 }
 
 export interface AgentTask {

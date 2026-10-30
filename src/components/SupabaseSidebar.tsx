@@ -5,6 +5,7 @@ import { useTasks } from '../hooks/useTasks';
 import { useQA } from '../hooks/useQA';
 import { useAuth } from '../lib/auth';
 import { useTheme } from '../lib/theme';
+import { isDemoMode } from '../lib/supabase';
 import { SupabaseLogo } from './ServiceLogos';
 import {
   NAV_SECTIONS,
@@ -62,17 +63,22 @@ export const SupabaseSidebar: React.FC<SupabaseSidebarProps> = ({
           <button
             type="button"
             onClick={() => navigate({ kind: 'inbox' })}
-            className="flex items-center gap-2.5 cursor-pointer group text-left"
+            className="flex items-center gap-2 cursor-pointer group text-left"
           >
-            <div className="w-8 h-8 rounded-[var(--radius-control)] bg-ink text-[color:var(--color-on-ink)] flex items-center justify-center transition-colors group-hover:brightness-110">
-              <SupabaseLogo className="w-4 h-4" />
+            <div className="w-6 h-6 rounded-[var(--radius-control)] bg-ink text-[color:var(--color-on-ink)] flex items-center justify-center transition-colors group-hover:brightness-110">
+              <SupabaseLogo className="w-3.5 h-3.5" />
             </div>
             {!collapsed && (
               <div className="flex flex-col gap-0.5">
-                <span className="font-display font-extrabold text-[0.8125rem] tracking-[-0.03em] text-main uppercase group-hover:text-primary transition-colors">
+                <span className="font-display font-extrabold text-xs tracking-tight text-main uppercase group-hover:text-primary transition-colors">
                   Geosan
                 </span>
-                <span className="stamp stamp-primary !px-1 !py-0 w-fit">Ops</span>
+                <span className="stamp stamp-primary !px-1 !py-0 w-fit text-[9px]">Ops</span>
+                {isDemoMode && (
+                  <span className="stamp !bg-amber-500/10 !text-amber-400 !border-amber-500/30 !px-1.5 !py-0 w-fit text-[8.5px] font-mono tracking-normal">
+                    Demo Mode
+                  </span>
+                )}
               </div>
             )}
           </button>

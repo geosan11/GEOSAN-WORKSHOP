@@ -12,15 +12,15 @@ interface ThemeContextValue {
 const STORAGE_KEY = 'ehi.theme';
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'light',
-  isLight: true,
+  theme: 'dark',
+  isLight: false,
   setTheme: () => { },
   toggleTheme: () => { }
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>(() => {
-    if (typeof window === 'undefined') return 'light';
+    if (typeof window === 'undefined') return 'dark';
     try {
       const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode;
       if (stored === 'light' || stored === 'dark') {
@@ -29,7 +29,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch {
       // Ignore
     }
-    return 'light';
+    return 'dark';
   });
 
   const applyThemeToDOM = useCallback((mode: ThemeMode) => {
