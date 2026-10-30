@@ -1,9 +1,9 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { runLegacyProjectIdMigration } from './lib/projectIdMigration';
+import { runPlaceholderProjectCleanup } from './lib/placeholderProjectCleanup';
 
-// Rewrite data saved under old project ids before any store reads it.
-runLegacyProjectIdMigration();
+// Remove saved copies of the four placeholder projects before any store reads them.
+runPlaceholderProjectCleanup();
 
 createRoot(document.getElementById('root')!).render(<App />);

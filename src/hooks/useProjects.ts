@@ -1,33 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Project } from '../lib/types';
-import { CLIENT_PROJECTS } from '../data/clientProjects';
 import { DEFAULT_WORKSPACE_ID } from '../lib/workspace';
 import { checkProjectBudget, validBudget, type BudgetCheck } from '../lib/projectBudgetGuard';
 
 const STORAGE_KEY = 'geosan_projects';
 
-/** Seeded design kits for stored records saved before `design_kit` existed. */
-function withSeedDesignKit(project: Project): Project {
-  if (project.design_kit) return project;
-  const seed = CLIENT_PROJECTS.find((p) => p.id === project.id);
-  return seed?.design_kit ? { ...project, design_kit: seed.design_kit } : project;
-}
-
 /**
- * Projects from the saved value. A valid saved list is the source of truth,
- * including an empty one. Nothing saved yet, or a broken value (not JSON, or
- * not a list), falls back to the client project seed instead of an empty list.
+ * Projects from the saved value. There are no built-in projects: nothing
+ * saved yet, or a broken value (not JSON, or not a list), gives an empty list
+ * (the broken value is left in place). Entries that are not objects with a
+ * string id are skipped.
  */
-export function projectsFromStorage(saved: string | null): { projects: Project[]; fromSeed: boolean } {
+export function projectsFromStorage(saved: string | null): { projects: Project[] } {
   if (saved != null) {
     try {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) return { projects: (parsed as Project[]).map(withSeedDesignKit), fromSeed: false };
+      if (Array.isArray(parsed)) {
+        return { projects: (parsed as Project[]).filter((p) => !!p && typeof p === 'object' && typeof p.id === 'string') };
+      }
     } catch {
-      /* broken value: fall through to the seed */
+      /* broken value: no projects */
     }
   }
-  return { projects: [...CLIENT_PROJECTS], fromSeed: true };
+  return { projects: [] };
 }
 
 /**
@@ -76,7 +71,7 @@ export function saveProjectBudget(
   const saved = store.getItem(STORAGE_KEY);
   let list: Project[];
   if (saved == null) {
-    list = [...CLIENT_PROJECTS];
+    list = [];
   } else {
     let parsed: unknown;
     try {
@@ -105,13 +100,8 @@ export function saveProjectBudget(
 }
 
 const getProjects = async (): Promise<Project[]> => {
-  if (typeof window === 'undefined') return [...CLIENT_PROJECTS];
-  const saved = localStorage.getItem(STORAGE_KEY);
-  const { projects, fromSeed } = projectsFromStorage(saved);
-  // First visit only: write the client project records. A broken saved value
-  // is left in place (not overwritten) until the next real save.
-  if (fromSeed && saved == null) localStorage.setItem(STORAGE_KEY, JSON.stringify(CLIENT_PROJECTS));
-  return projects;
+  if (typeof window === 'undefined') return [];
+  return projectsFromStorage(localStorage.getItem(STORAGE_KEY)).projects;
 };
 export interface CreateProjectParams {
   name: string;

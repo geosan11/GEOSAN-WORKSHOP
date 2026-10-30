@@ -121,7 +121,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
     try {
       setIsSubmitting(true);
       const created = await createTask({
-        org_id: proj.org_id || 'org-geosan',
+        org_id: proj.org_id || 'org-geosan-workshop',
         project_id: proj.id,
         task_type: taskType,
         prompt: promptText.trim(),

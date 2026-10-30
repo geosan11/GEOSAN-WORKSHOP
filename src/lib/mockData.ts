@@ -9,13 +9,12 @@ import {
   Conversation,
   ChatMessage
 } from './types';
-import { CLIENT_PROJECTS, CLIENT_PROJECT_BUDGETS } from '../data/clientProjects';
 
 /**
- * Client projects come from the single seed source, `src/data/clientProjects.ts`.
- * Re-exported here for existing imports.
+ * No built-in projects: the four placeholder client projects were removed
+ * until real ones are added.
  */
-export const MOCK_PROJECTS: Project[] = CLIENT_PROJECTS;
+export const MOCK_PROJECTS: Project[] = [];
 
 /**
  * All simulated demo tasks have been removed.
@@ -39,10 +38,8 @@ export const MOCK_QA_RUNS: QARun[] = [];
  */
 export const MOCK_QA_FINDINGS: QAFinding[] = [];
 
-/**
- * Initial Project Budgets, derived from the client project seed.
- */
-export const MOCK_PROJECT_BUDGETS: ProjectBudget[] = CLIENT_PROJECT_BUDGETS;
+/** No built-in projects, so no budgets. */
+export const MOCK_PROJECT_BUDGETS: ProjectBudget[] = [];
 
 /**
  * System Governance Prompt Invariants

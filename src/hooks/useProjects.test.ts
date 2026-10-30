@@ -1,23 +1,25 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { projectsFromStorage } from './useProjects';
-import { CLIENT_PROJECTS } from '../data/clientProjects';
+import { projectsFromStorage, findStoredProject } from './useProjects';
 
-const seedIds = CLIENT_PROJECTS.map((p) => p.id);
+test('no built-in projects: nothing saved gives an empty list', () => {
+  assert.deepEqual(projectsFromStorage(null).projects, []);
+});
 
-test('a broken saved project list falls back to the seed projects, not an empty list', () => {
+test('a broken saved project list gives an empty list (no placeholder seed)', () => {
   for (const broken of ['{not json', '"a string"', '{"id":"x"}', 'null']) {
-    const { projects } = projectsFromStorage(broken);
-    assert.deepEqual(projects.map((p) => p.id), seedIds, `for ${broken}`);
+    assert.deepEqual(projectsFromStorage(broken).projects, [], `for ${broken}`);
   }
 });
 
-test('nothing saved yet: the seed projects', () => {
-  assert.deepEqual(projectsFromStorage(null).projects.map((p) => p.id), seedIds);
+test('a valid saved list is kept, including an empty one; entries without a string id are skipped', () => {
+  assert.deepEqual(projectsFromStorage('[]').projects, []);
+  const list = projectsFromStorage(JSON.stringify([{ id: 'proj-x', name: 'X' }, null, 5, { name: 'no id' }])).projects;
+  assert.deepEqual(list.map((p) => p.id), ['proj-x']);
 });
 
-test('a valid saved list is kept as is, including an empty one', () => {
-  assert.deepEqual(projectsFromStorage('[]').projects, []);
-  const one = projectsFromStorage(JSON.stringify([{ id: 'proj-x', name: 'X' }])).projects;
-  assert.deepEqual(one.map((p) => p.id), ['proj-x']);
+test('findStoredProject: unknown id or empty store gives null', () => {
+  assert.equal(findStoredProject('proj-ehi-001', null), null);
+  assert.equal(findStoredProject('proj-x', '[]'), null);
+  assert.equal(findStoredProject('proj-x', JSON.stringify([{ id: 'proj-x', name: 'X' }]))?.name, 'X');
 });

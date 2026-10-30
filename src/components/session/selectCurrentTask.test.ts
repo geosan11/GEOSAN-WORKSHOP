@@ -4,10 +4,10 @@ import { selectCurrentTask } from './selectCurrentTask';
 import type { AgentTask } from '../../lib/types';
 
 const task = (id: string, project_id: string, status: AgentTask['status']): AgentTask =>
-  ({ id, project_id, status, org_id: 'org-geosan', prompt: id } as AgentTask);
+  ({ id, project_id, status, org_id: 'org-geosan-workshop', prompt: id } as AgentTask);
 
-const A = { id: 'proj-a', org_id: 'org-geosan' };
-const B = { id: 'proj-b', org_id: 'org-geosan' };
+const A = { id: 'proj-a', org_id: 'org-geosan-workshop' };
+const B = { id: 'proj-b', org_id: 'org-geosan-workshop' };
 
 test('regression: a project with no tasks does not get the fake Kano Hub task outside demo mode', () => {
   const tasks = [task('t-b', B.id, 'running')];

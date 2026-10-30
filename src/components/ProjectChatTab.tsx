@@ -7,6 +7,7 @@ import { ChatComposer } from './ChatComposer';
 import { LoadingState } from './LoadingState';
 import { TaskWorkspace } from './session/TaskWorkspace';
 import { PlanApproval } from './PlanApproval';
+import { approveThenContinue } from '../lib/planApproval';
 import { AgentWorkingStream, WorkingStep } from './AgentWorkingStream';
 import { AgentCompletionCard } from './AgentCompletionCard';
 import { requestProjectBudgetAdmit } from '../lib/budget';
@@ -181,18 +182,15 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
     }
   };
 
-  const handleApprovePlan = async (taskId: string) => {
-    try {
-      await approveTask(taskId);
-    } catch (err) {
-      if (isProjectBudgetBlocked(err)) return; // reported by useTasks
-      throw err;
-    }
-    setActiveAgentTaskId(taskId);
-    await refetchTasks();
-    setCompletion(null);
-    setMode('agent');
-  };
+  // Errors (incl. a budget block, already toasted by useTasks) go back to
+  // PlanApproval, so a refused approval is never recorded as approved.
+  const handleApprovePlan = (taskId: string) =>
+    approveThenContinue(taskId, approveTask, async (id) => {
+      setActiveAgentTaskId(id);
+      await refetchTasks();
+      setCompletion(null);
+      setMode('agent');
+    });
 
   if (loading && !conversation) {
     return (

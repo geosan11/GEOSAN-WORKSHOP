@@ -4,7 +4,7 @@ import { isDesignBriefApproved } from '../lib/designBrief';
 import { Check, X, ShieldAlert, FileCode2, Lock } from 'lucide-react';
 import { useToast } from './Toast';
 import { appendApprovalLine, getApprovalLines } from '../lib/approvalLog';
-import { approvePlan, isGatedTaskType, persistRunPacketToStorage } from '../lib/planApproval';
+import { approvePlan, rejectPlan, isGatedTaskType, persistRunPacketToStorage } from '../lib/planApproval';
 import { checkStoredProjectBudget } from '../hooks/useProjects';
 import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
@@ -47,7 +47,8 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
         appendApprovalLine
       });
       if (result.ok) {
-        toast.success('Plan approved. Worktree not opened. Deploy still asks.');
+        if (result.warning) toast.error(result.warning);
+        else toast.success('Plan approved. Worktree not opened. Deploy still asks.');
       } else if (!isProjectBudgetBlocked(result.error)) {
         // (a budget error thrown by onApprove is already shown by useTasks)
         toast.error(result.reason);
@@ -61,15 +62,13 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
     if (!rejectReason.trim()) return;
     try {
       setIsProcessing(true);
-      appendApprovalLine({
-        actor: 'operator@demo.internal',
-        action: 'rejected',
-        task_id: task.id,
-        packet_id: null,
-        reason: rejectReason.trim()
-      });
-      await onReject(task.id, rejectReason.trim());
-      toast.error('Plan rejected. No branch was opened.');
+      // Audit line only after the reject succeeded (lib/planApproval.ts).
+      const result = await rejectPlan(task.id, rejectReason.trim(), { onReject, appendApprovalLine });
+      if (!result.ok) {
+        toast.error(result.reason);
+        return;
+      }
+      toast.error(result.warning ?? 'Plan rejected. No branch was opened.');
       setRejectModalOpen(false);
     } finally {
       setIsProcessing(false);

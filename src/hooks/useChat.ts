@@ -29,7 +29,7 @@ const ensureProjectConversation = (projectId: string): Conversation[] => {
 
   const created: Conversation = {
     id: `conv-${projectId}`,
-    org_id: 'org-geosan',
+    org_id: 'org-geosan-workshop',
     project_id: projectId,
     title: 'ProjectChatAgent',
     adk_session_id: `adk-${projectId}`,

@@ -4,7 +4,7 @@ import { ProjectLogItem } from '../hooks/useProjectRealtime';
 export const DEMO_SCENARIO_PROJECTS: Project[] = [
   {
     id: 'proj-taskpulse-demo',
-    org_id: 'org-geosan',
+    org_id: 'org-geosan-workshop',
     name: 'TaskPulse (Realtime Issue Tracker)',
     slug: 'taskpulse',
     vertical: 'full-stack-app',
@@ -30,7 +30,7 @@ export const DEMO_SCENARIO_PROJECTS: Project[] = [
   },
   {
     id: 'proj-edgetelemetry-demo',
-    org_id: 'org-geosan',
+    org_id: 'org-geosan-workshop',
     name: 'EdgeTelemetry Pipeline',
     slug: 'edgetelemetry-pipeline',
     vertical: 'data-pipeline',
@@ -55,7 +55,7 @@ export const DEMO_SCENARIO_PROJECTS: Project[] = [
   },
   {
     id: 'proj-omniscraper-demo',
-    org_id: 'org-geosan',
+    org_id: 'org-geosan-workshop',
     name: 'OmniScraper Worker',
     slug: 'omniscraper-worker',
     vertical: 'automation-script',

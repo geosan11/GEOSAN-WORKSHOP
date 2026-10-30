@@ -6,7 +6,6 @@
  * so operators and external LLMs can ingest past lessons and prevent recurring bugs.
  */
 
-import { CLIENT_PROJECT_IDS } from '../data/clientProjects';
 
 export type IssueCategory =
   | 'FINANCIAL_INVARIANT'
@@ -34,134 +33,8 @@ export interface LearningRecord {
   tags: string[];
 }
 
-export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [
-  {
-    id: 'learn-001-float-drift',
-    projectId: CLIENT_PROJECT_IDS.ehi,
-    projectName: 'EHI Multisystems',
-    category: 'FINANCIAL_INVARIANT',
-    title: 'IEEE-754 Floating-Point Precision Drift in Transaction Reconciliation',
-    symptomAndIssue:
-      'Summing itemized ledger transactions (0.05 + 0.12) resulted in 0.17000000000000004 in spendByAttribution and projectMonthlySpend, failing settlement reconciliation assertions.',
-    rootCause:
-      'JavaScript standard Number IEEE-754 floating-point math causes minor binary representation rounding errors during continuous addition.',
-    verifiedFix:
-      'Normalized all currency math with micro-dollar rounding: Math.round(total * 1000000) / 1000000 across all cost calculators and financial reducers.',
-    invariantRule:
-      'NEVER use standard IEEE-754 floats for currency or ledger transactions. Always normalize with explicit micro-unit rounding or store integer cents/kobo.',
-    modelUsed: 'deepseek-r1',
-    tokensUsed: 4200,
-    costUsd: 0.0046,
-    status: 'verified_fix',
-    createdAt: '2026-10-03T03:32:00Z',
-    tags: ['financial-math', 'ledger-invariants', 'ieee-754', 'ehi-multisystems']
-  },
-  {
-    id: 'learn-002-import-meta',
-    projectId: CLIENT_PROJECT_IDS.edgepoint,
-    projectName: 'EdgePoint',
-    category: 'RUNTIME_BUNDLER',
-    title: 'Unhandled TypeError on import.meta.env Outside Bundled Vite Context',
-    symptomAndIssue:
-      'Running background test harnesses or server-side scripts threw: "TypeError: Cannot read properties of undefined (reading VITE_SUPABASE_URL)".',
-    rootCause:
-      'Code accessed import.meta.env.VITE_SUPABASE_URL directly without checking if import.meta or import.meta.env exists in Node.js / tsx runtime.',
-    verifiedFix:
-      'Wrapped environment reads with safe checks: (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL) || (typeof process !== "undefined" && process.env?.VITE_SUPABASE_URL) || "".',
-    invariantRule:
-      'Always guard client-side bundler globals (import.meta.env, window, localStorage) so modules can safely execute in Node.js scripts, SSR, and test harnesses.',
-    modelUsed: 'gemini-3.5-flash',
-    tokensUsed: 2800,
-    costUsd: 0.0012,
-    status: 'verified_fix',
-    createdAt: '2026-10-03T03:59:00Z',
-    tags: ['runtime-safety', 'vite', 'node-compatibility', 'edgepoint']
-  },
-  {
-    id: 'learn-003-rls-bypass',
-    projectId: CLIENT_PROJECT_IDS.ehi,
-    projectName: 'EHI Multisystems',
-    category: 'SECURITY_RLS',
-    title: 'Cross-Tenant Ledger Leak Prevention via Database Row Level Security',
-    symptomAndIssue:
-      'Automated penetration crawl attempted to query foreign tenant transaction rows by manipulating the REST query parameter ?org_id=.',
-    rootCause:
-      'Relying solely on frontend UI filters or API where-clauses permits client-side parameter tampering to view unauthorized tenant records.',
-    verifiedFix:
-      'Enforced PostgreSQL Row Level Security (RLS) on all tables: USING (org_id = current_setting("app.current_org_id")). Unauthorized reads return 403 Forbidden.',
-    invariantRule:
-      'Multi-tenant boundaries must be strictly enforced at the database engine level via PostgreSQL RLS policies, never relying on application-level filtering.',
-    modelUsed: 'deepseek-r1',
-    tokensUsed: 6100,
-    costUsd: 0.0067,
-    status: 'verified_fix',
-    createdAt: '2026-09-28T22:15:00Z',
-    tags: ['security', 'rls', 'multi-tenancy', 'owasp', 'ehi-multisystems']
-  },
-  {
-    id: 'learn-004-upstream-ttl',
-    projectId: CLIENT_PROJECT_IDS.edgepoint,
-    projectName: 'EdgePoint',
-    category: 'PERFORMANCE_LATENCY',
-    title: 'Upstream Polling Storm & Hourly Cache Rate-Limit Shield',
-    symptomAndIssue:
-      'Rapid UI page switches or manual refresh bursts caused repeated upstream status queries, threatening external quota depletion.',
-    rootCause:
-      'Lack of centralized time-to-live (TTL) cache allowed every user request to fan-out directly to upstream status providers.',
-    verifiedFix:
-      'Implemented process-level 1-hour TTL cache in telemetry-gateway.ts. Query param ?force=1 explicitly returns cached data inside the hour without upstream polling.',
-    invariantRule:
-      'Status checks and health heartbeats must enforce strict in-memory TTL caching (3600s) to prevent cascading rate-limit exhaustion.',
-    modelUsed: 'claude-3-7-sonnet',
-    tokensUsed: 5400,
-    costUsd: 0.0162,
-    status: 'verified_fix',
-    createdAt: '2026-09-30T10:00:00Z',
-    tags: ['caching', 'rate-limiting', 'ttl', 'telemetry-gateway']
-  },
-  {
-    id: 'learn-005-offline-queue',
-    projectId: CLIENT_PROJECT_IDS.iyanuoluwa,
-    projectName: 'Iyanuoluwa Vegetable Oil',
-    category: 'OFFLINE_SYNC',
-    title: 'Industrial Weighbridge Scale Disconnection During Bulk Tanker Dispatch',
-    symptomAndIssue:
-      'Refinery scale-house tablets in rural Oyo state experienced cellular drops, stalling tanker gate pass issuance.',
-    rootCause:
-      'System design required active cloud API response before printing the physical weight ticket and calculating net palm kernel oil (PKO).',
-    verifiedFix:
-      'Built local SQLite / IndexedDB sync buffer with client-generated monotonic ticket serials and direct ESC/POS thermal printing fallback.',
-    invariantRule:
-      'Industrial hardware and scale-house operations must be offline-first by default with asynchronous idempotency keys on reconciliation.',
-    modelUsed: 'deepseek-v3',
-    tokensUsed: 4900,
-    costUsd: 0.0018,
-    status: 'verified_fix',
-    createdAt: '2026-09-29T14:30:00Z',
-    tags: ['offline-sync', 'weighbridge', 'sqlite', 'iyanu-oil']
-  },
-  {
-    id: 'learn-006-model-routing',
-    projectId: CLIENT_PROJECT_IDS.aviation,
-    projectName: 'Aviation Log Entry',
-    category: 'AI_GATEWAY_ROUTING',
-    title: 'Underpowered Model Selection for FAA Weight & Balance Invariants',
-    symptomAndIssue:
-      'A lightweight general model hallucinated center-of-gravity (CG) envelope coordinates during edge-case payload calculations.',
-    rootCause:
-      'Task routing dispatched a complex aeronautical mathematical verification to an economy model without formal reasoning capabilities.',
-    verifiedFix:
-      'Constructed Intelligent Model Router enforcing DeepSeek R1 or Claude 3.7 Sonnet for P0 Critical tasks, raising warnings if underpowered models are selected.',
-    invariantRule:
-      'Always route critical mathematical, security, and compliance invariant proofs to deep reasoning models (DeepSeek R1 / Claude 3.7 Sonnet / o3-mini).',
-    modelUsed: 'deepseek-r1',
-    tokensUsed: 7800,
-    costUsd: 0.0085,
-    status: 'verified_fix',
-    createdAt: '2026-10-01T09:20:00Z',
-    tags: ['model-router', 'faa-compliance', 'deep-reasoning', 'aviation-log']
-  }
-];
+/** Empty: the seeded lessons belonged to the removed placeholder projects. */
+export const INITIAL_LEARNING_RECORDS: LearningRecord[] = [];
 
 let inMemoryVault: LearningRecord[] = [...INITIAL_LEARNING_RECORDS];
 

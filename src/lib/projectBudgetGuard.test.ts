@@ -8,13 +8,13 @@ import {
 } from './projectBudgetGuard';
 import { requestProjectBudgetAdmit } from './budget';
 
-const proj = (monthly_budget_usd: unknown) => ({ id: 'proj-iya-002', name: 'Iyanuoluwa', monthly_budget_usd });
+const proj = (monthly_budget_usd: unknown) => ({ id: 'proj-test-001', name: 'Test project', monthly_budget_usd });
 
 test('no budget blocks AI work (missing, null), with a clear message naming the project', () => {
-  for (const p of [{ id: 'proj-iya-002', name: 'Iyanuoluwa' }, proj(null), proj(undefined)]) {
+  for (const p of [{ id: 'proj-test-001', name: 'Test project' }, proj(null), proj(undefined)]) {
     const c = checkProjectBudget(p);
     assert.equal(c.ok, false);
-    assert.match((c as { reason: string }).reason, /AI work blocked: Iyanuoluwa \(proj-iya-002\) has no monthly budget/);
+    assert.match((c as { reason: string }).reason, /AI work blocked: Test project \(proj-test-001\) has no monthly budget/);
   }
 });
 
@@ -58,8 +58,8 @@ test('requestProjectBudgetAdmit: no budget is refused before the ledger is asked
   let calls = 0;
   globalThis.fetch = (async () => { calls++; throw new Error('offline'); }) as typeof fetch;
   try {
-    const noBudget = JSON.stringify([{ id: 'proj-iya-002', name: 'Iyanuoluwa' }]);
-    const withBudget = JSON.stringify([{ id: 'proj-iya-002', name: 'Iyanuoluwa', monthly_budget_usd: 800 }]);
+    const noBudget = JSON.stringify([{ id: 'proj-test-001', name: 'Test project' }]);
+    const withBudget = JSON.stringify([{ id: 'proj-test-001', name: 'Test project', monthly_budget_usd: 800 }]);
     const refused = await requestProjectBudgetAdmit(proj(null), 1, 0.0075, { saved: noBudget });
     assert.equal(refused.admitted, false);
     assert.match(refused.reason!, /has no monthly budget/);
@@ -90,7 +90,7 @@ test('ask mode: the SAVED project is checked before the ledger, not the in-memor
   try {
     // In memory the project still shows a budget, but the saved record (what
     // createTask's guard reads next) has none: refuse before any ledger call.
-    const saved = JSON.stringify([{ id: 'proj-iya-002', name: 'Iyanuoluwa' }]);
+    const saved = JSON.stringify([{ id: 'proj-test-001', name: 'Test project' }]);
     const r = await requestProjectBudgetAdmit(proj(800), 1, 0.0075, { saved });
     assert.equal(r.admitted, false);
     assert.match(r.reason!, /has no monthly budget/);
@@ -98,4 +98,14 @@ test('ask mode: the SAVED project is checked before the ledger, not the in-memor
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('non-finite budgets are rejected: a 309+ digit string parses to Infinity and blocks', async () => {
+  const { toBudgetNumber, validBudget } = await import('./projectBudgetGuard');
+  const huge = '9'.repeat(400);
+  assert.equal(Number(huge), Infinity);
+  assert.equal(toBudgetNumber(huge), null);
+  assert.equal(validBudget(huge), null);
+  assert.equal(validBudget(`${huge}.00`), null);
+  assert.equal(checkProjectBudget(proj(huge)).ok, false);
 });

@@ -4,7 +4,7 @@ import { guardAiWork, statusStartsAiWork } from './useTasks';
 import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 const saved = JSON.stringify([
-  { id: 'proj-iya-002', name: 'Iyanuoluwa', monthly_budget_usd: 800 },
+  { id: 'proj-test-001', name: 'Test project', monthly_budget_usd: 800 },
   { id: 'proj-nobudget', name: 'No Budget Co' },
   { id: 'proj-null', name: 'Null Budget', monthly_budget_usd: null }
 ]);
@@ -17,7 +17,7 @@ test('guardAiWork: a project without a budget cannot get AI work (fails closed)'
 
 test('guardAiWork: an unknown project is blocked, a project with a budget is allowed', () => {
   assert.throws(() => guardAiWork('proj-missing', saved), (e: unknown) => isProjectBudgetBlocked(e) && /was not found/.test((e as Error).message));
-  assert.doesNotThrow(() => guardAiWork('proj-iya-002', saved));
+  assert.doesNotThrow(() => guardAiWork('proj-test-001', saved));
 });
 
 test('approve / retry / confirm (running, queued) are guarded; reject / cancel are not', () => {

@@ -24,16 +24,13 @@ create table if not exists public.project_registry (
   health text not null default 'healthy' check (health in ('healthy', 'warning', 'degraded')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  description text not null default '',
-  design_kit text
+  description text not null default ''
 );
--- Older databases: add the optional design-kit preset id.
-alter table public.project_registry add column if not exists design_kit text;
 
 -- 2. Agent Tasks
 create table if not exists public.agent_tasks (
   id text primary key,
-  org_id text not null default 'org-geosan',
+  org_id text not null default 'org-geosan-workshop',
   project_id text not null references public.project_registry(id) on delete cascade,
   task_type text not null,
   prompt text not null,
@@ -52,7 +49,7 @@ create table if not exists public.agent_tasks (
 -- 3. Cost Events
 create table if not exists public.cost_events (
   id text primary key,
-  org_id text not null default 'org-geosan',
+  org_id text not null default 'org-geosan-workshop',
   project_id text not null references public.project_registry(id) on delete cascade,
   task_id text references public.agent_tasks(id) on delete set null,
   tokens_input integer not null default 0,
@@ -67,7 +64,7 @@ create table if not exists public.cost_events (
 -- 4. QA Runs
 create table if not exists public.qa_runs (
   id text primary key,
-  org_id text not null default 'org-geosan',
+  org_id text not null default 'org-geosan-workshop',
   project_id text not null references public.project_registry(id) on delete cascade,
   run_type text not null default 'QA_EXPLORE',
   status text not null default 'passed' check (status in ('running', 'passed', 'failed', 'needs_review')),
@@ -114,19 +111,10 @@ create table if not exists public.prompt_versions (
   created_at timestamptz not null default now()
 );
 
--- 8. Seed the client projects. Ids must match src/data/clientProjects.ts
---    (checked by src/data/clientProjects.test.ts). Old ids are remapped by
---    supabase/migrations/20261020010000_canonical_project_ids.sql.
-insert into public.project_registry (id, name, vertical, supabase_project_url, vercel_deployment_url, github_repo_url, status, last_commit_hash, deployment_status, monthly_budget_usd, current_spend_usd, health, description, design_kit)
-values
-  ('proj-ehi-001', 'EHI Multisystems (Cargo Hubs & Waybills)', 'logistics', 'https://zxdxsizyvotkcsrtzscw.supabase.co', 'https://ehi-cargo-hub.vercel.app', 'https://github.com/ehi-logistics/cargo-platform-v2', 'testing', 'd4f892a', 'degraded', 600.00, 142.86, 'warning', 'Autonomous freight intake, barcode sorting, and waybill payment reconciliation across Kano, Lagos, and Abuja transit hubs.', 'ledger-debt-line'),
-  ('proj-iya-002', 'Iyanuoluwa Vegetable Oil (AgroSupply & Silos)', 'agriculture', 'https://zxdxsizyvotkcsrtzscw.supabase.co', 'https://iyanu-agro.vercel.app', 'https://github.com/iyanu-agrik/silo-monitoring-engine', 'production', 'e4a110b', 'live', 450.00, 78.40, 'healthy', 'IoT telemetry aggregation for grain moisture, vegetable oil processing, bulk payout dispatch, and warehouse receipt tokenization.', 'weighbridge-ticket'),
-  ('proj-aero-003', 'Aviation Log Entry (AeroOps Turnaround)', 'aviation', 'https://zxdxsizyvotkcsrtzscw.supabase.co', 'https://aeroops-dispatch.vercel.app', 'https://github.com/aero-ground/turnaround-orchestrator', 'building', 'a19bc32', 'deploying', 800.00, 310.25, 'healthy', 'Electronic flight log entries, turnaround management, fuel bowser dispatch, baggage allocation, and runway ramp telemetry.', 'flight-logbook'),
-  ('proj-edge-004', 'EdgePoint (Cross-Border Settlement)', 'fintech', 'https://zxdxsizyvotkcsrtzscw.supabase.co', 'https://edgepoint-treasury.vercel.app', 'https://github.com/edgepoint-core/settlement-ledger', 'production', '93c04ff', 'deployed', 1200.00, 540.90, 'healthy', 'Cross-border liquidity balancing, FX corridor routing, and central bank compliance proofs.', 'sensor-telemetry')
-on conflict (id) do update set
-  name = excluded.name,
-  supabase_project_url = excluded.supabase_project_url,
-  updated_at = now();
+-- 8. No seed data. The four placeholder client projects (EHI, Iyanuoluwa,
+--    Aviation, EdgePoint) were removed until real projects are added; rows an
+--    older copy of this file seeded are deleted by
+--    supabase/migrations/20261030000000_remove_placeholder_projects.sql.
 
 -- 9. Row Level Security (RLS)
 -- RLS is switched on for every table. This file deliberately creates NO

@@ -24,8 +24,11 @@ export interface ApprovePlanDeps {
 }
 
 export type ApprovePlanResult =
-  | { ok: true; runPacket: RunPacket | null }
+  /** `warning`: approved, but the run packet / audit line could not be saved. */
+  | { ok: true; runPacket: RunPacket | null; warning?: string }
   | { ok: false; reason: string; error?: unknown };
+
+const message = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
 export function isGatedTaskType(task: Pick<AgentTask, 'task_type'>): boolean {
   return task.task_type === 'BUILD_FEATURE' || task.task_type === 'FIX_BUG';
@@ -35,7 +38,12 @@ export async function approvePlan(task: AgentTask, deps: ApprovePlanDeps): Promi
   const actor = deps.actor ?? 'operator@demo.internal'; // demo fallback
   const now = deps.now ?? (() => new Date());
 
-  const budget = deps.checkBudget(task.project_id);
+  let budget: BudgetCheck;
+  try {
+    budget = deps.checkBudget(task.project_id);
+  } catch (error) {
+    return { ok: false, reason: `Budget could not be checked: ${message(error, 'storage unavailable')}. Not approved.`, error };
+  }
   if (!budget.ok) return { ok: false, reason: budget.reason };
 
   let runPacket: RunPacket | null = null;
@@ -62,12 +70,54 @@ export async function approvePlan(task: AgentTask, deps: ApprovePlanDeps): Promi
   try {
     await deps.onApprove(task.id);
   } catch (error) {
-    return { ok: false, reason: error instanceof Error ? error.message : 'Plan approval failed', error };
+    return { ok: false, reason: message(error, 'Plan approval failed'), error };
   }
 
-  if (runPacket) deps.persistRunPacket(task.id, runPacket);
-  deps.appendApprovalLine({ actor, action: 'approved', task_id: task.id, packet_id: runPacket?.packet_id || null, reason: null });
+  // The approval happened; a storage failure here must not throw or undo it.
+  try {
+    if (runPacket) deps.persistRunPacket(task.id, runPacket);
+    deps.appendApprovalLine({ actor, action: 'approved', task_id: task.id, packet_id: runPacket?.packet_id || null, reason: null });
+  } catch (error) {
+    return { ok: true, runPacket, warning: `Plan approved, but the run record could not be saved: ${message(error, 'storage write failed')}.` };
+  }
   return { ok: true, runPacket };
+}
+
+/**
+ * The chat tab's approve handler: the approval call is authoritative, so its
+ * error (including a budget block found by useTasks) is passed on unchanged
+ * and the follow-up (switching to agent mode) runs only after it succeeded.
+ * Swallowing the error made approvePlan record 'approved' and toast success.
+ */
+export async function approveThenContinue(
+  taskId: string,
+  approve: (taskId: string) => Promise<unknown>,
+  after: (taskId: string) => Promise<void> | void
+): Promise<void> {
+  await approve(taskId);
+  await after(taskId);
+}
+
+/**
+ * Plan rejection: the reject call first; the 'rejected' audit line only after
+ * it succeeded. Never throws.
+ */
+export async function rejectPlan(
+  taskId: string,
+  reason: string,
+  deps: { onReject: (taskId: string, reason: string) => Promise<void>; appendApprovalLine: ApprovePlanDeps['appendApprovalLine']; actor?: string }
+): Promise<{ ok: true; warning?: string } | { ok: false; reason: string; error?: unknown }> {
+  try {
+    await deps.onReject(taskId, reason);
+  } catch (error) {
+    return { ok: false, reason: message(error, 'Plan rejection failed'), error };
+  }
+  try {
+    deps.appendApprovalLine({ actor: deps.actor ?? 'operator@demo.internal', action: 'rejected', task_id: taskId, packet_id: null, reason });
+  } catch (error) {
+    return { ok: true, warning: `Plan rejected, but the audit line could not be saved: ${message(error, 'storage write failed')}.` };
+  }
+  return { ok: true };
 }
 
 /** Writes the run packet onto the saved task (demo store). */

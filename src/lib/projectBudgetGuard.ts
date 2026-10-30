@@ -43,9 +43,9 @@ const DECIMAL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
  * whether the amount is > 0; see validBudget.
  */
 export function toBudgetNumber(v: unknown): number | null {
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
-  if (typeof v === 'string' && DECIMAL.test(v.trim())) return Number(v.trim());
-  return null;
+  const n = typeof v === 'number' ? v : typeof v === 'string' && DECIMAL.test(v.trim()) ? Number(v.trim()) : NaN;
+  // Finite only: a 309+ digit string parses to Infinity and is rejected.
+  return Number.isFinite(n) ? n : null;
 }
 
 /** A usable budget: an amount (see toBudgetNumber) greater than 0. */
