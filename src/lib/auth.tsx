@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isDemoMode, SESSION_STORAGE_KEY } from './supabase';
 import { checkOwner, restoreSessionWithPolicy, signInWithPolicy, type AuthSession, type AuthUser } from './authPolicy';
+import { normalizeWorkspaceId } from './workspace';
 
 export type { AuthSession, AuthUser } from './authPolicy';
 
@@ -97,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
-  const orgId = session?.user?.user_metadata?.org_id || 'org-geosan-workshop';
+  const orgId = normalizeWorkspaceId(session?.user?.user_metadata?.org_id);
 
   return (
     <AuthContext.Provider

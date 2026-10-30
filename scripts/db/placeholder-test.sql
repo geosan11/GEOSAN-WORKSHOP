@@ -43,28 +43,28 @@ begin
   raise notice 'PASS all 8 placeholder ids removed from every table';
 
   -- 2. Real projects and their child rows are present in exact expected counts.
-  select count(*) into n from public.project_registry where id in ('proj-real-001', 'proj-real-002');
-  if n <> 2 then raise exception 'FAIL expected 2 real rows in project_registry, got %', n; end if;
+  select count(*) into n from public.project_registry where id in ('proj-real-001', 'proj-real-002', 'proj-real-003');
+  if n <> 3 then raise exception 'FAIL expected 3 real rows in project_registry, got %', n; end if;
 
   if to_regclass('public.projects') is not null then
-    select count(*) into n from public.projects where id in ('proj-real-001', 'proj-real-002');
-    if n <> 2 then raise exception 'FAIL expected 2 real rows in projects, got %', n; end if;
+    select count(*) into n from public.projects where id in ('proj-real-001', 'proj-real-002', 'proj-real-003');
+    if n <> 3 then raise exception 'FAIL expected 3 real rows in projects, got %', n; end if;
   end if;
 
-  if (select count(*) from public.agent_tasks) <> 3 then
-    raise exception 'FAIL expected 3 real agent_tasks, got %', (select count(*) from public.agent_tasks);
+  if (select count(*) from public.agent_tasks) <> 4 then
+    raise exception 'FAIL expected 4 real agent_tasks, got %', (select count(*) from public.agent_tasks);
   end if;
-  if (select count(*) from public.cost_events) <> 3 then
-    raise exception 'FAIL expected 3 real cost_events, got %', (select count(*) from public.cost_events);
+  if (select count(*) from public.cost_events) <> 4 then
+    raise exception 'FAIL expected 4 real cost_events, got %', (select count(*) from public.cost_events);
   end if;
-  if (select count(*) from public.qa_runs) <> 2 then
-    raise exception 'FAIL expected 2 real qa_runs, got %', (select count(*) from public.qa_runs);
+  if (select count(*) from public.qa_runs) <> 3 then
+    raise exception 'FAIL expected 3 real qa_runs, got %', (select count(*) from public.qa_runs);
   end if;
-  if (select count(*) from public.qa_findings) <> 2 then
-    raise exception 'FAIL expected 2 real qa_findings, got %', (select count(*) from public.qa_findings);
+  if (select count(*) from public.qa_findings) <> 3 then
+    raise exception 'FAIL expected 3 real qa_findings, got %', (select count(*) from public.qa_findings);
   end if;
-  if (select count(*) from public.project_budgets) <> 2 then
-    raise exception 'FAIL expected 2 real project_budgets, got %', (select count(*) from public.project_budgets);
+  if (select count(*) from public.project_budgets) <> 3 then
+    raise exception 'FAIL expected 3 real project_budgets, got %', (select count(*) from public.project_budgets);
   end if;
 
   if to_regclass('public.project_logs') is not null then
@@ -87,7 +87,7 @@ begin
       raise exception 'FAIL expected 3 remaining provider_configs (2 real + 1 global), got %', (select count(*) from public.provider_configs);
     end if;
   end if;
-  raise notice 'PASS real projects (proj-real-001, proj-real-002) and all child rows preserved';
+  raise notice 'PASS real projects (proj-real-001, proj-real-002, proj-real-003) and all child rows preserved';
 
   -- 3. The two cross-project links to placeholder tasks were set to NULL; real-to-real links kept;
   --    real task JSON mentioning 'proj-ehi-001' kept intact.
@@ -101,7 +101,8 @@ begin
     raise exception 'FAIL real-to-real parent_task_id on t-real-002-root was altered';
   end if;
   if (select task_id from public.cost_events where id = 'c-real-001-own') <> 't-real-001-root'
-     or (select task_id from public.cost_events where id = 'c-real-002-own') <> 't-real-002-root' then
+     or (select task_id from public.cost_events where id = 'c-real-002-own') <> 't-real-002-root'
+     or (select task_id from public.cost_events where id = 'c-real-003-own') <> 't-real-003-root' then
     raise exception 'FAIL real-to-real cost_events.task_id was altered';
   end if;
   if (select a.plan ->> 'note' from public.agent_tasks a where a.id = 't-real-001-root') <> 'migrated after proj-ehi-001'
@@ -126,5 +127,69 @@ begin
     end if;
   end if;
   raise notice 'PASS prompt_versions, app_owner and user_preferences unchanged';
+
+  -- 5. Workspace IDs ('org-ehi-global', 'org-geosan') completely gone across all discovered columns;
+  --    all surviving rows now have 'org-geosan-workshop'; defaults updated to 'org-geosan-workshop'.
+  for t, col in
+    select c.relname, a.attname
+      from pg_class c
+      join pg_attribute a on a.attrelid = c.oid
+     where c.relnamespace = 'public'::regnamespace
+       and c.relkind in ('r', 'p')
+       and not a.attisdropped
+       and a.attnum > 0
+       and a.atttypid in ('text'::regtype, 'varchar'::regtype)
+       and (
+         a.attname in ('org_id', 'workspace_id')
+         or a.attname like '%\_org\_id' escape '\'
+         or a.attname like '%\_workspace\_id' escape '\'
+       )
+     order by c.relname, a.attname
+  loop
+    execute format('select count(*) from public.%I where %I in (''org-ehi-global'', ''org-geosan'')', t, col) into n;
+    if n <> 0 then
+      raise exception 'FAIL %.% still has % row(s) with old workspace id', t, col, n;
+    end if;
+    execute format('select count(*) from public.%I where %I is distinct from ''org-geosan-workshop''', t, col) into n;
+    if n <> 0 then
+      raise exception 'FAIL %.% has % row(s) not equal to org-geosan-workshop', t, col, n;
+    end if;
+  end loop;
+
+  if (select count(*) from public.agent_tasks where org_id = 'org-geosan-workshop') <> 4 then
+    raise exception 'FAIL expected all 4 agent_tasks on org-geosan-workshop';
+  end if;
+  if (select count(*) from public.cost_events where org_id = 'org-geosan-workshop') <> 4 then
+    raise exception 'FAIL expected all 4 cost_events on org-geosan-workshop';
+  end if;
+  if (select count(*) from public.qa_runs where org_id = 'org-geosan-workshop') <> 3 then
+    raise exception 'FAIL expected all 3 qa_runs on org-geosan-workshop';
+  end if;
+  if to_regclass('public.projects') is not null then
+    if (select count(*) from public.projects where org_id = 'org-geosan-workshop') <> 3 then
+      raise exception 'FAIL expected all 3 projects on org-geosan-workshop';
+    end if;
+    -- Moved rows (proj-real-001, proj-real-002) bumped updated_at via trg_projects_updated_at;
+    -- proj-real-003 (already org-geosan-workshop) was not updated so updated_at stayed real_ts.
+    if (select count(*) from public.projects where id in ('proj-real-001', 'proj-real-002') and updated_at > '2026-10-02 00:00:00+00'::timestamptz) <> 2 then
+      raise exception 'FAIL expected moved projects rows (proj-real-001, proj-real-002) to have bumped updated_at';
+    end if;
+    if (select updated_at from public.projects where id = 'proj-real-003') <> '2026-10-02 00:00:00+00'::timestamptz then
+      raise exception 'FAIL expected already-migrated proj-real-003 to keep original updated_at';
+    end if;
+  end if;
+
+  -- Column defaults on agent_tasks, cost_events, qa_runs (and projects when present) are now 'org-geosan-workshop'.
+  for t in select unnest(array['agent_tasks', 'cost_events', 'qa_runs']) loop
+    if (
+      select pg_get_expr(ad.adbin, ad.adrelid)
+        from pg_attribute a
+        join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+       where a.attrelid = to_regclass('public.' || t) and a.attname = 'org_id'
+    ) <> '''org-geosan-workshop''::text' then
+      raise exception 'FAIL %.org_id default is not ''org-geosan-workshop''::text', t;
+    end if;
+  end loop;
+  raise notice 'PASS workspace ids moved to org-geosan-workshop and defaults updated on agent_tasks/cost_events/qa_runs';
 end
 $test$;

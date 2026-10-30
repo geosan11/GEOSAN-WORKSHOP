@@ -1,7 +1,8 @@
 -- Fixture for testing supabase/migrations/20261030000000_remove_placeholder_projects.sql.
 -- Test data only (throwaway local Postgres).
 -- Seeds all 8 placeholder project ids (4 canonical + 4 historical aliases) and
--- 2 real projects (proj-real-001, proj-real-002) across project_registry,
+-- 3 real projects (proj-real-001 under 'org-ehi-global', proj-real-002 under 'org-geosan',
+-- proj-real-003 already on 'org-geosan-workshop') across project_registry,
 -- public.projects (when present), and all child tables, plus cross-project links.
 
 do $fixture$
@@ -81,28 +82,34 @@ begin
      'live', 1500.00, 120.50, 'healthy', real_ts, real_ts, 'First real client project'),
     ('proj-real-002', 'Real Client Two', 'fintech', 'https://real2.supabase.co', 'mask-2',
      'https://real2.vercel.app', 'https://github.com/real/two', 'building', 'f00baa2',
-     'deploying', 2500.00, 340.75, 'healthy', real_ts, real_ts, 'Second real client project')
+     'deploying', 2500.00, 340.75, 'healthy', real_ts, real_ts, 'Second real client project'),
+    ('proj-real-003', 'Real Client Three', 'aviation', 'https://real3.supabase.co', 'mask-3',
+     'https://real3.vercel.app', 'https://github.com/real/three', 'testing', 'f00baa3',
+     'deployed', 1800.00, 90.25, 'healthy', real_ts, real_ts, 'Third real client project')
   on conflict (id) do nothing;
 
   -- Force deterministic updated_at on project_registry in case BEFORE UPDATE trigger fired
   update public.project_registry set updated_at = ts where id = any (placeholder_ids);
-  update public.project_registry set updated_at = real_ts where id in ('proj-real-001', 'proj-real-002');
+  update public.project_registry set updated_at = real_ts where id in ('proj-real-001', 'proj-real-002', 'proj-real-003');
 
-  -- 2. All 8 placeholder ids + 2 real projects in public.projects (when workshop_aligned is applied)
+  -- 2. All 8 placeholder ids + 3 real projects in public.projects (when workshop_aligned is applied)
   if to_regclass('public.projects') is not null then
     for idx in 1 .. array_length(placeholder_ids, 1) loop
       pid := placeholder_ids[idx];
       insert into public.projects (
-        id, name, slug, description, vertical, archetype, source_type, source_ref,
+        id, org_id, name, slug, description, vertical, archetype, source_type, source_ref,
         advisor_provider, advisor_agent_name, status, deployment_status, health, health_status,
         last_commit_hash, monthly_budget_usd, current_spend_usd, last_activity_at, created_at, updated_at
       ) values (
-        pid, 'Placeholder ' || pid, pid, 'Placeholder description for ' || pid,
+        pid,
+        case when idx % 2 = 1 then 'org-ehi-global' else 'org-geosan' end,
+        'Placeholder ' || pid, pid, 'Placeholder description for ' || pid,
         'logistics', 'custom', 'github', 'https://github.com/example/' || pid,
         'anthropic', 'CoordinatorAgent', 'testing', 'deployed', 'healthy', 'healthy',
         'abc000' || idx, 600.00 + idx * 10, 10.00 + idx, ts, ts, ts
       )
       on conflict (id) do update set
+        org_id = excluded.org_id,
         name = excluded.name,
         slug = excluded.slug,
         description = excluded.description,
@@ -112,19 +119,24 @@ begin
     end loop;
 
     insert into public.projects (
-      id, name, slug, description, vertical, archetype, source_type, source_ref,
+      id, org_id, name, slug, description, vertical, archetype, source_type, source_ref,
       advisor_provider, advisor_agent_name, status, deployment_status, health, health_status,
       last_commit_hash, monthly_budget_usd, current_spend_usd, last_activity_at, created_at, updated_at
     ) values
-      ('proj-real-001', 'Real Client One', 'real-client-one', 'First real client project',
+      ('proj-real-001', 'org-ehi-global', 'Real Client One', 'real-client-one', 'First real client project',
        'logistics', 'custom', 'github', 'https://github.com/real/one',
        'anthropic', 'CoordinatorAgent', 'production', 'live', 'healthy', 'healthy',
        'f00baa1', 1500.00, 120.50, real_ts, real_ts, real_ts),
-      ('proj-real-002', 'Real Client Two', 'real-client-two', 'Second real client project',
+      ('proj-real-002', 'org-geosan', 'Real Client Two', 'real-client-two', 'Second real client project',
        'fintech', 'custom', 'github', 'https://github.com/real/two',
        'anthropic', 'CoordinatorAgent', 'building', 'deploying', 'healthy', 'healthy',
-       'f00baa2', 2500.00, 340.75, real_ts, real_ts, real_ts)
+       'f00baa2', 2500.00, 340.75, real_ts, real_ts, real_ts),
+      ('proj-real-003', 'org-geosan-workshop', 'Real Client Three', 'real-client-three', 'Third real client project',
+       'aviation', 'custom', 'github', 'https://github.com/real/three',
+       'anthropic', 'CoordinatorAgent', 'testing', 'deployed', 'healthy', 'healthy',
+       'f00baa3', 1800.00, 90.25, real_ts, real_ts, real_ts)
     on conflict (id) do update set
+      org_id = excluded.org_id,
       name = excluded.name,
       slug = excluded.slug,
       description = excluded.description,
@@ -134,16 +146,17 @@ begin
   end if;
 
   -- 3. agent_tasks:
-  --    * Real root task on proj-real-001 whose plan/result/subagents JSON mentions 'proj-ehi-001'
+  --    * Real root task on proj-real-001 ('org-ehi-global') whose plan/result/subagents JSON mentions 'proj-ehi-001'
   --    * 8 placeholder tasks (1 per placeholder id), each with plan/result/subagents JSON mentioning its id;
   --      t-proj-ehi-001 has parent_task_id = 't-real-001-root' (placeholder task's parent is a real task)
-  --    * Real child task on proj-real-001 whose parent_task_id points at 't-proj-ehi-001' (placeholder task)
-  --    * Real task on proj-real-002 whose parent_task_id points at 't-real-001-root' (real -> real, kept)
+  --    * Real child task on proj-real-001 ('org-geosan') whose parent_task_id points at 't-proj-ehi-001' (placeholder task)
+  --    * Real task on proj-real-002 ('org-geosan') whose parent_task_id points at 't-real-001-root' (real -> real, kept)
+  --    * Real task on proj-real-003 ('org-geosan-workshop', already on workshop org_id)
   insert into public.agent_tasks (
     id, org_id, project_id, task_type, prompt, status, assigned_agent, model_used,
     parent_task_id, plan, result, subagents, created_at, started_at, completed_at
   ) values (
-    't-real-001-root', 'org-geosan', 'proj-real-001', 'AUDIT_SCHEMA', 'Real root task', 'done',
+    't-real-001-root', 'org-ehi-global', 'proj-real-001', 'AUDIT_SCHEMA', 'Real root task', 'done',
     'CoordinatorAgent', 'gemini-2.5-pro', null,
     '{"note": "migrated after proj-ehi-001", "steps": ["verify"]}'::jsonb,
     '{"summary": "compared with proj-ehi-001"}'::jsonb,
@@ -158,7 +171,7 @@ begin
       parent_task_id, plan, result, subagents, created_at, started_at, completed_at
     ) values (
       't-' || pid,
-      'org-geosan',
+      case when idx % 2 = 1 then 'org-ehi-global' else 'org-geosan' end,
       pid,
       'FIX_BUG',
       'Task for ' || pid,
@@ -184,16 +197,22 @@ begin
     ('t-real-002-root', 'org-geosan', 'proj-real-002', 'DEPLOY', 'Real two task with real parent', 'running',
      'CoordinatorAgent', 'gemini-2.5-pro', 't-real-001-root',
      '{"steps": ["real-step-2"]}'::jsonb, '{"ok": true}'::jsonb, '[{"agent": "Deployer"}]'::jsonb,
-     real_ts, real_ts, null);
+     real_ts, real_ts, null),
+    ('t-real-003-root', 'org-geosan-workshop', 'proj-real-003', 'QA_EXPLORE', 'Real three task already on workshop org', 'done',
+     'CoordinatorAgent', 'gemini-2.5-pro', null,
+     '{"steps": ["real-step-3"]}'::jsonb, '{"ok": true}'::jsonb, '[{"agent": "Tester"}]'::jsonb,
+     real_ts, real_ts, real_ts);
 
-  -- 4. cost_events: 1 per placeholder id + real costs (one pointing at placeholder task t-proj-ehi-001)
+  -- 4. cost_events: 1 per placeholder id + real costs across 'org-ehi-global', 'org-geosan', 'org-geosan-workshop'
   for idx in 1 .. array_length(placeholder_ids, 1) loop
     pid := placeholder_ids[idx];
     insert into public.cost_events (
       id, org_id, project_id, task_id, tokens_input, tokens_output,
       cost_usd, provider, model, feature_attribution, created_at
     ) values (
-      'c-' || pid, 'org-geosan', pid, 't-' || pid, 1000, 500,
+      'c-' || pid,
+      case when idx % 2 = 1 then 'org-ehi-global' else 'org-geosan' end,
+      pid, 't-' || pid, 1000, 500,
       1.2500, 'gemini', 'gemini-2.5-flash', 'feature-' || pid, ts
     );
   end loop;
@@ -202,12 +221,14 @@ begin
     id, org_id, project_id, task_id, tokens_input, tokens_output,
     cost_usd, provider, model, feature_attribution, created_at
   ) values
-    ('c-real-001-cross', 'org-geosan', 'proj-real-001', 't-proj-ehi-001', 2000, 800,
+    ('c-real-001-cross', 'org-ehi-global', 'proj-real-001', 't-proj-ehi-001', 2000, 800,
      2.5000, 'gemini', 'gemini-2.5-flash', 'cross-task-cost', real_ts),
-    ('c-real-001-own', 'org-geosan', 'proj-real-001', 't-real-001-root', 1500, 600,
+    ('c-real-001-own', 'org-ehi-global', 'proj-real-001', 't-real-001-root', 1500, 600,
      1.7500, 'gemini', 'gemini-2.5-flash', 'own-task-cost-1', real_ts),
     ('c-real-002-own', 'org-geosan', 'proj-real-002', 't-real-002-root', 3000, 1200,
-     3.5000, 'gemini', 'gemini-2.5-flash', 'own-task-cost-2', real_ts);
+     3.5000, 'gemini', 'gemini-2.5-flash', 'own-task-cost-2', real_ts),
+    ('c-real-003-own', 'org-geosan-workshop', 'proj-real-003', 't-real-003-root', 1200, 400,
+     1.1000, 'gemini', 'gemini-2.5-flash', 'own-task-cost-3', real_ts);
 
   -- 5. qa_runs & qa_findings (with reproduction_steps JSON): 1 each per placeholder id + 1 each per real project
   for idx in 1 .. array_length(placeholder_ids, 1) loop
@@ -216,7 +237,9 @@ begin
       id, org_id, project_id, run_type, status, total_findings,
       critical_count, high_count, medium_count, low_count, started_at, completed_at
     ) values (
-      'r-' || pid, 'org-geosan', pid, 'QA_EXPLORE', 'failed', 1,
+      'r-' || pid,
+      case when idx % 2 = 1 then 'org-ehi-global' else 'org-geosan' end,
+      pid, 'QA_EXPLORE', 'failed', 1,
       0, 1, 0, 0, ts, ts
     );
 
@@ -235,8 +258,9 @@ begin
     id, org_id, project_id, run_type, status, total_findings,
     critical_count, high_count, medium_count, low_count, started_at, completed_at
   ) values
-    ('r-real-001', 'org-geosan', 'proj-real-001', 'QA_EXPLORE', 'passed', 1, 0, 0, 0, 1, real_ts, real_ts),
-    ('r-real-002', 'org-geosan', 'proj-real-002', 'QA_EXPLORE', 'passed', 1, 0, 0, 1, 0, real_ts, real_ts);
+    ('r-real-001', 'org-ehi-global', 'proj-real-001', 'QA_EXPLORE', 'passed', 1, 0, 0, 0, 1, real_ts, real_ts),
+    ('r-real-002', 'org-geosan', 'proj-real-002', 'QA_EXPLORE', 'passed', 1, 0, 0, 1, 0, real_ts, real_ts),
+    ('r-real-003', 'org-geosan-workshop', 'proj-real-003', 'QA_EXPLORE', 'passed', 1, 0, 0, 0, 1, real_ts, real_ts);
 
   insert into public.qa_findings (
     id, run_id, project_id, severity, category, title, description,
@@ -247,7 +271,10 @@ begin
      '[{"step": 1, "expected": "clean ui"}]'::jsonb, 'open', null, real_ts),
     ('f-real-002', 'r-real-002', 'proj-real-002', 'medium', 'performance',
      'Real finding 2', 'Real finding description 2',
-     '[{"step": 1, "expected": "fast query"}]'::jsonb, 'resolved', real_ts, real_ts);
+     '[{"step": 1, "expected": "fast query"}]'::jsonb, 'resolved', real_ts, real_ts),
+    ('f-real-003', 'r-real-003', 'proj-real-003', 'low', 'invariant',
+     'Real finding 3', 'Real finding description 3',
+     '[{"step": 1, "expected": "stable state"}]'::jsonb, 'open', null, real_ts);
 
   -- 6. project_budgets: 1 per placeholder id + 1 per real project
   for idx in 1 .. array_length(placeholder_ids, 1) loop
@@ -263,7 +290,8 @@ begin
     project_id, monthly_limit_usd, alert_threshold_pct, hard_stop, updated_at
   ) values
     ('proj-real-001', 1500.00, 80, true, real_ts),
-    ('proj-real-002', 2500.00, 85, false, real_ts);
+    ('proj-real-002', 2500.00, 85, false, real_ts),
+    ('proj-real-003', 1800.00, 75, true, real_ts);
 
   -- 7. Workshop tables: project_logs (incl. level='audit'), agent_assignments, provider_configs
   if to_regclass('public.project_logs') is not null then

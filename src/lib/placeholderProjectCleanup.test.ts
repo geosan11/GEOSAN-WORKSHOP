@@ -7,9 +7,12 @@ import {
   isPlaceholderProjectId,
   type StorageLike,
 } from './placeholderProjectCleanup';
+import { DEFAULT_WORKSPACE_ID } from './workspace';
+import { projectsFromStorage } from '../hooks/useProjects';
 
 class MemoryStorage implements StorageLike {
   private readonly map = new Map<string, string>();
+  public writes: string[] = [];
 
   constructor(initial?: Record<string, string>) {
     if (initial) {
@@ -32,6 +35,7 @@ class MemoryStorage implements StorageLike {
   }
 
   setItem(key: string, value: string): void {
+    this.writes.push(key);
     this.map.set(key, String(value));
   }
 
@@ -362,6 +366,7 @@ test('idempotence, empty storage no-op, and accurate report counts', () => {
     removedEntries: {},
     removedKeys: [],
     skippedKeys: [],
+    movedWorkspaceIds: {},
   });
   assert.equal(empty.length, 0);
 
@@ -394,6 +399,7 @@ test('idempotence, empty storage no-op, and accurate report counts', () => {
       'geosan_design_brief_proj-iya-002',
     ],
     skippedKeys: ['geosan_broken'],
+    movedWorkspaceIds: {},
   });
 
   const afterFirst = populated.snapshot();
@@ -402,6 +408,299 @@ test('idempotence, empty storage no-op, and accurate report counts', () => {
     removedEntries: {},
     removedKeys: [],
     skippedKeys: ['geosan_broken'],
+    movedWorkspaceIds: {},
   });
   assert.deepEqual(populated.snapshot(), afterFirst);
+});
+
+test('workspace id move - geosan_projects: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_projects: JSON.stringify([
+      { id: 'proj-real-1', org_id: 'org-ehi-global', name: 'First', monthly_budget_usd: 500 },
+      { id: 'proj-real-2', org_id: 'org-geosan', workspace_id: 'org-ehi-global', name: 'Second', monthly_budget_usd: 800 },
+      { id: 'proj-real-3', org_id: DEFAULT_WORKSPACE_ID, name: 'Third', monthly_budget_usd: 1200 },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_projects'), [
+    { id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, name: 'First', monthly_budget_usd: 500 },
+    { id: 'proj-real-2', org_id: DEFAULT_WORKSPACE_ID, workspace_id: DEFAULT_WORKSPACE_ID, name: 'Second', monthly_budget_usd: 800 },
+    { id: 'proj-real-3', org_id: DEFAULT_WORKSPACE_ID, name: 'Third', monthly_budget_usd: 1200 },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_projects: 2 });
+});
+
+test('workspace id move - geosan_tasks: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_tasks: JSON.stringify([
+      { id: 't-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', title: 'Alpha' },
+      { id: 't-2', project_id: 'proj-real-1', orgId: 'org-geosan', title: 'Beta' },
+      { id: 't-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Gamma' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_tasks'), [
+    { id: 't-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Alpha' },
+    { id: 't-2', project_id: 'proj-real-1', orgId: DEFAULT_WORKSPACE_ID, title: 'Beta' },
+    { id: 't-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Gamma' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_tasks: 2 });
+});
+
+test('workspace id move - geosan_costs: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_costs: JSON.stringify([
+      { id: 'c-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', cost_usd: 1.1 },
+      { id: 'c-2', project_id: 'proj-real-1', workspace_id: 'org-geosan', cost_usd: 2.2 },
+      { id: 'c-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, cost_usd: 3.3 },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_costs'), [
+    { id: 'c-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, cost_usd: 1.1 },
+    { id: 'c-2', project_id: 'proj-real-1', workspace_id: DEFAULT_WORKSPACE_ID, cost_usd: 2.2 },
+    { id: 'c-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, cost_usd: 3.3 },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_costs: 2 });
+});
+
+test('workspace id move - geosan_qa_runs: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_qa_runs: JSON.stringify([
+      { id: 'r-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', status: 'passed' },
+      { id: 'r-2', project_id: 'proj-real-1', workspaceId: 'org-geosan', status: 'failed' },
+      { id: 'r-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, status: 'running' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_qa_runs'), [
+    { id: 'r-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, status: 'passed' },
+    { id: 'r-2', project_id: 'proj-real-1', workspaceId: DEFAULT_WORKSPACE_ID, status: 'failed' },
+    { id: 'r-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, status: 'running' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_qa_runs: 2 });
+});
+
+test('workspace id move - geosan_qa_findings: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_qa_findings: JSON.stringify([
+      { id: 'f-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', severity: 'high' },
+      { id: 'f-2', project_id: 'proj-real-1', org_id: 'org-geosan', severity: 'low' },
+      { id: 'f-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, severity: 'medium' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_qa_findings'), [
+    { id: 'f-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, severity: 'high' },
+    { id: 'f-2', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, severity: 'low' },
+    { id: 'f-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, severity: 'medium' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_qa_findings: 2 });
+});
+
+test('workspace id move - geosan_conversations: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_conversations: JSON.stringify([
+      { id: 'cv-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', title: 'Conv 1' },
+      { id: 'cv-2', project_id: 'proj-real-1', org_id: 'org-geosan', title: 'Conv 2' },
+      { id: 'cv-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Conv 3' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_conversations'), [
+    { id: 'cv-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Conv 1' },
+    { id: 'cv-2', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Conv 2' },
+    { id: 'cv-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, title: 'Conv 3' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_conversations: 2 });
+});
+
+test('workspace id move - geosan_messages: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_messages: JSON.stringify([
+      { id: 'm-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', content: 'Hello' },
+      { id: 'm-2', project_id: 'proj-real-1', org_id: 'org-geosan', content: 'World' },
+      { id: 'm-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, content: 'Done' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_messages'), [
+    { id: 'm-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, content: 'Hello' },
+    { id: 'm-2', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, content: 'World' },
+    { id: 'm-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, content: 'Done' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_messages: 2 });
+});
+
+test('workspace id move - geosan_linked_components: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_linked_components: JSON.stringify([
+      { id: 'lc-1', projectId: 'proj-real-1', orgId: 'org-ehi-global', name: 'Nav' },
+      { id: 'lc-2', projectId: 'proj-real-1', workspaceId: 'org-geosan', name: 'Hero' },
+      { id: 'lc-3', projectId: 'proj-real-1', orgId: DEFAULT_WORKSPACE_ID, name: 'Card' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_linked_components'), [
+    { id: 'lc-1', projectId: 'proj-real-1', orgId: DEFAULT_WORKSPACE_ID, name: 'Nav' },
+    { id: 'lc-2', projectId: 'proj-real-1', workspaceId: DEFAULT_WORKSPACE_ID, name: 'Hero' },
+    { id: 'lc-3', projectId: 'proj-real-1', orgId: DEFAULT_WORKSPACE_ID, name: 'Card' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_linked_components: 2 });
+});
+
+test('workspace id move - geosan_session_issue_reports: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_session_issue_reports: JSON.stringify([
+      { id: 'ir-1', sessionId: 's-1', org_id: 'org-ehi-global', category: 'Timeout' },
+      { id: 'ir-2', sessionId: 's-2', orgId: 'org-geosan', category: 'Proxy' },
+      { id: 'ir-3', sessionId: 's-3', org_id: DEFAULT_WORKSPACE_ID, category: 'Navigation' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_session_issue_reports'), [
+    { id: 'ir-1', sessionId: 's-1', org_id: DEFAULT_WORKSPACE_ID, category: 'Timeout' },
+    { id: 'ir-2', sessionId: 's-2', orgId: DEFAULT_WORKSPACE_ID, category: 'Proxy' },
+    { id: 'ir-3', sessionId: 's-3', org_id: DEFAULT_WORKSPACE_ID, category: 'Navigation' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_session_issue_reports: 2 });
+});
+
+test('workspace id move - per-project geosan_project_logs_<id>: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const key = 'geosan_project_logs_proj-real-1';
+  const storage = new MemoryStorage({
+    [key]: JSON.stringify([
+      { id: 'log-1', org_id: 'org-ehi-global', message: 'Step 1' },
+      { id: 'log-2', workspace_id: 'org-geosan', message: 'Step 2' },
+      { id: 'log-3', org_id: DEFAULT_WORKSPACE_ID, message: 'Step 3' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson(key), [
+    { id: 'log-1', org_id: DEFAULT_WORKSPACE_ID, message: 'Step 1' },
+    { id: 'log-2', workspace_id: DEFAULT_WORKSPACE_ID, message: 'Step 2' },
+    { id: 'log-3', org_id: DEFAULT_WORKSPACE_ID, message: 'Step 3' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { [key]: 2 });
+});
+
+test('workspace id move - unknown geosan_* list: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    geosan_custom_audit: JSON.stringify([
+      { id: 'aud-1', project_id: 'proj-real-1', org_id: 'org-ehi-global', action: 'create' },
+      { id: 'aud-2', project_id: 'proj-real-1', workspaceId: 'org-geosan', action: 'update' },
+      { id: 'aud-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, action: 'verify' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('geosan_custom_audit'), [
+    { id: 'aud-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, action: 'create' },
+    { id: 'aud-2', project_id: 'proj-real-1', workspaceId: DEFAULT_WORKSPACE_ID, action: 'update' },
+    { id: 'aud-3', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID, action: 'verify' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { geosan_custom_audit: 2 });
+});
+
+test('workspace id move - aetherorch_learning_vault: rewrites both legacy ids to DEFAULT_WORKSPACE_ID, preserves count/order/fields, and leaves DEFAULT_WORKSPACE_ID untouched', () => {
+  const storage = new MemoryStorage({
+    aetherorch_learning_vault: JSON.stringify([
+      { id: 'lv-1', projectId: 'proj-real-1', workspace_id: 'org-ehi-global', insight: 'A' },
+      { id: 'lv-2', projectId: 'proj-real-1', workspaceId: 'org-geosan', insight: 'B' },
+      { id: 'lv-3', projectId: 'proj-real-1', workspace_id: DEFAULT_WORKSPACE_ID, insight: 'C' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(storage.readJson('aetherorch_learning_vault'), [
+    { id: 'lv-1', projectId: 'proj-real-1', workspace_id: DEFAULT_WORKSPACE_ID, insight: 'A' },
+    { id: 'lv-2', projectId: 'proj-real-1', workspaceId: DEFAULT_WORKSPACE_ID, insight: 'B' },
+    { id: 'lv-3', projectId: 'proj-real-1', workspace_id: DEFAULT_WORKSPACE_ID, insight: 'C' },
+  ]);
+  assert.deepEqual(report.movedWorkspaceIds, { aetherorch_learning_vault: 2 });
+});
+
+test('workspace id move is idempotent and writes a key only when something changed', () => {
+  const storage = new MemoryStorage({
+    geosan_projects: JSON.stringify([
+      { id: 'proj-real-1', org_id: 'org-ehi-global', name: 'Alpha' },
+      { id: 'proj-real-2', org_id: DEFAULT_WORKSPACE_ID, name: 'Beta' },
+    ]),
+    geosan_tasks: JSON.stringify([
+      { id: 'task-real-1', project_id: 'proj-real-1', org_id: DEFAULT_WORKSPACE_ID },
+    ]),
+  });
+
+  const first = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(first.movedWorkspaceIds, { geosan_projects: 1 });
+  assert.deepEqual(storage.writes, ['geosan_projects']);
+
+  storage.writes = [];
+  const second = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(second.movedWorkspaceIds, {});
+  assert.deepEqual(storage.writes, []);
+});
+
+test('workspace id move leaves non-JSON values untouched across geosan_*, per-project logs, and aetherorch_learning_vault', () => {
+  const storage = new MemoryStorage({
+    'geosan_project_logs_proj-real-1': 'not-json-logs',
+    aetherorch_learning_vault: '{broken-vault',
+    geosan_unknown_list: 'plain-string',
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.equal(storage.getItem('geosan_project_logs_proj-real-1'), 'not-json-logs');
+  assert.equal(storage.getItem('aetherorch_learning_vault'), '{broken-vault');
+  assert.equal(storage.getItem('geosan_unknown_list'), 'plain-string');
+  assert.deepEqual(report.movedWorkspaceIds, {});
+  assert.deepEqual(storage.writes, []);
+  assert.deepEqual(report.skippedKeys.sort(), [
+    'aetherorch_learning_vault',
+    'geosan_project_logs_proj-real-1',
+    'geosan_unknown_list',
+  ]);
+});
+
+test('owner non-placeholder data under both old workspace ids stays visible via projectsFromStorage with DEFAULT_WORKSPACE_ID', () => {
+  const storage = new MemoryStorage({
+    geosan_projects: JSON.stringify([
+      { id: 'proj-owner-1', org_id: 'org-ehi-global', name: 'Owner Project One', monthly_budget_usd: 1000 },
+      { id: 'proj-owner-2', org_id: 'org-geosan', name: 'Owner Project Two', monthly_budget_usd: 2000 },
+    ]),
+    geosan_tasks: JSON.stringify([
+      { id: 'task-owner-1', project_id: 'proj-owner-1', org_id: 'org-ehi-global', title: 'Task One' },
+      { id: 'task-owner-2', project_id: 'proj-owner-2', org_id: 'org-geosan', title: 'Task Two' },
+    ]),
+  });
+
+  const report = cleanupPlaceholderProjects(storage);
+  assert.deepEqual(report.removedEntries, {});
+  assert.deepEqual(report.movedWorkspaceIds, {
+    geosan_projects: 2,
+    geosan_tasks: 2,
+  });
+
+  const { projects } = projectsFromStorage(storage.getItem('geosan_projects'));
+  assert.equal(projects.length, 2);
+  assert.deepEqual(projects.map((p) => p.id), ['proj-owner-1', 'proj-owner-2']);
+  for (const p of projects) {
+    assert.equal(p.org_id, DEFAULT_WORKSPACE_ID);
+  }
+
+  const tasks = storage.readJson<Array<{ id: string; org_id: string }>>('geosan_tasks');
+  assert.equal(tasks.length, 2);
+  assert.deepEqual(tasks.map((t) => t.id), ['task-owner-1', 'task-owner-2']);
+  for (const t of tasks) {
+    assert.equal(t.org_id, DEFAULT_WORKSPACE_ID);
+  }
 });

@@ -6,3 +6,14 @@
  * (Replaces the client-branded `org-ehi-global` and the interim `org-geosan`.)
  */
 export const DEFAULT_WORKSPACE_ID = 'org-geosan-workshop';
+
+export const LEGACY_WORKSPACE_IDS: readonly string[] = ['org-ehi-global', 'org-geosan'];
+
+const LEGACY_WORKSPACE_SET = new Set<string>(LEGACY_WORKSPACE_IDS);
+
+export function normalizeWorkspaceId(id: unknown): string {
+  if (typeof id !== 'string' || id.length === 0 || LEGACY_WORKSPACE_SET.has(id)) {
+    return DEFAULT_WORKSPACE_ID;
+  }
+  return id;
+}

@@ -23,7 +23,15 @@
  * Links from OTHER projects' records to a removed task are cleared (set to
  * null), like the database's ON DELETE SET NULL; the records themselves stay.
  * Values that are not valid JSON are left alone.
+ *
+ * Workspace id move (same run, after the removal): records in every geosan_*
+ * list and aetherorch_learning_vault whose org_id / orgId / workspace_id /
+ * workspaceId is a legacy id ('org-ehi-global', 'org-geosan') are rewritten
+ * to DEFAULT_WORKSPACE_ID, so the owner's saved data stays visible. No record
+ * is dropped or reordered. Matches step 7 of the Supabase migration.
  */
+
+import { DEFAULT_WORKSPACE_ID, LEGACY_WORKSPACE_IDS } from './workspace';
 
 /** Every id the four placeholder projects were stored under (old and canonical). */
 export const PLACEHOLDER_PROJECT_IDS: readonly string[] = Object.freeze([
@@ -63,14 +71,24 @@ export interface CleanupReport {
   removedKeys: string[];
   /** keys left alone because the value is not valid JSON */
   skippedKeys: string[];
+  /** key -> number of records whose workspace id was rewritten to DEFAULT_WORKSPACE_ID */
+  movedWorkspaceIds: Record<string, number>;
 }
+
+const WORKSPACE_ID_FIELDS = ['org_id', 'orgId', 'workspace_id', 'workspaceId'] as const;
+const LEGACY_WORKSPACE_SET = new Set<string>(LEGACY_WORKSPACE_IDS);
 
 type Rec = Record<string, unknown>;
 const isRec = (v: unknown): v is Rec => !!v && typeof v === 'object' && !Array.isArray(v);
 const projectOf = (r: Rec) => (r.project_id ?? r.projectId) as unknown;
 
 export function cleanupPlaceholderProjects(storage: StorageLike): CleanupReport {
-  const report: CleanupReport = { removedEntries: {}, removedKeys: [], skippedKeys: [] };
+  const report: CleanupReport = {
+    removedEntries: {},
+    removedKeys: [],
+    skippedKeys: [],
+    movedWorkspaceIds: {}
+  };
   const removedTasks = new Set<string>();
   const removedRuns = new Set<string>();
   const removedConversations = new Set<string>();
@@ -165,6 +183,41 @@ export function cleanupPlaceholderProjects(storage: StorageLike): CleanupReport 
     // Any other saved geosan_* list: drop entries of a placeholder project.
     if (key.startsWith('geosan_') && !handled.has(key)) filterKey(key, (r) => isPlaceholderProjectId(projectOf(r)));
   }
+
+  // Rewrite legacy workspace ids to DEFAULT_WORKSPACE_ID in all remaining geosan_* JSON lists and aetherorch_learning_vault.
+  // Keys are collected first so writes can't shift the index walk.
+  const remaining: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (k) remaining.push(k);
+  }
+  for (const key of remaining) {
+    if (!key.startsWith('geosan_') && key !== 'aetherorch_learning_vault') continue;
+    const list = readList(key);
+    if (!list) continue;
+    let moved = 0;
+    const next = list.map((entry) => {
+      if (!isRec(entry)) return entry;
+      let updated: Rec | null = null;
+      for (const field of WORKSPACE_ID_FIELDS) {
+        const val = entry[field];
+        if (typeof val === 'string' && LEGACY_WORKSPACE_SET.has(val)) {
+          if (!updated) updated = { ...entry };
+          updated[field] = DEFAULT_WORKSPACE_ID;
+        }
+      }
+      if (updated) {
+        moved++;
+        return updated;
+      }
+      return entry;
+    });
+    if (moved > 0) {
+      report.movedWorkspaceIds[key] = (report.movedWorkspaceIds[key] ?? 0) + moved;
+      storage.setItem(key, JSON.stringify(next));
+    }
+  }
+
   return report;
 }
 

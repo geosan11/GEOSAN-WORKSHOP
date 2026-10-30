@@ -71,8 +71,49 @@ data() {
   " | LC_ALL=C sort
 }
 
+# Dump of every row in every public table with updated_at stripped ONLY on public.projects rows
+# whose workspace id was moved ('proj-real-001', 'proj-real-002'), because trg_projects_updated_at
+# bumps updated_at on moved rows (placeholder-test.sql asserts updated_at > real_ts on those rows).
+data_modulo_moved_updated_at() {
+  as postgres -tA -c "
+    create temp table _dump (line text) on commit drop;
+    do \$d\$
+    declare
+      t text;
+      tbls constant text[] := array[
+        'project_registry', 'projects', 'agent_tasks', 'cost_events',
+        'qa_runs', 'qa_findings', 'project_budgets', 'project_logs',
+        'agent_assignments', 'provider_configs', 'prompt_versions',
+        'app_owner', 'user_preferences'
+      ];
+    begin
+      foreach t in array tbls loop
+        if to_regclass('public.' || t) is not null then
+          if t = 'projects' then
+            insert into _dump
+              select 'projects|' || (
+                case when r.id in ('proj-real-001', 'proj-real-002')
+                     then (to_jsonb(r) - 'updated_at')
+                     else to_jsonb(r)
+                end
+              )::text
+              from public.projects r;
+          else
+            execute format('insert into _dump select %L || ''|'' || to_jsonb(r)::text from public.%I r', t, t);
+          end if;
+        end if;
+      end loop;
+    end
+    \$d\$;
+    select line from _dump;
+  " | LC_ALL=C sort
+}
+
 # Expected post-migration byte-level dump derived from pre-migration non-placeholder rows,
-# with ONLY the two cross-project task links (t-real-001-child.parent_task_id and c-real-001-cross.task_id) set to null.
+# with ONLY:
+#   - the two cross-project task links (t-real-001-child.parent_task_id and c-real-001-cross.task_id) set to null,
+#   - legacy workspace ids ('org-ehi-global', 'org-geosan') rewritten to 'org-geosan-workshop',
+#   - updated_at stripped on moved public.projects rows (proj-real-001, proj-real-002) bumped by trg_projects_updated_at.
 expected_after_from_before() {
   as postgres -tA -c "
     create temp table _exp (line text) on commit drop;
@@ -85,25 +126,42 @@ expected_after_from_before() {
     begin
       insert into _exp select 'project_registry|' || to_jsonb(r)::text from public.project_registry r where r.id <> all (ids);
       if to_regclass('public.projects') is not null then
-        insert into _exp select 'projects|' || to_jsonb(r)::text from public.projects r where r.id <> all (ids);
+        insert into _exp
+          select 'projects|' || (
+            case when r.org_id in ('org-ehi-global', 'org-geosan')
+                 then (jsonb_set(to_jsonb(r), '{org_id}', '\"org-geosan-workshop\"'::jsonb) - 'updated_at')
+                 else to_jsonb(r)
+            end
+          )::text
+          from public.projects r where r.id <> all (ids);
       end if;
       insert into _exp
         select 'agent_tasks|' || (
-          case when r.id = 't-real-001-child'
-               then jsonb_set(to_jsonb(r), '{parent_task_id}', 'null'::jsonb)
-               else to_jsonb(r)
-          end
+          jsonb_set(
+            case when r.id = 't-real-001-child'
+                 then jsonb_set(to_jsonb(r), '{parent_task_id}', 'null'::jsonb)
+                 else to_jsonb(r)
+            end,
+            '{org_id}',
+            '\"org-geosan-workshop\"'::jsonb
+          )
         )::text
         from public.agent_tasks r where r.project_id <> all (ids);
       insert into _exp
         select 'cost_events|' || (
-          case when r.id = 'c-real-001-cross'
-               then jsonb_set(to_jsonb(r), '{task_id}', 'null'::jsonb)
-               else to_jsonb(r)
-          end
+          jsonb_set(
+            case when r.id = 'c-real-001-cross'
+                 then jsonb_set(to_jsonb(r), '{task_id}', 'null'::jsonb)
+                 else to_jsonb(r)
+            end,
+            '{org_id}',
+            '\"org-geosan-workshop\"'::jsonb
+          )
         )::text
         from public.cost_events r where r.project_id <> all (ids);
-      insert into _exp select 'qa_runs|' || to_jsonb(r)::text from public.qa_runs r where r.project_id <> all (ids);
+      insert into _exp
+        select 'qa_runs|' || jsonb_set(to_jsonb(r), '{org_id}', '\"org-geosan-workshop\"'::jsonb)::text
+        from public.qa_runs r where r.project_id <> all (ids);
       insert into _exp select 'qa_findings|' || to_jsonb(r)::text from public.qa_findings r where r.project_id <> all (ids);
       insert into _exp select 'project_budgets|' || to_jsonb(r)::text from public.project_budgets r where r.project_id <> all (ids);
       if to_regclass('public.project_logs') is not null then
@@ -198,6 +256,170 @@ check_notice_order_and_counts() { # $1 label, $2 output, $3 expected_counts, $4 
   echo "   [$label] PASS NOTICE 'will delete' appeared before 'deleted' with exact per-table counts ($exp_counts; audit=$exp_audit)"
 }
 
+check_ws_notices() { # $1 label, $2 output, $3 schema_mode ("workshop"|"legacy"), $4 run_kind ("first"|"second")
+  local label="$1"
+  local out="$2"
+  local schema_mode="$3"
+  local run_kind="$4"
+
+  local n_lines
+  n_lines="$(printf '%s\n' "$out" | notices)"
+
+  local expected_lines=()
+  if [ "$run_kind" = "first" ]; then
+    expected_lines+=(
+      "remove_placeholder_projects: workspace id before agent_tasks.org_id: org-ehi-global=1, org-geosan=2"
+      "remove_placeholder_projects: workspace id after agent_tasks.org_id: org-ehi-global=0, org-geosan=0 (moved 3)"
+      "remove_placeholder_projects: workspace id before cost_events.org_id: org-ehi-global=2, org-geosan=1"
+      "remove_placeholder_projects: workspace id after cost_events.org_id: org-ehi-global=0, org-geosan=0 (moved 3)"
+    )
+    if [ "$schema_mode" = "workshop" ]; then
+      expected_lines+=(
+        "remove_placeholder_projects: workspace id before projects.org_id: org-ehi-global=1, org-geosan=1"
+        "remove_placeholder_projects: workspace id after projects.org_id: org-ehi-global=0, org-geosan=0 (moved 2)"
+      )
+    fi
+    expected_lines+=(
+      "remove_placeholder_projects: workspace id before qa_runs.org_id: org-ehi-global=1, org-geosan=1"
+      "remove_placeholder_projects: workspace id after qa_runs.org_id: org-ehi-global=0, org-geosan=0 (moved 2)"
+      "remove_placeholder_projects: altered default on agent_tasks.org_id to org-geosan-workshop"
+      "remove_placeholder_projects: altered default on cost_events.org_id to org-geosan-workshop"
+      "remove_placeholder_projects: altered default on qa_runs.org_id to org-geosan-workshop"
+      "remove_placeholder_projects: workspace defaults altered: 3"
+    )
+  else
+    expected_lines+=(
+      "remove_placeholder_projects: workspace id before agent_tasks.org_id: org-ehi-global=0, org-geosan=0"
+      "remove_placeholder_projects: workspace id after agent_tasks.org_id: org-ehi-global=0, org-geosan=0 (moved 0)"
+      "remove_placeholder_projects: workspace id before cost_events.org_id: org-ehi-global=0, org-geosan=0"
+      "remove_placeholder_projects: workspace id after cost_events.org_id: org-ehi-global=0, org-geosan=0 (moved 0)"
+    )
+    if [ "$schema_mode" = "workshop" ]; then
+      expected_lines+=(
+        "remove_placeholder_projects: workspace id before projects.org_id: org-ehi-global=0, org-geosan=0"
+        "remove_placeholder_projects: workspace id after projects.org_id: org-ehi-global=0, org-geosan=0 (moved 0)"
+      )
+    fi
+    expected_lines+=(
+      "remove_placeholder_projects: workspace id before qa_runs.org_id: org-ehi-global=0, org-geosan=0"
+      "remove_placeholder_projects: workspace id after qa_runs.org_id: org-ehi-global=0, org-geosan=0 (moved 0)"
+      "remove_placeholder_projects: workspace defaults altered: 0"
+    )
+  fi
+
+  local prev_ln=0 cur_ln line
+  for line in "${expected_lines[@]}"; do
+    printf '%s\n' "$n_lines" | grep -Fxq "$line" || {
+      echo "   [$label] FAIL missing workspace NOTICE: $line. Got:"
+      printf '%s\n' "$n_lines"
+      exit 1
+    }
+    cur_ln="$(printf '%s\n' "$n_lines" | grep -Fxn "$line" | head -1 | cut -d: -f1)"
+    if [ -z "$cur_ln" ] || [ "$cur_ln" -le "$prev_ln" ]; then
+      echo "   [$label] FAIL workspace NOTICE out of order: $line"
+      exit 1
+    fi
+    prev_ln="$cur_ln"
+  done
+
+  if [ "$run_kind" = "second" ]; then
+    if printf '%s\n' "$n_lines" | grep -q "altered default on"; then
+      echo "   [$label] FAIL second run altered a default unexpectedly"
+      exit 1
+    fi
+  fi
+  echo "   [$label] PASS workspace id before/after counts and default-alteration NOTICEs exact ($run_kind)"
+}
+
+check_rls_owner_and_stranger() { # $1 label, $2 lock_mode ("lock"|"nolock"), $3 db
+  local label="$1"
+  local lock_mode="$2"
+  local db="$3"
+
+  PGOPTIONS= psql -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PORT" -U postgres -d "$db" -v lock_mode="$lock_mode" <<'EOF' 2>&1 | sed -n 's/.*NOTICE:  //p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [$label] /"
+\set owner_id '11111111-1111-1111-1111-111111111111'
+\set other_id '22222222-2222-2222-2222-222222222222'
+\set owner_claims '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}'
+\set other_claims '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}'
+
+begin;
+
+insert into auth.users (id, email) values
+  (:'owner_id', 'sanni@example.com'),
+  (:'other_id', 'stranger@example.com')
+on conflict (id) do nothing;
+
+insert into public.app_owner (user_id) values (:'owner_id') on conflict (user_id) do nothing;
+select set_config('geosan.test_lock_mode', :'lock_mode', true);
+
+set local role authenticated;
+select set_config('request.jwt.claims', :'owner_claims', true);
+
+do $rls_owner$
+declare
+  n int;
+begin
+  if not public.is_app_owner() then
+    raise exception 'FAIL owner not recognised by is_app_owner()';
+  end if;
+
+  select count(*) into n from public.project_registry;
+  if n <> 3 then raise exception 'FAIL owner saw % rows in project_registry (expected 3)', n; end if;
+
+  select count(*) into n from public.agent_tasks where org_id = 'org-geosan-workshop';
+  if n <> 4 then raise exception 'FAIL owner saw % rows in agent_tasks (expected 4)', n; end if;
+
+  select count(*) into n from public.cost_events where org_id = 'org-geosan-workshop';
+  if n <> 4 then raise exception 'FAIL owner saw % rows in cost_events (expected 4)', n; end if;
+
+  select count(*) into n from public.qa_runs where org_id = 'org-geosan-workshop';
+  if n <> 3 then raise exception 'FAIL owner saw % rows in qa_runs (expected 3)', n; end if;
+
+  select count(*) into n from public.qa_findings;
+  if n <> 3 then raise exception 'FAIL owner saw % rows in qa_findings (expected 3)', n; end if;
+
+  select count(*) into n from public.project_budgets;
+  if n <> 3 then raise exception 'FAIL owner saw % rows in project_budgets (expected 3)', n; end if;
+
+  if current_setting('geosan.test_lock_mode', true) <> 'lock' and to_regclass('public.projects') is not null then
+    select count(*) into n from public.projects where org_id = 'org-geosan-workshop';
+    if n <> 3 then raise exception 'FAIL owner saw % rows in projects (expected 3)', n; end if;
+  end if;
+end
+$rls_owner$;
+
+select set_config('request.jwt.claims', :'other_claims', true);
+
+do $rls_stranger$
+declare
+  n int;
+  t text;
+begin
+  if public.is_app_owner() then
+    raise exception 'FAIL stranger recognised as owner';
+  end if;
+
+  if current_setting('geosan.test_lock_mode', true) = 'lock' then
+    foreach t in array array['project_registry', 'agent_tasks', 'cost_events', 'qa_runs', 'qa_findings', 'project_budgets', 'prompt_versions'] loop
+      execute format('select count(*) from public.%I', t) into n;
+      if n <> 0 then raise exception 'FAIL stranger saw % rows in % under #5 lock', n, t; end if;
+    end loop;
+    raise notice 'PASS RLS check (#5 lock): owner sees all moved org-geosan-workshop rows across all locked tables; stranger sees 0';
+  else
+    foreach t in array array['projects', 'project_logs', 'agent_assignments', 'provider_configs'] loop
+      execute format('select count(*) from public.%I', t) into n;
+      if n <> 0 then raise exception 'FAIL stranger saw % rows in %', n, t; end if;
+    end loop;
+    raise notice 'PASS RLS check (unlocked + 20261028): owner sees all moved org-geosan-workshop rows; stranger sees 0 on workshop tables';
+  end if;
+end
+$rls_stranger$;
+
+rollback;
+EOF
+  test "${PIPESTATUS[0]}" -eq 0
+}
+
 run_main_case() { # $1 label, $2 "lock"|"nolock", $3 db
   local label="$1"
   local lock_mode="$2"
@@ -212,9 +434,11 @@ run_main_case() { # $1 label, $2 "lock"|"nolock", $3 db
   before_data="$(data)"
   expected_after="$(expected_after_from_before)"
 
-  # Pre-check that the two cross-project links start non-null before migration
+  # Pre-check that the two cross-project links start non-null and legacy defaults are 'org-ehi-global' before migration
   as postgres -tA -c "
     do \$\$
+    declare
+      t text;
     begin
       if (select parent_task_id from public.agent_tasks where id = 't-real-001-child') <> 't-proj-ehi-001' then
         raise exception 'fixture error: t-real-001-child.parent_task_id';
@@ -222,6 +446,16 @@ run_main_case() { # $1 label, $2 "lock"|"nolock", $3 db
       if (select task_id from public.cost_events where id = 'c-real-001-cross') <> 't-proj-ehi-001' then
         raise exception 'fixture error: c-real-001-cross.task_id';
       end if;
+      for t in select unnest(array['agent_tasks', 'cost_events', 'qa_runs']) loop
+        if (
+          select pg_get_expr(ad.adbin, ad.adrelid)
+            from pg_attribute a
+            join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+           where a.attrelid = to_regclass('public.' || t) and a.attname = 'org_id'
+        ) <> '''org-ehi-global''::text' then
+          raise exception 'fixture error: %.org_id default did not start as org-ehi-global', t;
+        end if;
+      end loop;
     end \$\$;
   " >/dev/null
 
@@ -248,21 +482,30 @@ run_main_case() { # $1 label, $2 "lock"|"nolock", $3 db
     "qa_findings=8, qa_runs=8, cost_events=8, project_budgets=8, agent_tasks=8, project_logs=8, agent_assignments=8, provider_configs=8, project_registry=8, projects=8" \
     "1" \
     "agent_tasks.parent_task_id=1, cost_events.task_id=1"
+  check_ws_notices "$label" "$out_confirmed" "workshop" "first"
 
-  # Post-migration SQL assertions (all 8 ids gone, real projects intact, 2 links set to null, prompt_versions/app_owner unchanged)
+  # Post-migration SQL assertions (all 8 ids gone, real projects intact, 2 links set to null, workspace ids moved & defaults updated)
   PGOPTIONS= psql -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PORT" -U postgres -d "$db" \
     -f "$CHECKS" 2>&1 | sed -n 's/.*NOTICE:  //p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [$label] /"
   test "${PIPESTATUS[0]}" -eq 0
 
-  # Byte-identical check on all real project rows and non-project tables (except the 2 nulled links)
-  local after_data
+  # Byte-identical check on all real project rows and non-project tables (modulo the 2 nulled links, org_id -> org-geosan-workshop, and bumped updated_at on moved projects rows)
+  local after_data after_data_cmp
   after_data="$(data)"
-  [ "$expected_after" = "$after_data" ] || {
-    echo "   [$label] FAIL real project rows or non-project tables are not byte-identical (modulo the 2 nulled links)"
-    diff <(printf '%s\n' "$expected_after") <(printf '%s\n' "$after_data") || true
+  after_data_cmp="$(data_modulo_moved_updated_at)"
+  [ "$expected_after" = "$after_data_cmp" ] || {
+    echo "   [$label] FAIL real project rows or non-project tables are not byte-identical (modulo nulled links, org_id, and projects.updated_at)"
+    diff <(printf '%s\n' "$expected_after") <(printf '%s\n' "$after_data_cmp") || true
     exit 1
   }
-  echo "   [$label] PASS real projects and all their rows byte-identical except the two links set to null"
+  echo "   [$label] PASS real projects and all their rows byte-identical except nulled links, org_id->org-geosan-workshop, and bumped projects.updated_at"
+
+  # RLS check: owner sees all moved rows; stranger sees none (rolled back so data unchanged)
+  check_rls_owner_and_stranger "$label" "$lock_mode" "$db"
+  [ "$after_data" = "$(data)" ] || {
+    echo "   [$label] FAIL rolled-back RLS check changed data"
+    exit 1
+  }
 
   # Policies, RLS flags, grants and default ACL snapshot unchanged
   local after_snap
@@ -274,18 +517,19 @@ run_main_case() { # $1 label, $2 "lock"|"nolock", $3 db
   }
   echo "   [$label] PASS policies, RLS flags, grants and default ACL snapshot unchanged"
 
-  # Second run is a no-op (data identical, counts 0)
+  # Second run is a no-op (data identical including projects.updated_at, 0 deleted, 0 moved, 0 defaults altered)
   local out_second
   out_second="$(run_mig postgres 2>&1)"
   check_notice_order_and_counts "$label-2nd" "$out_second" \
     "qa_findings=0, qa_runs=0, cost_events=0, project_budgets=0, agent_tasks=0, project_logs=0, agent_assignments=0, provider_configs=0, project_registry=0, projects=0" \
     "0" \
     "agent_tasks.parent_task_id=0, cost_events.task_id=0"
+  check_ws_notices "$label-2nd" "$out_second" "workshop" "second"
   [ "$after_data" = "$(data)" ] || {
     echo "   [$label] FAIL second run changed data"
     exit 1
   }
-  echo "   [$label] PASS second run is a no-op (data identical, counts 0)"
+  echo "   [$label] PASS second run is a no-op (data identical, 0 deleted, 0 workspace ids moved, 0 defaults altered)"
 
   # Re-running current supabase/schema.sql then the migration does not bring any id back
   as postgres -f "$ROOT/supabase/schema.sql"
@@ -449,7 +693,7 @@ printf '%s\n' "$out_rls_u" | grep -q "cannot see every row" || {
 echo "   [rls-role] PASS refused non-owner app_user on unlocked schema too; data unchanged"
 unset DB
 
-echo "== 5. Mid-way failure rolls back (BEFORE DELETE trigger on project_registry raises after children deleted)"
+echo "== 5. Mid-way failure rolls back (BEFORE DELETE on project_registry AND BEFORE UPDATE on agent_tasks during workspace id move)"
 export DB=t_fks
 d_mid_before="$(data)"
 as postgres -c "
@@ -473,7 +717,31 @@ as postgres -c "drop trigger trg_abort_registry_delete on public.project_registr
   echo "   [mid-way] FAIL mid-way failure did not roll back child deletes"
   exit 1
 }
-echo "   [mid-way] PASS mid-way failure rolled back completely; all parent and child rows identical to before"
+echo "   [mid-way] PASS mid-way delete failure rolled back completely; all parent and child rows identical to before"
+
+# 5b. Failure during workspace id move (after all placeholder deletes have succeeded) rolls back everything including deletes
+as postgres -c "
+  create or replace function public.abort_agent_tasks_ws_move() returns trigger language plpgsql as \$\$
+  begin
+    raise exception 'simulated mid-way failure during agent_tasks workspace id move';
+  end \$\$;
+  create trigger trg_abort_agent_tasks_ws_move before update on public.agent_tasks
+    for each row execute function public.abort_agent_tasks_ws_move();
+"
+if out_mid_ws="$(run_mig postgres 2>&1)"; then
+  echo "   [mid-way-ws] FAIL migration succeeded despite raising BEFORE UPDATE trigger on agent_tasks"
+  exit 1
+fi
+printf '%s\n' "$out_mid_ws" | grep -q "simulated mid-way failure during agent_tasks workspace id move" || {
+  echo "   [mid-way-ws] FAIL unexpected error: $out_mid_ws"
+  exit 1
+}
+as postgres -c "drop trigger trg_abort_agent_tasks_ws_move on public.agent_tasks; drop function public.abort_agent_tasks_ws_move();"
+[ "$d_mid_before" = "$(data)" ] || {
+  echo "   [mid-way-ws] FAIL failure during workspace id move did not roll back placeholder deletes"
+  exit 1
+}
+echo "   [mid-way-ws] PASS failure during workspace id move (BEFORE UPDATE on agent_tasks) rolled back everything including placeholder deletes"
 unset DB
 
 echo "== 6. Unknown table referencing projects (FK or plain project_id column) is refused naming the table"
@@ -580,6 +848,7 @@ check_notice_order_and_counts "legacy" "$out_leg" \
   "qa_findings=8, qa_runs=8, cost_events=8, project_budgets=8, agent_tasks=8, project_registry=8" \
   "0" \
   "agent_tasks.parent_task_id=1, cost_events.task_id=1"
+check_ws_notices "legacy" "$out_leg" "legacy" "first"
 
 PGOPTIONS= psql -X -q -v ON_ERROR_STOP=1 -h "$WORK" -p "$PORT" -U postgres -d t_legacy \
   -f "$CHECKS" 2>&1 | sed -n 's/.*NOTICE:  //p;s/.*ERROR: */ERROR: /p' | sed "s/^/   [legacy] /"
@@ -587,7 +856,7 @@ test "${PIPESTATUS[0]}" -eq 0
 
 after_leg_data="$(data)"
 [ "$expected_leg_after" = "$after_leg_data" ] || {
-  echo "   [legacy] FAIL legacy real project rows not byte-identical (modulo the 2 nulled links)"
+  echo "   [legacy] FAIL legacy real project rows not byte-identical (modulo the 2 nulled links and org_id move)"
   diff <(printf '%s\n' "$expected_leg_after") <(printf '%s\n' "$after_leg_data") || true
   exit 1
 }
@@ -600,11 +869,154 @@ check_notice_order_and_counts "legacy-2nd" "$out_leg_2" \
   "qa_findings=0, qa_runs=0, cost_events=0, project_budgets=0, agent_tasks=0, project_registry=0" \
   "0" \
   "agent_tasks.parent_task_id=0, cost_events.task_id=0"
+check_ws_notices "legacy-2nd" "$out_leg_2" "legacy" "second"
 [ "$after_leg_data" = "$(data)" ] || {
   echo "   [legacy] FAIL legacy second run changed data"
   exit 1
 }
 echo "   [legacy] PASS legacy-only schema migration succeeded, preserved real data byte-identically, and is idempotent"
+unset DB
+
+echo "== 9. Workspace-id pre-check refusals: 2(a) FK constraint, 2(b) org/workspace table, 2(c) unique conflict"
+export DB=t_fks
+d_ws_ref_before="$(data)"
+
+# 9a-1. Pre-check 2(a): FK constraint where a discovered workspace-id column is the referencing side
+as postgres -c "
+  create table public.external_tenants (code text primary key);
+  insert into public.external_tenants values ('org-ehi-global'), ('org-geosan'), ('org-geosan-workshop');
+  alter table public.agent_tasks add constraint fk_agent_tasks_org_tenant foreign key (org_id) references public.external_tenants(code);
+"
+if out_fk_src="$(run_mig postgres 2>&1)"; then
+  echo "   [precheck-2a] FAIL migration succeeded with FK on agent_tasks.org_id (referencing side)"
+  exit 1
+fi
+printf '%s\n' "$out_fk_src" | grep -q "fk_agent_tasks_org_tenant" || {
+  echo "   [precheck-2a] FAIL error did not name fk_agent_tasks_org_tenant: $out_fk_src"
+  exit 1
+}
+[ "$d_ws_ref_before" = "$(data)" ] || {
+  echo "   [precheck-2a] FAIL refused FK (referencing side) changed data"
+  exit 1
+}
+as postgres -c "alter table public.agent_tasks drop constraint fk_agent_tasks_org_tenant; drop table public.external_tenants;"
+echo "   [precheck-2a] PASS refused FK on discovered workspace-id column (referencing side: fk_agent_tasks_org_tenant); data unchanged"
+
+# 9a-2. Pre-check 2(a): FK constraint where a discovered workspace-id column (*_workspace_id) is the referenced side
+as postgres -c "
+  create table public.tenant_directory (id text primary key, parent_workspace_id text unique);
+  create table public.tenant_notes (
+    id text primary key,
+    ref_code text constraint fk_notes_to_parent_workspace references public.tenant_directory (parent_workspace_id)
+  );
+"
+if out_fk_dst="$(run_mig postgres 2>&1)"; then
+  echo "   [precheck-2a] FAIL migration succeeded with FK referencing tenant_directory.parent_workspace_id (referenced side)"
+  exit 1
+fi
+printf '%s\n' "$out_fk_dst" | grep -q "fk_notes_to_parent_workspace" || {
+  echo "   [precheck-2a] FAIL error did not name fk_notes_to_parent_workspace: $out_fk_dst"
+  exit 1
+}
+[ "$d_ws_ref_before" = "$(data)" ] || {
+  echo "   [precheck-2a] FAIL refused FK (referenced side) changed data"
+  exit 1
+}
+as postgres -c "drop table public.tenant_notes; drop table public.tenant_directory;"
+echo "   [precheck-2a] PASS refused FK on discovered workspace-id column (referenced side: fk_notes_to_parent_workspace); data unchanged"
+
+# 9b-1. Pre-check 2(b): organizations-style table whose id holds 'org-ehi-global'
+as postgres -c "
+  create table public.organizations (id text primary key, slug text not null, display_name text not null);
+  insert into public.organizations values ('org-ehi-global', 'ehi-global', 'EHI Global');
+"
+if out_org_tbl="$(run_mig postgres 2>&1)"; then
+  echo "   [precheck-2b] FAIL migration succeeded when public.organizations.id held 'org-ehi-global'"
+  exit 1
+fi
+printf '%s\n' "$out_org_tbl" | grep -q "organizations" || {
+  echo "   [precheck-2b] FAIL error did not name organizations: $out_org_tbl"
+  exit 1
+}
+[ "$d_ws_ref_before" = "$(data)" ] || {
+  echo "   [precheck-2b] FAIL refused organizations table run changed data"
+  exit 1
+}
+as postgres -c "drop table public.organizations;"
+echo "   [precheck-2b] PASS refused public.organizations holding 'org-ehi-global' in id; data unchanged"
+
+# 9b-2. Pre-check 2(b): workspace-named table whose slug holds 'org-geosan'
+as postgres -c "
+  create table public.team_workspaces (id uuid default gen_random_uuid() primary key, slug varchar(64) not null);
+  insert into public.team_workspaces (slug) values ('org-geosan');
+"
+if out_ws_tbl="$(run_mig postgres 2>&1)"; then
+  echo "   [precheck-2b] FAIL migration succeeded when public.team_workspaces.slug held 'org-geosan'"
+  exit 1
+fi
+printf '%s\n' "$out_ws_tbl" | grep -q "team_workspaces" || {
+  echo "   [precheck-2b] FAIL error did not name team_workspaces: $out_ws_tbl"
+  exit 1
+}
+[ "$d_ws_ref_before" = "$(data)" ] || {
+  echo "   [precheck-2b] FAIL refused team_workspaces table run changed data"
+  exit 1
+}
+as postgres -c "drop table public.team_workspaces;"
+echo "   [precheck-2b] PASS refused public.team_workspaces holding 'org-geosan' in slug; data unchanged"
+
+# 9c-1. Pre-check 2(c): UNIQUE constraint on (org_id, project_id, assigned_agent) on agent_tasks
+#       (distinct before migration because t-real-001-root is 'org-ehi-global' and t-real-001-child is 'org-geosan',
+#        both on 'proj-real-001' + 'CoordinatorAgent', so rewriting both to 'org-geosan-workshop' creates a duplicate)
+as postgres -c "
+  alter table public.agent_tasks add constraint uq_agent_tasks_org_proj_agent unique (org_id, project_id, assigned_agent);
+"
+if out_uq_con="$(run_mig postgres 2>&1)"; then
+  echo "   [precheck-2c] FAIL migration succeeded despite unique constraint conflict on uq_agent_tasks_org_proj_agent"
+  exit 1
+fi
+printf '%s\n' "$out_uq_con" | grep -q "agent_tasks" && printf '%s\n' "$out_uq_con" | grep -q "uq_agent_tasks_org_proj_agent" || {
+  echo "   [precheck-2c] FAIL error did not name agent_tasks and uq_agent_tasks_org_proj_agent: $out_uq_con"
+  exit 1
+}
+[ "$d_ws_ref_before" = "$(data)" ] || {
+  echo "   [precheck-2c] FAIL refused unique constraint conflict run changed data"
+  exit 1
+}
+as postgres -c "alter table public.agent_tasks drop constraint uq_agent_tasks_org_proj_agent;"
+echo "   [precheck-2c] PASS refused unique constraint conflict naming 'agent_tasks' and 'uq_agent_tasks_org_proj_agent'; data unchanged"
+
+# 9c-2. Pre-check 2(c): standalone UNIQUE INDEX on qa_runs (org_id, run_type, status)
+#       (surviving r-real-001='org-ehi-global', r-real-002='org-geosan', r-real-003='org-geosan-workshop'
+#        all have run_type='QA_EXPLORE' and status='passed', while placeholder runs have status='failed')
+as postgres -c "
+  create unique index idx_uq_qa_runs_passed_org_type on public.qa_runs (org_id, run_type) where status = 'passed';
+"
+if out_uq_idx="$(run_mig postgres 2>&1)"; then
+  echo "   [precheck-2c] FAIL migration succeeded despite unique index conflict on idx_uq_qa_runs_passed_org_type"
+  exit 1
+fi
+printf '%s\n' "$out_uq_idx" | grep -q "qa_runs" && printf '%s\n' "$out_uq_idx" | grep -q "idx_uq_qa_runs_passed_org_type" || {
+  echo "   [precheck-2c] FAIL error did not name qa_runs and idx_uq_qa_runs_passed_org_type: $out_uq_idx"
+  exit 1
+}
+[ "$d_ws_ref_before" = "$(data)" ] || {
+  echo "   [precheck-2c] FAIL refused unique index conflict run changed data"
+  exit 1
+}
+as postgres -c "drop index public.idx_uq_qa_runs_passed_org_type;"
+echo "   [precheck-2c] PASS refused standalone unique index conflict naming 'qa_runs' and 'idx_uq_qa_runs_passed_org_type'; data unchanged"
+
+# 9c-3. Pre-check 2(c) survival check: a unique index that would only conflict with a deleted placeholder row is NOT refused
+#       In projects: proj-iya-002 has org_id='org-geosan', vertical='logistics'; proj-real-001 has org_id='org-ehi-global', vertical='logistics';
+#       proj-real-002 has vertical='fintech'; proj-real-003 has vertical='aviation'.
+#       Among surviving rows (proj-real-001, proj-real-002, proj-real-003), (org_id, vertical) has NO duplicate after rewrite!
+as postgres -c "
+  create unique index idx_uq_projects_surviving_vertical on public.projects (org_id, vertical)
+    where id in ('proj-iya-002', 'proj-real-001', 'proj-real-002', 'proj-real-003');
+"
+run_mig postgres >/dev/null 2>&1
+echo "   [precheck-2c] PASS unique index that only conflicted with a deleted placeholder row succeeded without false refusal"
 unset DB
 
 echo "ALL PLACEHOLDER REMOVAL TESTS PASSED"
