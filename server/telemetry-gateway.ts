@@ -250,25 +250,24 @@ export function handleTelemetryGateway(
       }
       try {
         const payload = body ? JSON.parse(body) : {};
-        const {
-          projectId = 'proj-ehi-001',
-          repoUrl = 'https://github.com/ehi-logistics/cargo-platform-v2',
-          branch = 'main',
-          action = 'sync'
-        } = payload;
+        const { projectId, repoUrl, branch = 'main', action = 'sync' } = payload;
+
+        // No default project or repo: the caller must say which one.
+        const clean = String(repoUrl || '').replace(/\.git$/, '');
+        const match = clean.match(/github\.com\/([^\/\s]+)\/([^\/\s#?]+)/);
+        if (!projectId || typeof projectId !== 'string' || !match) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({ success: false, error: 'projectId and a GitHub repoUrl are required' })
+          );
+          return;
+        }
 
         // Secure server-side GitHub credentials check
         const serverToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT || '';
 
-        // Extract owner/repo
-        let owner = 'ehi-logistics';
-        let repo = 'cargo-platform-v2';
-        const clean = String(repoUrl).replace(/\.git$/, '');
-        const match = clean.match(/github\.com\/([^\/\s]+)\/([^\/\s#?]+)/);
-        if (match) {
-          owner = match[1];
-          repo = match[2];
-        }
+        const owner = match[1];
+        const repo = match[2];
 
         let remoteSha = '8f2d91c';
         try {

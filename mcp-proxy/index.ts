@@ -2,21 +2,38 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-// Mock Vault (in reality, this would query Doppler, AWS Secrets, or Supabase Vault)
-const VAULT = {
-  "proj-ehi-001": {
-    vercel_token: "vercel_ehi_live_prod_tkn_8f73b",
-    supabase_url: "https://ehi-db.supabase.co",
-    supabase_service_role: "ey_ehi_service_role_key_mock",
-    resend_key: "re_ehi_live_9x28h"
-  },
-  "proj-iya-001": {
-    vercel_token: "vercel_iyanu_dev_tkn_1a99c",
-    supabase_url: "https://iyanu-db.supabase.co",
-    supabase_service_role: "ey_iyanu_service_role_key_mock",
-    resend_key: "re_iyanu_test_4m11q"
+// Per-project credentials come from the environment, never from code.
+// Same convention as the main proxy (server/proxySecurity.js):
+//   PROXY_PROJECTS=<id>,<id>,...
+//   <ID>_VERCEL_TOKEN, <ID>_SUPABASE_URL, <ID>_SUPABASE_SERVICE_ROLE, <ID>_RESEND_KEY
+// where <ID> is the project id upper-cased with '-' -> '_'.
+// There is no default project: an id that isn't configured is refused.
+interface ProjectCredentials {
+  vercel_token: string;
+  supabase_url: string;
+  supabase_service_role: string;
+  resend_key: string;
+}
+
+function envKey(projectId: string, suffix: string): string {
+  return `${projectId.toUpperCase().replace(/-/g, '_')}_${suffix}`;
+}
+
+export function loadVault(env: NodeJS.ProcessEnv = process.env): Record<string, ProjectCredentials> {
+  const vault: Record<string, ProjectCredentials> = {};
+  const ids = (env.PROXY_PROJECTS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  for (const id of ids) {
+    vault[id] = {
+      vercel_token: env[envKey(id, 'VERCEL_TOKEN')] || '',
+      supabase_url: env[envKey(id, 'SUPABASE_URL')] || '',
+      supabase_service_role: env[envKey(id, 'SUPABASE_SERVICE_ROLE')] || '',
+      resend_key: env[envKey(id, 'RESEND_KEY')] || ''
+    };
   }
-};
+  return vault;
+}
+
+const VAULT = loadVault();
 
 const server = new Server({
   name: "aether-multi-tenant-proxy",
@@ -37,7 +54,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         inputSchema: {
           type: "object",
           properties: {
-            project_id: { type: "string", description: "The AetherOrch project ID (e.g., proj-ehi-001)" }
+            project_id: { type: "string", description: "The AetherOrch project ID (one of PROXY_PROJECTS)" }
           },
           required: ["project_id"]
         }
@@ -67,7 +84,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   const projectId = args.project_id as string;
-  const credentials = VAULT[projectId as keyof typeof VAULT];
+  const credentials = Object.prototype.hasOwnProperty.call(VAULT, projectId) ? VAULT[projectId] : undefined;
 
   if (!credentials) {
     return {
@@ -88,7 +105,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [
         {
           type: "text",
-          text: `[Vercel Proxy] Successfully authenticated with Vercel using token '${credentials.vercel_token.substring(0, 10)}...'. Deployment triggered for project ${projectId}.`
+          text: credentials.vercel_token
+            ? `[Vercel Proxy] Vercel token configured for project ${projectId}. Deployment triggered.`
+            : `[Vercel Proxy] No Vercel token configured for project ${projectId}.`
         }
       ]
     };

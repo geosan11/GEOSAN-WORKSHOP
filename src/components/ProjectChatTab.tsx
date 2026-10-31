@@ -7,9 +7,10 @@ import { ChatComposer } from './ChatComposer';
 import { LoadingState } from './LoadingState';
 import { TaskWorkspace } from './session/TaskWorkspace';
 import { PlanApproval } from './PlanApproval';
+import { approveThenContinue } from '../lib/planApproval';
 import { AgentWorkingStream, WorkingStep } from './AgentWorkingStream';
 import { AgentCompletionCard } from './AgentCompletionCard';
-import { requestBudgetAdmit } from '../lib/budget';
+import { requestProjectBudgetAdmit } from '../lib/budget';
 import { useToast } from './Toast';
 import {
   Bot,
@@ -20,6 +21,7 @@ import {
   ArrowRight,
   Lock,
 } from 'lucide-react';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 interface ProjectChatTabProps {
   project: Project;
@@ -117,7 +119,8 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
         setWorkingSteps([]);
         const streamPromise = runAskWorkingStream(waitForApproval);
 
-        const admit = await requestBudgetAdmit(1, 0.0075);
+        // Fails closed: a project without a budget is refused before the ledger.
+        const admit = await requestProjectBudgetAdmit(project, 1, 0.0075);
         if (!admit.admitted) {
           toast.error(admit.reason || 'Budget admission refused');
           await streamPromise;
@@ -168,21 +171,26 @@ export const ProjectChatTab: React.FC<ProjectChatTabProps> = ({ project }) => {
         await sendMessage(`[Agent Directive]: ${text}`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Ask dispatch failed';
-      toast.error(message);
+      // A missing budget is already reported (useTasks / useChat) with a clear message.
+      if (!isProjectBudgetBlocked(err)) {
+        const message = err instanceof Error ? err.message : 'Ask dispatch failed';
+        toast.error(message);
+      }
     } finally {
       setSending(false);
       setWorkingSteps([]);
     }
   };
 
-  const handleApprovePlan = async (taskId: string) => {
-    await approveTask(taskId);
-    setActiveAgentTaskId(taskId);
-    await refetchTasks();
-    setCompletion(null);
-    setMode('agent');
-  };
+  // Errors (incl. a budget block, already toasted by useTasks) go back to
+  // PlanApproval, so a refused approval is never recorded as approved.
+  const handleApprovePlan = (taskId: string) =>
+    approveThenContinue(taskId, approveTask, async (id) => {
+      setActiveAgentTaskId(id);
+      await refetchTasks();
+      setCompletion(null);
+      setMode('agent');
+    });
 
   if (loading && !conversation) {
     return (

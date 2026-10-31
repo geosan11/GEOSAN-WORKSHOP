@@ -2,13 +2,15 @@
  * Demo Session Fixtures
  *
  * Provides realistic, clean session data for AetherOrch:
- * - One running task ('Working') and one awaiting-approval task ('Approve plan') on demo project 'proj-ehi-001'
+ * - No demo session tasks: they sat on the removed placeholder projects. The worklogs,
+ *   messages and diffs below are keyed by the demo task id used by buildDemoTask().
  * - Complete chronological worklog events: plan, edit (3 files), shell (2 commands), qa (1 finding), approval (1 wait)
  * - Read-only shell commands (e.g. `npm run lint`, `git status --short`) with zero secret leakage
  * - Task threads with numbered plan steps and status dots
  */
 
 import { AgentTask, QAFinding } from '../lib/types';
+import { DEFAULT_WORKSPACE_ID } from '../lib/workspace';
 
 export interface SessionPlanStep {
   number: number;
@@ -67,166 +69,8 @@ export interface SessionMessage {
 /**
  * 1. Demo Tasks
  */
-export const DEMO_SESSION_TASKS: AgentTask[] = [
-  {
-    id: 'task-session-running-01',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
-    parent_task_id: null,
-    task_type: 'BUILD_FEATURE',
-    prompt: 'Implement bilateral netting engine for Kano Hub settlement\nEnsure strict integer arithmetic for kobo precision and generate verifiable settlement receipts.',
-    status: 'running',
-    assigned_agent: 'FullStackAgent',
-    plan: {
-      summary: 'Bilateral netting engine with atomic transaction and kobo integer math',
-      steps_count: 4,
-      model: 'deepseek-r1'
-    },
-    result: {
-      changed_files: [
-        'src/settlement/bilateralNetting.ts',
-        'src/api/routes/settle.ts',
-        'test/settlementNetting.spec.ts'
-      ]
-    },
-    branch_name: 'feat/kano-netting-engine',
-    pr_url: null,
-    cost_usd: 0.142,
-    created_at: '2026-10-04T07:15:00Z',
-    started_at: '2026-10-04T07:15:08Z',
-    completed_at: null
-  },
-  {
-    id: 'task-session-approval-02',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
-    parent_task_id: null,
-    task_type: 'PLAN',
-    prompt: 'Audit and patch floating-point arithmetic across fee settlement ledger\nMigrate legacy IEEE-754 calculations to BigInt micro-units.',
-    status: 'awaiting_approval',
-    assigned_agent: 'ArchitectAgent',
-    plan: {
-      summary: 'Replace all floating point multiplication with integer micro-kobo currency representation across 4 ledger modules.',
-      model: 'claude-3-7-sonnet',
-      files_to_touch: 4
-    },
-    result: null,
-    branch_name: 'fix/ledger-micro-units',
-    pr_url: 'https://github.com/ehi-enterprise/ledger-core/pull/142',
-    cost_usd: 0.048,
-    created_at: '2026-10-04T07:30:00Z',
-    started_at: '2026-10-04T07:30:04Z',
-    completed_at: null
-  },
-  {
-    id: 'task-session-queued-03',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
-    parent_task_id: 'task-session-approval-02',
-    task_type: 'FIX_BUG',
-    prompt: 'Execute integer currency migration in src/settlement/ledgerNetting.ts and verify against test suite',
-    status: 'queued',
-    assigned_agent: 'CodingAgent',
-    plan: null,
-    result: null,
-    branch_name: 'fix/ledger-micro-units',
-    pr_url: null,
-    cost_usd: 0.0,
-    created_at: '2026-10-04T07:35:00Z',
-    started_at: null,
-    completed_at: null
-  },
-  {
-    id: 'task-session-proposed-04',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-iyanu-002',
-    parent_task_id: null,
-    task_type: 'PLAN',
-    prompt: 'Add offline outbox queue for weighbridge truck tickets\nSupport 4-hour satellite internet blackout without dropping intake weights.',
-    status: 'proposed',
-    assigned_agent: 'HardwareEdgeAgent',
-    plan: null,
-    result: null,
-    branch_name: null,
-    pr_url: null,
-    cost_usd: 0.0,
-    created_at: '2026-10-04T07:40:00Z',
-    started_at: null,
-    completed_at: null
-  },
-  {
-    id: 'task-session-blocked-05',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-aviation-003',
-    parent_task_id: null,
-    task_type: 'QA_SECURITY',
-    prompt: 'Validate RSA-4096 cryptographic signature envelope on captain pilot logs\nMissing staging certificate key from Flight Operations authority.',
-    status: 'blocked',
-    assigned_agent: 'SecurityAuditorAgent',
-    plan: { reason: 'Blocked waiting on authority RSA root certificate' },
-    result: null,
-    branch_name: 'audit/faa-rsa-cert',
-    pr_url: null,
-    cost_usd: 0.021,
-    created_at: '2026-10-04T06:20:00Z',
-    started_at: '2026-10-04T06:20:10Z',
-    completed_at: null
-  },
-  {
-    id: 'task-session-done-06',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-edgepoint-004',
-    parent_task_id: null,
-    task_type: 'BUILD_FEATURE',
-    prompt: 'Implement sub-45ms MQTT binary frame ingestion parser for edge telemetry nodes',
-    status: 'done',
-    assigned_agent: 'FullStackAgent',
-    plan: { summary: 'Zero-copy binary buffer slicing for MQTT payload' },
-    result: { summary: 'Merged and passing 100% throughput benchmarks' },
-    branch_name: 'feat/mqtt-zero-copy',
-    pr_url: 'https://github.com/edgepoint-mesh/sensor-daemon/pull/88',
-    cost_usd: 0.185,
-    created_at: '2026-10-04T05:00:00Z',
-    started_at: '2026-10-04T05:00:15Z',
-    completed_at: '2026-10-04T05:22:40Z'
-  },
-  {
-    id: 'task-session-failed-07',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-ehi-001',
-    parent_task_id: null,
-    task_type: 'FIX_BUG',
-    prompt: 'Attempt automated upgrade of legacy bcrypt library across microservices',
-    status: 'failed',
-    assigned_agent: 'CodingAgent',
-    plan: null,
-    result: { error: 'Native binding compilation mismatch on musl target' },
-    branch_name: 'chore/bcrypt-upgrade',
-    pr_url: null,
-    cost_usd: 0.035,
-    created_at: '2026-10-04T04:10:00Z',
-    started_at: '2026-10-04T04:10:10Z',
-    completed_at: '2026-10-04T04:14:20Z'
-  },
-  {
-    id: 'task-session-cancelled-08',
-    org_id: 'org-ehi-global',
-    project_id: 'proj-iyanu-002',
-    parent_task_id: null,
-    task_type: 'DEPLOY',
-    prompt: 'Deploy experimental Bluetooth scale simulator to staging tablet fleet',
-    status: 'cancelled',
-    assigned_agent: 'DeployAgent',
-    plan: null,
-    result: { reason: 'Operator aborted due to maintenance window shift' },
-    branch_name: 'deploy/bt-sim-staging',
-    pr_url: null,
-    cost_usd: 0.008,
-    created_at: '2026-10-04T03:30:00Z',
-    started_at: '2026-10-04T03:30:05Z',
-    completed_at: '2026-10-04T03:32:00Z'
-  }
-];
+/** Empty: the demo session tasks sat on the removed placeholder projects. */
+export const DEMO_SESSION_TASKS: AgentTask[] = [];
 
 /**
  * 2. Worklog Events for the Running Task

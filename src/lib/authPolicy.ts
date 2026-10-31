@@ -12,6 +12,7 @@
  *   (supabase/migrations, docs/SECURITY-DB.md) are the real lock.
  */
 import { SESSION_STORAGE_KEY, type ProductionSupabaseClient } from './supabase';
+import { normalizeWorkspaceId } from './workspace';
 
 export interface AuthUser {
   id: string;
@@ -128,7 +129,7 @@ export function toAuthUser(sbUser: any, fallbackEmail = '', defaultRole = 'membe
     id: sbUser.id,
     email,
     user_metadata: {
-      org_id: (sbUser.user_metadata?.org_id as string) || 'org-ehi-global',
+      org_id: normalizeWorkspaceId(sbUser.user_metadata?.org_id),
       org_role: (sbUser.user_metadata?.org_role as string) || defaultRole,
       full_name: (sbUser.user_metadata?.full_name as string) || (email ? email.split('@')[0] : ''),
     },
@@ -142,7 +143,7 @@ function buildStaffSession(email: string): AuthSession {
       id: `usr-operator-${Date.now().toString(36)}`,
       email: cleanEmail,
       user_metadata: {
-        org_id: 'org-ehi-global',
+        org_id: 'org-geosan-workshop',
         org_role: 'owner',
         full_name: cleanEmail.includes('@') ? cleanEmail.split('@')[0] : 'Staff Operator',
       },

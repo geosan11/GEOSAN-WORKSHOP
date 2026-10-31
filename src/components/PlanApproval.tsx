@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { AgentTask, RunPacket } from '../lib/types';
+import { AgentTask } from '../lib/types';
 import { isDesignBriefApproved } from '../lib/designBrief';
 import { Check, X, ShieldAlert, FileCode2, Lock } from 'lucide-react';
 import { useToast } from './Toast';
 import { appendApprovalLine, getApprovalLines } from '../lib/approvalLog';
+import { approvePlan, rejectPlan, isGatedTaskType, persistRunPacketToStorage } from '../lib/planApproval';
+import { checkStoredProjectBudget } from '../hooks/useProjects';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 interface PlanApprovalProps {
   task: AgentTask;
@@ -20,7 +23,7 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
   const planSummary = (task.plan?.summary as string) || (task.result?.summary as string) || 'Plan execution verified by ReviewAgent. Adversarial security invariants passed.';
 
   const isBriefApproved = isDesignBriefApproved(task.project_id);
-  const isGatedType = task.task_type === 'BUILD_FEATURE' || task.task_type === 'FIX_BUG';
+  const isGatedType = isGatedTaskType(task);
   const canApprove = !isGatedType || isBriefApproved;
   
   const existingLines = getApprovalLines(task.id);
@@ -30,64 +33,26 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
     if (!canApprove) return;
     if (alreadyApproved) return;
 
-    let runPacket: RunPacket | null = null;
-
-    if (isGatedType) {
-      if (!task.done_when || task.done_when.length === 0) {
-        toast.error('Plan has no done_when. Not approved.');
-        return;
-      }
-      if (!task.goal || !task.constraints) {
-        toast.error('Plan has missing goal or constraints. Not approved.');
-        return;
-      }
-
-      runPacket = {
-        packet_id: `pkt-${Date.now()}`,
-        task_id: task.id,
-        project_id: task.project_id,
-        goal: task.goal,
-        constraints: task.constraints,
-        done_when: task.done_when,
-        fixture_hash: null,
-        worktree: 'not_opened',
-        branch_name: task.branch_name || 'no branch',
-        pr_url: task.pr_url || null,
-        deploy: 'not_requested',
-        approved_by: 'operator@demo.internal', // demo fallback
-        approved_at: new Date().toISOString()
-      };
-
-      // Persist the packet in the existing demo store
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('geosan_tasks');
-        if (saved) {
-          try {
-            const allTasks = JSON.parse(saved);
-            const idx = allTasks.findIndex((t: any) => t.id === task.id);
-            if (idx >= 0) {
-              allTasks[idx].run_packet = runPacket;
-              localStorage.setItem('geosan_tasks', JSON.stringify(allTasks));
-            }
-          } catch (e) {}
-        }
-      }
-      task.run_packet = runPacket; // local update
-    }
-
     try {
       setIsProcessing(true);
-      // Append approval line
-      appendApprovalLine({
-        actor: 'operator@demo.internal',
-        action: 'approved',
-        task_id: task.id,
-        packet_id: runPacket?.packet_id || null,
-        reason: null
+      // Budget is checked first; nothing is persisted or audited unless the
+      // approval itself succeeds (see lib/planApproval.ts).
+      const result = await approvePlan(task, {
+        checkBudget: (projectId) => checkStoredProjectBudget(projectId),
+        onApprove,
+        persistRunPacket: (taskId, packet) => {
+          persistRunPacketToStorage(taskId, packet);
+          task.run_packet = packet; // local update
+        },
+        appendApprovalLine
       });
-
-      await onApprove(task.id);
-      toast.success('Plan approved. Worktree not opened. Deploy still asks.');
+      if (result.ok) {
+        if (result.warning) toast.error(result.warning);
+        else toast.success('Plan approved. Worktree not opened. Deploy still asks.');
+      } else if (!isProjectBudgetBlocked(result.error)) {
+        // (a budget error thrown by onApprove is already shown by useTasks)
+        toast.error(result.reason);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -97,15 +62,13 @@ export const PlanApproval: React.FC<PlanApprovalProps> = ({ task, onApprove, onR
     if (!rejectReason.trim()) return;
     try {
       setIsProcessing(true);
-      appendApprovalLine({
-        actor: 'operator@demo.internal',
-        action: 'rejected',
-        task_id: task.id,
-        packet_id: null,
-        reason: rejectReason.trim()
-      });
-      await onReject(task.id, rejectReason.trim());
-      toast.error('Plan rejected. No branch was opened.');
+      // Audit line only after the reject succeeded (lib/planApproval.ts).
+      const result = await rejectPlan(task.id, rejectReason.trim(), { onReject, appendApprovalLine });
+      if (!result.ok) {
+        toast.error(result.reason);
+        return;
+      }
+      toast.error(result.warning ?? 'Plan rejected. No branch was opened.');
       setRejectModalOpen(false);
     } finally {
       setIsProcessing(false);

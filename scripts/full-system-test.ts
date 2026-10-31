@@ -11,11 +11,12 @@
  */
 
 import { parseGitHubUrl, sanitizeToken, GitHubError, GitHubAuthError, GitHubRateLimitError, GitHubNotFoundError, GitHubConflictError } from '../src/lib/github';
-import { INITIAL_MODEL_PRICING, INITIAL_PROJECTS, INITIAL_PROJECT_BUDGETS } from '../src/data/initialData';
+import { INITIAL_MODEL_PRICING } from '../src/data/initialData';
 import { projectMonthlySpend, spendByProvider, spendByAttribution } from '../src/lib/cost';
 import { admitBudget, getBudgetLedger, resetLedgerForTesting } from '../server/budgetLedger';
 import { getSharedStatus, getUpstreamPullsCount } from '../server/telemetry-gateway';
-import { MOCK_PROJECTS, MOCK_TASKS, MOCK_COST_EVENTS, MOCK_QA_RUNS, MOCK_QA_FINDINGS } from '../src/lib/mockData';
+import { MOCK_PROJECTS, MOCK_PROJECT_BUDGETS, MOCK_TASKS, MOCK_COST_EVENTS, MOCK_QA_RUNS, MOCK_QA_FINDINGS } from '../src/lib/mockData';
+import { PLACEHOLDER_PROJECT_IDS } from '../src/lib/placeholderProjectCleanup';
 import { getRecommendedModel, getModelSuitability } from '../src/lib/modelRouter';
 import { SDLC_PHASES, calculateReadinessScore, generateArchitectureBlueprint, PREPOPULATED_PROJECT_DISCOVERY } from '../src/lib/sdlcDiscovery';
 
@@ -49,12 +50,10 @@ async function runAllTests() {
   assert(MOCK_COST_EVENTS.length === 0, 'Demo cost events array is purged (0 events)', `Found ${MOCK_COST_EVENTS.length} events in MOCK_COST_EVENTS`);
   assert(MOCK_QA_RUNS.length === 0, 'Demo QA runs array is purged (0 runs)', `Found ${MOCK_QA_RUNS.length} runs in MOCK_QA_RUNS`);
   assert(MOCK_QA_FINDINGS.length === 0, 'Demo QA findings array is purged (0 findings)', `Found ${MOCK_QA_FINDINGS.length} findings in MOCK_QA_FINDINGS`);
-  assert(MOCK_PROJECTS.length === 4, 'Core 4 client vertical configurations preserved', `Expected 4 projects, found ${MOCK_PROJECTS.length}`);
-
-  const requiredProjectIds = ['proj-ehi-001', 'proj-iyanu-002', 'proj-aviation-003', 'proj-edgepoint-004'];
-  const projectIds = MOCK_PROJECTS.map(p => p.id);
-  const allProjectsPresent = requiredProjectIds.every(id => projectIds.includes(id));
-  assert(allProjectsPresent, 'All 4 enterprise projects present (EHI, Iyanu, AeroOps, EdgePoint)', 'Missing client project');
+  // No built-in projects: the four placeholder client projects were removed.
+  assert(MOCK_PROJECTS.length === 0, 'No built-in projects (placeholder projects removed)', `Found ${MOCK_PROJECTS.map(p => p.id).join(', ')}`);
+  assert(MOCK_PROJECT_BUDGETS.length === 0, 'No built-in project budgets', `Found ${MOCK_PROJECT_BUDGETS.length}`);
+  assert(PLACEHOLDER_PROJECT_IDS.length === 8, 'All 8 placeholder ids (old + canonical) are listed for cleanup');
 
   // --------------------------------------------------------------------------
   // SUITE 2: GitHub REST Client Module & Security Token Redaction
@@ -181,7 +180,7 @@ async function runAllTests() {
   const sampleEvents: any[] = [
     {
       id: 'e1',
-      project_id: 'proj-ehi-001',
+      project_id: 'proj-test-a',
       provider: 'deepseek',
       model: 'deepseek-r1',
       cost_usd: 0.05,
@@ -192,7 +191,7 @@ async function runAllTests() {
     },
     {
       id: 'e2',
-      project_id: 'proj-ehi-001',
+      project_id: 'proj-test-a',
       provider: 'kimi',
       model: 'kimi-k1.5',
       cost_usd: 0.12,
@@ -203,7 +202,7 @@ async function runAllTests() {
     },
     {
       id: 'e3',
-      project_id: 'proj-iyanu-002',
+      project_id: 'proj-test-b',
       provider: 'google',
       model: 'gemini-3.5-flash',
       cost_usd: 0.03,
@@ -214,8 +213,8 @@ async function runAllTests() {
     }
   ];
 
-  const ehiSpend = projectMonthlySpend(sampleEvents, 'proj-ehi-001');
-  assert(Math.abs(ehiSpend - 0.17) < 0.0001, 'Filtered project monthly spend calculates precisely ($0.17 for EHI)');
+  const ehiSpend = projectMonthlySpend(sampleEvents, 'proj-test-a');
+  assert(Math.abs(ehiSpend - 0.17) < 0.0001, 'Filtered project monthly spend calculates precisely ($0.17 for one project)');
 
   const byProv = spendByProvider(sampleEvents);
   assert(byProv.deepseek === 0.05, 'spendByProvider attributes DeepSeek spend correctly');
@@ -262,27 +261,26 @@ async function runAllTests() {
   const totalQuestions = SDLC_PHASES.reduce((acc, p) => acc + p.questions.length, 0);
   assert(totalQuestions >= 18, `Exhaustive discovery coverage: ${totalQuestions} architectural questions`);
 
-  // 6.2 Prepopulated Templates
-  assert(Boolean(PREPOPULATED_PROJECT_DISCOVERY['proj-ehi-001']), 'EHI Multisystems discovery blueprint populated');
-  assert(Boolean(PREPOPULATED_PROJECT_DISCOVERY['proj-iyanu-002']), 'Iyanuoluwa AgroSupply discovery blueprint populated');
-  assert(Boolean(PREPOPULATED_PROJECT_DISCOVERY['proj-aviation-003']), 'Aviation Log Entry discovery blueprint populated');
-  assert(Boolean(PREPOPULATED_PROJECT_DISCOVERY['proj-edgepoint-004']), 'EdgePoint IoT discovery blueprint populated');
+  // 6.2 No pre-filled answers for the removed placeholder projects
+  assert(Object.keys(PREPOPULATED_PROJECT_DISCOVERY).length === 0, 'No pre-filled discovery answers (placeholder projects removed)');
+  const fullAnswers: Record<string, string> = {};
+  for (const phase of SDLC_PHASES) for (const q of phase.questions) fullAnswers[q.id] = `Answered in full for ${q.id} (test fixture).`;
 
   // 6.3 Readiness Scoring Algorithm
   const emptyScore = calculateReadinessScore({});
   assert(emptyScore === 0, 'Unanswered discovery returns 0% readiness');
 
-  const ehiScore = calculateReadinessScore(PREPOPULATED_PROJECT_DISCOVERY['proj-ehi-001']);
-  assert(ehiScore >= 95, `EHI Multisystems achieves high architectural readiness (${ehiScore}%)`);
+  const ehiScore = calculateReadinessScore(fullAnswers);
+  assert(ehiScore >= 95, `A fully answered discovery achieves high architectural readiness (${ehiScore}%)`);
 
   // 6.4 Specification Generator
   const sampleState = {
-    projectId: 'proj-ehi-001',
-    answers: PREPOPULATED_PROJECT_DISCOVERY['proj-ehi-001'],
+    projectId: 'proj-test-a',
+    answers: fullAnswers,
     lastUpdated: new Date().toISOString(),
     readinessScore: ehiScore
   };
-  const generatedSpec = generateArchitectureBlueprint('EHI Multisystems', 'Fintech', sampleState);
+  const generatedSpec = generateArchitectureBlueprint('Test Project', 'Fintech', sampleState);
   assert(generatedSpec.includes('# SYSTEM ARCHITECTURE SPECIFICATION'), 'Generated blueprint includes root markdown header');
   assert(generatedSpec.includes('## 1. Executive Summary'), 'Generated blueprint includes Phase 1 section');
   assert(generatedSpec.includes('## 3. Security, Multi-Tenant Isolation'), 'Generated blueprint includes Phase 3 RLS section');

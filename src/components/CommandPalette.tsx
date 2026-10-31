@@ -35,9 +35,10 @@ export const CommandPalette: React.FC = () => {
         const parsed = JSON.parse(stored);
         if (parsed.length > 0) return parsed;
       }
-      return ['screen-inbox', 'project-proj-ehi-001'];
+      // No default project: recents fill up from real navigation.
+      return ['screen-inbox'];
     } catch {
-      return ['screen-inbox', 'project-proj-ehi-001'];
+      return ['screen-inbox'];
     }
   });
 

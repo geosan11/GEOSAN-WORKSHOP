@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isDemoMode, SESSION_STORAGE_KEY } from './supabase';
 import { checkOwner, restoreSessionWithPolicy, signInWithPolicy, type AuthSession, type AuthUser } from './authPolicy';
+import { normalizeWorkspaceId } from './workspace';
 
 export type { AuthSession, AuthUser } from './authPolicy';
 
@@ -19,7 +20,7 @@ const DEMO_USER: AuthUser = {
   id: 'usr-operator-001',
   email: 'operator@ehi-multisystems.com',
   user_metadata: {
-    org_id: 'org-ehi-global',
+    org_id: 'org-geosan-workshop',
     org_role: 'owner',
     full_name: 'Lead Orchestrator'
   }
@@ -97,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
   };
 
-  const orgId = session?.user?.user_metadata?.org_id || 'org-ehi-global';
+  const orgId = normalizeWorkspaceId(session?.user?.user_metadata?.org_id);
 
   return (
     <AuthContext.Provider

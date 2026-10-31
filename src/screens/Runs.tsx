@@ -24,6 +24,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { PageHeader, SectionCard } from '../components/ui';
+import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
 
 type RunFilter = 'all' | 'needs_you' | 'working' | 'done';
 
@@ -94,8 +95,9 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
     try {
       // approveTask already toasts success — avoid a second toast.
       await approveTask(taskId);
-    } catch {
-      toast.error('Failed to approve plan');
+    } catch (err) {
+      // A missing budget is already reported by useTasks with a clear message.
+      if (!isProjectBudgetBlocked(err)) toast.error('Failed to approve plan');
     }
   };
 
@@ -119,7 +121,7 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
     try {
       setIsSubmitting(true);
       const created = await createTask({
-        org_id: proj.org_id || 'org-geosan',
+        org_id: proj.org_id || 'org-geosan-workshop',
         project_id: proj.id,
         task_type: taskType,
         prompt: promptText.trim(),
@@ -127,8 +129,8 @@ export const RunsScreen: React.FC<RunsScreenProps> = ({ initialRunId }) => {
       setPromptText('');
       setIsCreatingTask(false);
       setSelectedRunId(created.id);
-    } catch {
-      toast.error('Failed to create run');
+    } catch (err) {
+      if (!isProjectBudgetBlocked(err)) toast.error('Failed to create run');
     } finally {
       setIsSubmitting(false);
     }

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useProjects } from '../hooks/useProjects';
+import { DEFAULT_WORKSPACE_ID } from '../lib/workspace';
 import { SupabaseLogo, GitHubLogo, VercelLogo, PostgresLogo } from './ServiceLogos';
 import { useToast } from './Toast';
 import {
@@ -75,176 +76,7 @@ export interface McpServerRecord {
   }[];
 }
 
-const INITIAL_LINKED_COMPONENTS: LinkedComponent[] = [
-  {
-    id: 'comp-vcl-01',
-    projectId: 'proj-ehi-001',
-    projectName: 'EHI Multisystems',
-    name: 'Cargo Platform Edge Frontend',
-    serviceType: 'vercel',
-    accountOwner: 'ehi-logistics-team',
-    accountType: 'Pro Team',
-    endpointOrUrl: 'https://ehi-cargo-hub.vercel.app',
-    status: 'degraded',
-    latencyMs: 142,
-    lastChecked: '45s ago',
-    metrics: {
-      'Deployment': 'd4f892a (Production)',
-      'Edge Cache': '98.2% Hit',
-      'Build Time': '28s',
-      'Function P95': '124ms'
-    },
-    mcpServerId: 'mcp-vcl-ehi',
-    fixOptions: [
-      { label: 'Redeploy Latest Main SHA', actionId: 'redeploy', description: 'Re-triggers production build from origin/main' },
-      { label: 'Purge Edge CDN Cache', actionId: 'purge-cache', description: 'Clears stale waybill static routes' }
-    ]
-  },
-  {
-    id: 'comp-sb-01',
-    projectId: 'proj-ehi-001',
-    projectName: 'EHI Multisystems',
-    name: 'Cargo Hubs Ledger & RLS DB',
-    serviceType: 'supabase',
-    accountOwner: 'ehi-systems-infra',
-    accountType: 'Enterprise Org',
-    endpointOrUrl: 'https://zxdxsizyvotkcsrtzscw.supabase.co',
-    status: 'healthy',
-    latencyMs: 38,
-    lastChecked: '12s ago',
-    metrics: {
-      'Active Conns': '18 / 60 max',
-      'RLS Invariants': '7 Tables Active',
-      'Replication': '0ms lag',
-      'Storage': '1.84 GB'
-    },
-    mcpServerId: 'mcp-sb-ehi',
-    fixOptions: [
-      { label: 'Vacuum Dead Tuples', actionId: 'vacuum', description: 'Reclaims unused index pages and updates cost planner' },
-      { label: 'Verify Tenant RLS Bounds', actionId: 'verify-rls', description: 'Asserts org_id isolation across all tables' }
-    ]
-  },
-  {
-    id: 'comp-sb-02',
-    projectId: 'proj-iya-002',
-    projectName: 'Iyanuoluwa AgroSupply',
-    name: 'AgroSupply Silo IoT & Outbox DB',
-    serviceType: 'supabase',
-    accountOwner: 'iyanu-agrik-direct',
-    accountType: 'Pro Team',
-    endpointOrUrl: 'https://iyanu-silo-prod.supabase.co',
-    status: 'healthy',
-    latencyMs: 44,
-    lastChecked: '1m ago',
-    metrics: {
-      'Active Conns': '9 / 30 max',
-      'Telemetry Queue': 'Zero Backlog',
-      'Webhooks': 'Active',
-      'Storage': '420 MB'
-    },
-    mcpServerId: 'mcp-sb-iya',
-    fixOptions: [
-      { label: 'Drain Dead-Letter Queue', actionId: 'drain-dlq', description: 'Retries failed moisture telemetry ingest frames' },
-      { label: 'Flush Weighbridge Buffer', actionId: 'flush-buffer', description: 'Syncs pending offline scale tickets' }
-    ]
-  },
-  {
-    id: 'comp-gh-01',
-    projectId: 'proj-aero-003',
-    projectName: 'Aviation Log Entry',
-    name: 'AeroOps Flight Deck Monorepo',
-    serviceType: 'github',
-    accountOwner: 'aero-ground-ops',
-    accountType: 'Enterprise Org',
-    endpointOrUrl: 'https://github.com/aero-ground/turnaround-orchestrator',
-    status: 'healthy',
-    latencyMs: 78,
-    lastChecked: '3m ago',
-    metrics: {
-      'Default Branch': 'main (Protected)',
-      'CI Workflow': 'Passing (14s)',
-      'Signed Commits': '100% GPG Enforced',
-      'Open Pulls': '1 Pending'
-    },
-    mcpServerId: 'mcp-gh-aero',
-    fixOptions: [
-      { label: 'Trigger GitHub Actions CI', actionId: 'trigger-ci', description: 'Re-runs flight envelope schema verification' },
-      { label: 'Sync Remote Worktree', actionId: 'sync-worktree', description: 'Pulls upstream origin main into isolated workspace' }
-    ]
-  },
-  {
-    id: 'comp-vcl-02',
-    projectId: 'proj-edge-004',
-    projectName: 'EdgePoint',
-    name: 'Cross-Border Treasury Portal',
-    serviceType: 'vercel',
-    accountOwner: 'edgepoint-settlements-llc',
-    accountType: 'Enterprise Org',
-    endpointOrUrl: 'https://edgepoint-treasury.vercel.app',
-    status: 'healthy',
-    latencyMs: 52,
-    lastChecked: '2m ago',
-    metrics: {
-      'Deployment': '93c04ff (Production)',
-      'TLS Cert': 'Auto-renewed (ECC)',
-      'Edge Functions': 'London & Frankfurt',
-      'Throughput': '840 req/min'
-    },
-    mcpServerId: 'mcp-vcl-edge',
-    fixOptions: [
-      { label: 'Rollback to Previous SHA', actionId: 'rollback', description: 'Immediate failover to known stable commit' },
-      { label: 'Purge Route Netting Cache', actionId: 'purge-routes', description: 'Forces re-fetch of live currency balance curves' }
-    ]
-  },
-  {
-    id: 'comp-srv-01',
-    projectId: 'proj-edge-004',
-    projectName: 'EdgePoint',
-    name: 'MQTT Edge Node Broker Server',
-    serviceType: 'docker_server',
-    accountOwner: 'edgepoint-infra-aws',
-    accountType: 'Self-Hosted',
-    endpointOrUrl: 'mqtt://edge-node-01.edgepoint.io:1883',
-    status: 'healthy',
-    latencyMs: 24,
-    lastChecked: '30s ago',
-    metrics: {
-      'Uptime': '42d 18h',
-      'CPU Usage': '8.4%',
-      'Memory': '512MB / 2GB',
-      'Connected Nodes': '1,420 sensors'
-    },
-    mcpServerId: 'mcp-srv-edgepoint',
-    fixOptions: [
-      { label: 'Cycle Worker Process', actionId: 'restart-worker', description: 'Performs zero-downtime hot reload of frame parser' },
-      { label: 'Export Telemetry Core Dump', actionId: 'export-dump', description: 'Captures binary memory snapshot for AST inspection' }
-    ]
-  },
-  {
-    id: 'comp-email-01',
-    projectId: 'proj-ehi-001',
-    projectName: 'EHI Multisystems',
-    name: 'Resend Transactional Mail Dispatcher',
-    serviceType: 'resend_email',
-    accountOwner: 'ehi-resend-prod',
-    accountType: 'Pro Team',
-    endpointOrUrl: 'https://api.resend.com/emails',
-    status: 'healthy',
-    latencyMs: 38,
-    lastChecked: '1m ago',
-    metrics: {
-      'Deliverability': '99.8% Inbox',
-      'DKIM & SPF': 'Verified (Strict)',
-      'Daily Quota': '124 / 50,000',
-      'Webhook Ping': 'Healthy (200 OK)'
-    },
-    mcpServerId: 'mcp-email-resend',
-    fixOptions: [
-      { label: 'Re-verify DKIM / SPF Records', actionId: 'verify-dns', description: 'Triggers DNS propagation check for outbound signing' },
-      { label: 'Flush Bounce Retry Queue', actionId: 'flush-bounces', description: 'Clears soft bounce backlog on cargo arrival dispatch' }
-    ]
-  }
-];
+// Linked components are created per project by the operator; there are no built-in ones.
 
 const INITIAL_MCP_REGISTRY: McpServerRecord[] = [];
 
@@ -279,7 +111,7 @@ export const MultiAccountComponentHub: React.FC = () => {
   const [newAssignedProject, setNewAssignedProject] = useState(projects[0]?.id || '');
 
   // Interactive Playground State
-  const [selectedMcpServerId, setSelectedMcpServerId] = useState<string>('mcp-sb-ehi');
+  const [selectedMcpServerId, setSelectedMcpServerId] = useState<string>('');
   const [selectedToolName, setSelectedToolName] = useState<string>('execute_sql');
   const [mockInputParams, setMockInputParams] = useState<string>('{\n  "query": "SELECT count(*) FROM waybills WHERE status = \'pending\';"\n}');
   const [executionResult, setExecutionResult] = useState<any | null>(null);
@@ -390,7 +222,7 @@ export const MultiAccountComponentHub: React.FC = () => {
           executionTimeMs: 42,
           securityEnvelope: {
             crossTenantAccess: 'DENIED (Strict Container Sandbox)',
-            tenantBoundaryId: 'org-ehi-global',
+            tenantBoundaryId: DEFAULT_WORKSPACE_ID,
             tokenRole: 'service_role (project-scoped)'
           },
           data: {
