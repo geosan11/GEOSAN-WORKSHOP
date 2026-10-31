@@ -16,8 +16,11 @@ import { LoadingState } from './components/LoadingState';
 
 // Screens
 import { LoginScreen } from './screens/LoginScreen';
+import { PortfolioScreen } from './screens/Portfolio';
 import { ProjectsScreen } from './screens/ProjectsScreen';
 import { RunsScreen } from './screens/Runs';
+import { MonitoringScreen } from './screens/Monitoring';
+import { CostCenterScreen } from './screens/CostCenter';
 import { SettingsScreen } from './screens/Settings';
 import { ProjectDetailScreen } from './screens/ProjectDetail';
 import { isDemoMode, supabase } from './lib/supabase';
@@ -106,12 +109,13 @@ const AppContent: React.FC = () => {
           className="flex-1 overflow-y-auto"
           tabIndex={-1}
         >
-          {(screen.kind === 'projects' || screen.kind === 'inbox' || screen.kind === 'portfolio') && (
-            <ProjectsScreen />
-          )}
+          {(screen.kind === 'portfolio' || screen.kind === 'inbox') && <PortfolioScreen />}
+          {screen.kind === 'projects' && <ProjectsScreen />}
           {(screen.kind === 'runs' || screen.kind === 'console') && (
             <RunsScreen initialRunId={(screen as { runId?: string }).runId} />
           )}
+          {screen.kind === 'monitoring' && <MonitoringScreen />}
+          {screen.kind === 'costs' && <CostCenterScreen />}
           {screen.kind === 'settings' && <SettingsScreen />}
           {screen.kind === 'project' && (
             <ProjectDetailScreen
