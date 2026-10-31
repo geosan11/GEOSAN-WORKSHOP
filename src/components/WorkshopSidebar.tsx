@@ -10,7 +10,10 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
-  Radio
+  Radio,
+  LayoutDashboard,
+  Activity,
+  DollarSign
 } from 'lucide-react';
 
 interface WorkshopSidebarProps {
@@ -27,8 +30,11 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
   const { screen, navigate } = useNavigation();
   const { user, signOut } = useAuth();
 
-  const isProjectsActive = screen.kind === 'projects' || screen.kind === 'project' || screen.kind === 'inbox' || screen.kind === 'portfolio';
+  const isPortfolioActive = screen.kind === 'portfolio' || screen.kind === 'inbox';
+  const isProjectsActive = screen.kind === 'projects' || screen.kind === 'project';
   const isAgentsActive = screen.kind === 'runs' || screen.kind === 'console';
+  const isMonitoringActive = screen.kind === 'monitoring';
+  const isCostActive = screen.kind === 'costs';
   const isSettingsActive = screen.kind === 'settings';
 
   return (
@@ -69,9 +75,24 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
         </button>
       </div>
 
-      {/* Navigation Links — Exactly 4 links */}
+      {/* Navigation Links */}
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {/* 1. Projects */}
+        {/* 1. Portfolio */}
+        <button
+          type="button"
+          onClick={() => navigate({ kind: 'portfolio' })}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
+            isPortfolioActive
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+          }`}
+          title="Portfolio"
+        >
+          <LayoutDashboard className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Portfolio</span>}
+        </button>
+
+        {/* 2. Projects */}
         <button
           type="button"
           onClick={() => navigate({ kind: 'projects' })}
@@ -86,7 +107,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
           {!collapsed && <span>Projects</span>}
         </button>
 
-        {/* 2. New Project */}
+        {/* 3. New Project */}
         <button
           type="button"
           onClick={onOpenNewProject}
@@ -97,7 +118,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
           {!collapsed && <span>+ New Project</span>}
         </button>
 
-        {/* 3. Agents */}
+        {/* 4. Agents */}
         <button
           type="button"
           onClick={() => navigate({ kind: 'runs' })}
@@ -112,7 +133,37 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
           {!collapsed && <span>Agents</span>}
         </button>
 
-        {/* 4. Settings */}
+        {/* 5. Monitoring */}
+        <button
+          type="button"
+          onClick={() => navigate({ kind: 'monitoring' })}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
+            isMonitoringActive
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+          }`}
+          title="Monitoring"
+        >
+          <Activity className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Monitoring</span>}
+        </button>
+
+        {/* 6. Cost */}
+        <button
+          type="button"
+          onClick={() => navigate({ kind: 'costs' })}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
+            isCostActive
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+          }`}
+          title="Cost"
+        >
+          <DollarSign className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Cost</span>}
+        </button>
+
+        {/* 7. Settings */}
         <button
           type="button"
           onClick={() => navigate({ kind: 'settings' })}
@@ -149,20 +200,16 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
                 Active
               </p>
             </div>
-          ) : (
-            <div className="w-2 h-2 rounded-full bg-emerald-400 mx-auto" title="Active" />
-          )}
+          ) : null}
 
-          {!collapsed && (
-            <button
-              type="button"
-              onClick={signOut}
-              className="p-1.5 rounded text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] transition-colors focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none shrink-0"
-              title="Sign Out"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className="p-1.5 rounded text-zinc-400 hover:text-rose-400 hover:bg-white/[0.04] transition-colors focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none"
+            title="Sign out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
     </aside>

@@ -8,11 +8,17 @@ import { QueryError } from '../components/QueryError';
 import { StatusPill } from '../components/StatusPill';
 import { PlanApproval } from '../components/PlanApproval';
 import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
-import { PageHeader, SectionCard } from '../components/ui';
 import { AgentTask } from '../lib/types';
 import { formatRelative } from '../lib/format';
-import { Clock, ShieldAlert, PlayCircle, ArrowRight, User, RefreshCw } from 'lucide-react';
 import { isProjectBudgetBlocked } from '../lib/projectBudgetGuard';
+import {
+  Clock,
+  ShieldAlert,
+  PlayCircle,
+  ArrowRight,
+  User,
+  RefreshCw,
+} from 'lucide-react';
 
 const QUEUE_PREVIEW = 5;
 
@@ -55,7 +61,7 @@ export const PortfolioScreen: React.FC = () => {
 
   if (pLoading && tasks.length === 0) {
     return (
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="min-h-full p-4 sm:p-6 max-w-4xl mx-auto space-y-4 font-sans text-zinc-200">
         <LoadingState type="cards" count={2} />
       </div>
     );
@@ -63,8 +69,8 @@ export const PortfolioScreen: React.FC = () => {
 
   if (pError || tError) {
     return (
-      <div className="p-6 max-w-xl mx-auto">
-        <QueryError message="Failed to load inbox telemetry. Retry?" onRetry={handleRefreshAll} />
+      <div className="min-h-full p-6 max-w-md mx-auto text-center font-sans space-y-4 pt-12">
+        <QueryError message="Failed to load portfolio telemetry." onRetry={handleRefreshAll} />
       </div>
     );
   }
@@ -74,115 +80,164 @@ export const PortfolioScreen: React.FC = () => {
   const visibleRunning = showAllRunning ? runningTasks : runningTasks.slice(0, QUEUE_PREVIEW);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 font-sans">
-      <PageHeader
-        eyebrow="Home"
-        title="Inbox"
-        lede="Orient on what needs you, decide the next gate, then approve or open the run."
-        actions={
-          <button
-            type="button"
-            onClick={handleRefreshAll}
-            className="btn btn-ghost"
-            title="Refresh Inbox"
-            aria-label="Refresh Inbox"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Refresh
-          </button>
-        }
-      />
+    <div className="min-h-full p-4 sm:p-6 max-w-4xl mx-auto space-y-4 font-sans text-zinc-200">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-[18px] sm:text-[20px] font-semibold text-zinc-100 tracking-tight">
+              Portfolio
+            </h1>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-300 border border-indigo-500/25">
+              Inbox
+            </span>
+          </div>
+          <p className="text-[13px] text-zinc-400 font-normal">
+            Orient on what needs you, decide the next gate, then approve or open the run.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Inbox orientation counts">
-        <a href="#queue-approvals" className="kpi-tile">
+        <button
+          type="button"
+          onClick={handleRefreshAll}
+          className="px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium text-zinc-300 hover:text-zinc-100 bg-[#161619] hover:bg-[#1f2025] border border-white/[0.06] hover:border-white/[0.12] transition-all duration-150 ease-out flex items-center gap-1.5 focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none active:scale-[0.98] self-start sm:self-auto"
+          title="Refresh Inbox"
+          aria-label="Refresh Inbox"
+        >
+          <RefreshCw className="w-3.5 h-3.5 text-zinc-400" />
+          <span>Refresh</span>
+        </button>
+      </div>
+
+      {/* KPI Orientation Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" aria-label="Portfolio orientation counts">
+        <a
+          href="#queue-approvals"
+          className="p-3 rounded-xl bg-[#111113] border border-white/[0.06] hover:border-amber-500/30 transition-all flex items-center justify-between group"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="kpi-tile-icon text-[color:var(--color-warning-text)]">
+            <span className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <Clock className="w-3.5 h-3.5" />
             </span>
             <div className="min-w-0">
-              <p className="text-meta">Approvals</p>
-              <p className="text-[0.6875rem] text-muted truncate">Waiting on you</p>
+              <p className="text-xs font-medium text-zinc-200 font-mono">Approvals</p>
+              <p className="text-[11px] text-zinc-500 truncate">Waiting on you</p>
             </div>
           </div>
-          <span className="kpi-tile-value text-[color:var(--color-warning-text)]">{awaitingTasks.length}</span>
+          <span className="text-xl font-bold font-mono tabular-nums text-amber-400">
+            {awaitingTasks.length}
+          </span>
         </a>
 
-        <a href="#queue-findings" className="kpi-tile">
+        <a
+          href="#queue-findings"
+          className="p-3 rounded-xl bg-[#111113] border border-white/[0.06] hover:border-rose-500/30 transition-all flex items-center justify-between group"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="kpi-tile-icon text-[color:var(--color-danger-text)]">
+            <span className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
               <ShieldAlert className="w-3.5 h-3.5" />
             </span>
             <div className="min-w-0">
-              <p className="text-meta">P0 findings</p>
-              <p className="text-[0.6875rem] text-muted truncate">Open Verify</p>
+              <p className="text-xs font-medium text-zinc-200 font-mono">P0 findings</p>
+              <p className="text-[11px] text-zinc-500 truncate">Open Verify</p>
             </div>
           </div>
-          <span className="kpi-tile-value text-[color:var(--color-danger-text)]">{openP0Findings.length}</span>
+          <span className="text-xl font-bold font-mono tabular-nums text-rose-400">
+            {openP0Findings.length}
+          </span>
         </a>
 
-        <a href="#queue-working" className="kpi-tile">
+        <a
+          href="#queue-working"
+          className="p-3 rounded-xl bg-[#111113] border border-white/[0.06] hover:border-emerald-500/30 transition-all flex items-center justify-between group"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="kpi-tile-icon text-[color:var(--color-success-text)]">
+            <span className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
               <PlayCircle className="w-3.5 h-3.5" />
             </span>
             <div className="min-w-0">
-              <p className="text-meta">Working</p>
-              <p className="text-[0.6875rem] text-muted truncate">Live agents</p>
+              <p className="text-xs font-medium text-zinc-200 font-mono">Working</p>
+              <p className="text-[11px] text-zinc-500 truncate">Live agents</p>
             </div>
           </div>
-          <span className="kpi-tile-value text-[color:var(--color-success-text)]">{runningTasks.length}</span>
+          <span className="text-xl font-bold font-mono tabular-nums text-emerald-400">
+            {runningTasks.length}
+          </span>
         </a>
       </div>
 
-      {/* Decide + Act — three queues */}
-      <div className="space-y-5">
-        <SectionCard
-          title={
-            <span id="queue-approvals" className="scroll-mt-20">
-              Approvals
-            </span>
-          }
-          description="Plans and tasks blocked on operator sign-off."
-          actions={<span className="stamp stamp-warn">{awaitingTasks.length}</span>}
-        >
+      {/* Three Core Queues */}
+      <div className="space-y-4">
+        {/* 1. Approvals Queue */}
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#111113] border border-white/[0.06] space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2
+                  id="queue-approvals"
+                  className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider"
+                >
+                  Approvals
+                </h2>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20 tabular-nums">
+                  {awaitingTasks.length}
+                </span>
+              </div>
+              <p className="text-[12px] text-zinc-400 font-sans mt-0.5">
+                Plans and tasks blocked on operator sign-off.
+              </p>
+            </div>
+          </div>
+
           {awaitingTasks.length === 0 ? (
-            <p className="text-xs font-mono text-muted py-4 text-center">Nothing waiting for approval.</p>
+            <p className="text-xs font-mono text-zinc-500 py-4 text-center">
+              Nothing waiting for approval.
+            </p>
           ) : (
             <div className="space-y-3">
               {visibleApprovals.map((task) => {
                 const project = projects.find((p) => p.id === task.project_id);
                 return (
-                  <div key={task.id} className="queue-item queue-item-warn space-y-3">
+                  <div
+                    key={task.id}
+                    className="p-3 rounded-lg bg-[#161619] border border-amber-500/25 space-y-3"
+                  >
                     <button
                       type="button"
                       onClick={() => navigate({ kind: 'runs', runId: task.id })}
-                      className="w-full text-left space-y-2"
+                      className="w-full text-left space-y-2 group"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="space-y-1 min-w-0">
+                        <div className="space-y-0.5 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-main font-mono">
+                            <span className="text-xs font-bold text-zinc-100 font-mono group-hover:text-indigo-300 transition-colors">
                               {project?.name.split(' (')[0] || task.project_id}
                             </span>
-                            <span className="stamp stamp-warn">{task.task_type}</span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                              {task.task_type}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-muted font-mono">{task.id}</span>
+                          <span className="text-[10px] text-zinc-500 font-mono block">
+                            {task.id}
+                          </span>
                         </div>
                         <StatusPill status={task.status} />
                       </div>
-                      <p className="text-xs text-main font-mono line-clamp-2">{task.prompt}</p>
+                      <p className="text-xs text-zinc-300 font-mono line-clamp-2">
+                        {task.prompt}
+                      </p>
                     </button>
 
                     <div>
                       <PlanApproval task={task} onApprove={approveTask} onReject={rejectTask} />
                     </div>
 
-                    <div className="pt-2 border-t border-app flex items-center justify-between text-[10px] font-mono text-muted">
+                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-500">
                       <span>{formatRelative(task.created_at)}</span>
                       <button
                         type="button"
                         onClick={() => navigate({ kind: 'runs', runId: task.id })}
-                        className="text-primary hover:brightness-110 font-bold flex items-center gap-1 uppercase tracking-wide"
+                        className="text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1 uppercase tracking-wider"
                       >
                         Open run <ArrowRight className="w-3 h-3" />
                       </button>
@@ -190,11 +245,12 @@ export const PortfolioScreen: React.FC = () => {
                   </div>
                 );
               })}
+
               {awaitingTasks.length > QUEUE_PREVIEW && (
                 <button
                   type="button"
                   onClick={() => setShowAllApprovals((v) => !v)}
-                  className="btn btn-ghost w-full"
+                  className="w-full py-2 rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-200 bg-[#161619] hover:bg-[#1f2025] border border-white/[0.06] transition-colors"
                 >
                   {showAllApprovals
                     ? 'Show fewer'
@@ -203,23 +259,36 @@ export const PortfolioScreen: React.FC = () => {
               )}
             </div>
           )}
-        </SectionCard>
+        </div>
 
-        <SectionCard
-          title={
-            <span id="queue-findings" className="scroll-mt-20">
-              P0 findings
-            </span>
-          }
-          description="Critical and high invariant failures that need Verify."
-          actions={<span className="stamp stamp-danger">{openP0Findings.length}</span>}
-        >
+        {/* 2. P0 Findings Queue */}
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#111113] border border-white/[0.06] space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2
+                  id="queue-findings"
+                  className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider"
+                >
+                  P0 findings
+                </h2>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20 tabular-nums">
+                  {openP0Findings.length}
+                </span>
+              </div>
+              <p className="text-[12px] text-zinc-400 font-sans mt-0.5">
+                Critical and high invariant failures that need Verify.
+              </p>
+            </div>
+          </div>
+
           {openP0Findings.length === 0 ? (
-            <p className="text-xs font-mono text-muted py-4 text-center">No open P0 findings.</p>
+            <p className="text-xs font-mono text-zinc-500 py-4 text-center">
+              No open P0 findings.
+            </p>
           ) : (
             <div className="space-y-3">
               {visibleFindings.map((finding) => {
-                // No fallback project: a finding without one is shown but can't open Verify.
                 const targetProjectId =
                   finding.project_id || (finding as { projectId?: string }).projectId || '';
                 const project = projects.find((p) => p.id === targetProjectId);
@@ -236,35 +305,40 @@ export const PortfolioScreen: React.FC = () => {
                         tab: 'verify',
                       })
                     }
-                    className="queue-item queue-item-danger w-full text-left space-y-2"
+                    className="p-3 rounded-lg bg-[#161619] border border-white/[0.06] hover:border-rose-500/30 transition-colors w-full text-left space-y-2 group disabled:opacity-75 disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs font-bold text-main font-mono">
+                      <span className="text-xs font-bold text-zinc-100 font-mono group-hover:text-rose-300 transition-colors">
                         {project?.name.split(' (')[0] || targetProjectId || 'No project'}
                       </span>
-                      <span className="stamp stamp-danger">P0</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        P0
+                      </span>
                     </div>
-                    <span className="text-[10px] text-muted font-mono block">{finding.id}</span>
-                    <h4 className="text-xs font-bold text-main">{finding.title}</h4>
+                    <span className="text-[10px] text-zinc-500 font-mono block">
+                      {finding.id}
+                    </span>
+                    <h4 className="text-xs font-semibold text-zinc-200">{finding.title}</h4>
                     {finding.description && (
-                      <p className="text-[11px] text-muted font-mono line-clamp-2">
+                      <p className="text-[11px] text-zinc-400 font-mono line-clamp-2">
                         {finding.description}
                       </p>
                     )}
-                    <div className="pt-2 border-t border-app flex items-center justify-between text-[10px] font-mono text-muted">
+                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-500">
                       <span>{finding.component || 'Regression'}</span>
-                      <span className="text-[color:var(--color-danger-text)] font-bold flex items-center gap-1 uppercase tracking-wide">
+                      <span className="text-rose-400 font-medium flex items-center gap-1 uppercase tracking-wider">
                         Open Verify <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>
                   </button>
                 );
               })}
+
               {openP0Findings.length > QUEUE_PREVIEW && (
                 <button
                   type="button"
                   onClick={() => setShowAllFindings((v) => !v)}
-                  className="btn btn-ghost w-full"
+                  className="w-full py-2 rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-200 bg-[#161619] hover:bg-[#1f2025] border border-white/[0.06] transition-colors"
                 >
                   {showAllFindings
                     ? 'Show fewer'
@@ -273,19 +347,33 @@ export const PortfolioScreen: React.FC = () => {
               )}
             </div>
           )}
-        </SectionCard>
+        </div>
 
-        <SectionCard
-          title={
-            <span id="queue-working" className="scroll-mt-20">
-              Working
-            </span>
-          }
-          description="Agents currently executing — watch, do not block."
-          actions={<span className="stamp stamp-success">{runningTasks.length}</span>}
-        >
+        {/* 3. Working Agents Queue */}
+        <div className="p-3.5 sm:p-4 rounded-xl bg-[#111113] border border-white/[0.06] space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2
+                  id="queue-working"
+                  className="text-xs font-semibold text-zinc-200 font-mono uppercase tracking-wider"
+                >
+                  Working
+                </h2>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 tabular-nums">
+                  {runningTasks.length}
+                </span>
+              </div>
+              <p className="text-[12px] text-zinc-400 font-sans mt-0.5">
+                Agents currently executing — watch, do not block.
+              </p>
+            </div>
+          </div>
+
           {runningTasks.length === 0 ? (
-            <p className="text-xs font-mono text-muted py-4 text-center">No tasks currently running.</p>
+            <p className="text-xs font-mono text-zinc-500 py-4 text-center">
+              No tasks currently running.
+            </p>
           ) : (
             <div className="space-y-3">
               {visibleRunning.map((task) => {
@@ -295,38 +383,45 @@ export const PortfolioScreen: React.FC = () => {
                     key={task.id}
                     type="button"
                     onClick={() => navigate({ kind: 'runs', runId: task.id })}
-                    className="queue-item queue-item-success w-full text-left space-y-2"
+                    className="p-3 rounded-lg bg-[#161619] border border-white/[0.06] hover:border-emerald-500/30 transition-colors w-full text-left space-y-2 group"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-1 min-w-0">
+                      <div className="space-y-0.5 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-main font-mono">
+                          <span className="text-xs font-bold text-zinc-100 font-mono group-hover:text-emerald-300 transition-colors">
                             {project?.name.split(' (')[0] || task.project_id}
                           </span>
-                          <span className="stamp">{task.task_type}</span>
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800 text-zinc-300 border border-white/[0.06]">
+                            {task.task_type}
+                          </span>
                         </div>
-                        <span className="text-[10px] text-muted font-mono">{task.id}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono block">
+                          {task.id}
+                        </span>
                       </div>
                       <StatusPill status="running" />
                     </div>
-                    <p className="text-xs text-muted font-mono line-clamp-2">{task.prompt}</p>
-                    <div className="pt-2 border-t border-app flex items-center justify-between text-[10px] font-mono text-muted">
-                      <span className="flex items-center gap-1">
-                        <User className="w-3 h-3 text-[color:var(--color-success-text)]" />
+                    <p className="text-xs text-zinc-400 font-mono line-clamp-2">
+                      {task.prompt}
+                    </p>
+                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                      <span className="flex items-center gap-1 text-zinc-400">
+                        <User className="w-3 h-3 text-emerald-400" />
                         {task.assigned_agent || 'Coordinator'}
                       </span>
-                      <span className="text-[color:var(--color-success-text)] font-bold flex items-center gap-1 uppercase tracking-wide">
+                      <span className="text-emerald-400 font-medium flex items-center gap-1 uppercase tracking-wider">
                         View live <ArrowRight className="w-3 h-3" />
                       </span>
                     </div>
                   </button>
                 );
               })}
+
               {runningTasks.length > QUEUE_PREVIEW && (
                 <button
                   type="button"
                   onClick={() => setShowAllRunning((v) => !v)}
-                  className="btn btn-ghost w-full"
+                  className="w-full py-2 rounded-lg text-xs font-mono text-zinc-400 hover:text-zinc-200 bg-[#161619] hover:bg-[#1f2025] border border-white/[0.06] transition-colors"
                 >
                   {showAllRunning
                     ? 'Show fewer'
@@ -335,7 +430,7 @@ export const PortfolioScreen: React.FC = () => {
               )}
             </div>
           )}
-        </SectionCard>
+        </div>
       </div>
 
       <TaskDetailDrawer
@@ -349,7 +444,6 @@ export const PortfolioScreen: React.FC = () => {
             await retryTask(id);
             setSelectedTask(null);
           } catch (err) {
-            // A missing budget is already reported by useTasks with a clear message.
             if (!isProjectBudgetBlocked(err)) throw err;
           }
         }}
