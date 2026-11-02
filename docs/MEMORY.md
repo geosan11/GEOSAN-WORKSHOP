@@ -64,3 +64,20 @@
 - Initialized complete spec-driven development documentation suite (`docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/RULES.md`, `docs/DESIGN.md`, `docs/TASKS.md`, `docs/MEMORY.md`).
 - Progressive disclosure engine (`Disclosure.tsx`, `TaskDisclosureRow.tsx`, `ProjectDisclosureCard.tsx`) and 3-mode density engine are fully operational and verified.
 - Codebase is ready for Phase 5 verification and git commit.
+
+---
+
+## Standing Outreach Preferences for George (GoGetter Bot & Supervisor)
+
+**Effective:** 2026-11-02
+**Status:** ACTIVE — Saved for reference by the GoGetter bot and Supervisor.
+
+### Preference Details
+- **Approach:** Problem-first hybrid.
+- **Include in messaging:** One concrete result — either EHI >60% loss reduction **or** depot FIFO/audit.
+- **First message:** Must be short.
+- **Attachments:** NO CV attached on first contact.
+- **Ask:** Low-pressure ask only.
+- **Links:** No GitHub link on first contact.
+
+This standing instruction overrides prior outreach styles for George-related outreach activities.
