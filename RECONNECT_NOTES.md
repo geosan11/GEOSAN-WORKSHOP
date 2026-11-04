@@ -97,7 +97,7 @@ Following commit `7793bfa` ("complete visual replacement batch"), exactly **55 f
 ---
 
 ### 8. Replaced Legacy Shell & Prototype Components
-**Recommendation:** **delete**
+**Recommendation:** **delete** (Done in `chore/remove-legacy-files`: 8 files removed. `ServiceLogos.tsx` is kept because it is used again since #20 (`GitHubLogo`, LoginScreen, modelRouter). `SeverityBadge.tsx` is kept because the QA components `QAFindingRow`/`TaskWorkspace` still use it, and their fate is decided with Groups 6/9.)
 - **Rationale:** These components were superseded by the cleaner, consolidated architecture introduced in `7793bfa` and `2baa37a` (`WorkshopSidebar`, `WorkshopProjectModal`, compact card architecture). They have no remaining callers or test dependencies.
 - **Files:**
   - `src/components/SupabaseSidebar.tsx`: Superseded by `WorkshopSidebar.tsx`.
