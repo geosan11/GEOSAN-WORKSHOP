@@ -1,7 +1,7 @@
 import { getIsoWeekKey } from './budget';
 import type { Project, CostEvent, AgentTask } from './types';
 
-export type ProxyState = 'unknown' | 'reachable' | 'unreachable' | 'disabled';
+export type ProxyState = 'unknown' | 'reachable' | 'unreachable' | 'disabled' | 'refused';
 
 export interface TopBarModelInput {
   projects?: Project[] | null;
@@ -58,6 +58,9 @@ export function topBarModel(input: TopBarModelInput): TopBarModel {
     case 'reachable':
       proxyLabel = 'Proxy connected';
       break;
+    case 'refused':
+      proxyLabel = 'Proxy refused (sign in as owner / repo not assigned)';
+      break;
     case 'unreachable':
       proxyLabel = 'Proxy unreachable';
       break;
@@ -66,7 +69,7 @@ export function topBarModel(input: TopBarModelInput): TopBarModel {
       break;
     case 'unknown':
     default:
-      proxyLabel = 'Proxy unknown';
+      proxyLabel = 'Checking proxy…';
       break;
   }
 
@@ -78,8 +81,11 @@ export function topBarModel(input: TopBarModelInput): TopBarModel {
   };
 }
 
+export type SpendLevel = 'ok' | 'warn' | 'over';
+
 export interface SpendTileModelInput {
   costEvents?: CostEvent[] | null;
+  capUsd?: number;
   now?: Date;
 }
 
@@ -88,21 +94,50 @@ export interface SpendTileModel {
   label: string;
   total: number | null;
   formattedTotal: string | null;
+  capUsd: number | null;
+  formattedCap: string | null;
+  percent: number | null;
+  level: SpendLevel | null;
   emptyState: string | null;
   hasData: boolean;
 }
 
 export function spendTileModel(input: SpendTileModelInput): SpendTileModel {
-  const { costEvents = [], now = new Date() } = input;
+  const { costEvents = [], capUsd, now = new Date() } = input;
   const title = 'Spend this week';
   const label = 'Spend this week';
 
+  const hasCap = typeof capUsd === 'number' && capUsd > 0;
+  const resolvedCapUsd = hasCap ? capUsd : null;
+  const formattedCap = hasCap ? `$${capUsd.toFixed(2)}` : null;
+
+  const computeCapDetails = (spend: number) => {
+    if (!hasCap) {
+      return { percent: null, level: null };
+    }
+    const percent = Math.round((spend / capUsd) * 100);
+    let level: SpendLevel;
+    if (percent < 80) {
+      level = 'ok';
+    } else if (percent < 100) {
+      level = 'warn';
+    } else {
+      level = 'over';
+    }
+    return { percent, level };
+  };
+
   if (!costEvents || costEvents.length === 0) {
+    const { percent, level } = computeCapDetails(0);
     return {
       title,
       label,
       total: null,
       formattedTotal: null,
+      capUsd: resolvedCapUsd,
+      formattedCap,
+      percent,
+      level,
       emptyState: 'No spend recorded this week',
       hasData: false,
     };
@@ -121,11 +156,16 @@ export function spendTileModel(input: SpendTileModelInput): SpendTileModel {
   });
 
   if (thisWeekEvents.length === 0) {
+    const { percent, level } = computeCapDetails(0);
     return {
       title,
       label,
       total: null,
       formattedTotal: null,
+      capUsd: resolvedCapUsd,
+      formattedCap,
+      percent,
+      level,
       emptyState: 'No spend recorded this week',
       hasData: false,
     };
@@ -133,12 +173,17 @@ export function spendTileModel(input: SpendTileModelInput): SpendTileModel {
 
   const total = thisWeekEvents.reduce((acc, curr) => acc + (Number(curr.cost_usd) || 0), 0);
   const formattedTotal = `$${total.toFixed(2)}`;
+  const { percent, level } = computeCapDetails(total);
 
   return {
     title,
     label,
     total,
     formattedTotal,
+    capUsd: resolvedCapUsd,
+    formattedCap,
+    percent,
+    level,
     emptyState: null,
     hasData: true,
   };
@@ -153,6 +198,9 @@ export interface ProvidersTileModel {
   label: string;
   providers: string[];
   models: string[];
+  chips: string[];
+  moreCount: number;
+  overflowCount: number;
   emptyState: string | null;
   hasData: boolean;
 }
@@ -168,6 +216,9 @@ export function providersTileModel(input: ProvidersTileModelInput): ProvidersTil
       label,
       providers: [],
       models: [],
+      chips: [],
+      moreCount: 0,
+      overflowCount: 0,
       emptyState: 'No AI providers used yet',
       hasData: false,
     };
@@ -186,16 +237,26 @@ export function providersTileModel(input: ProvidersTileModelInput): ProvidersTil
       label,
       providers: [],
       models: [],
+      chips: [],
+      moreCount: 0,
+      overflowCount: 0,
       emptyState: 'No AI providers used yet',
       hasData: false,
     };
   }
+
+  const allChips = models.length > 0 ? models : providers;
+  const chips = allChips.slice(0, 6);
+  const moreCount = Math.max(0, allChips.length - 6);
 
   return {
     title,
     label,
     providers,
     models,
+    chips,
+    moreCount,
+    overflowCount: moreCount,
     emptyState: null,
     hasData: true,
   };
@@ -237,30 +298,42 @@ export function databaseTileModel(input: DatabaseTileModelInput): DatabaseTileMo
   };
 }
 
+export interface LatestCommitInfo {
+  sha7: string;
+  message: string;
+  date: string;
+}
+
 export interface GithubTileModelInput {
   proxyState?: ProxyState;
+  latestCommit?: LatestCommitInfo | null;
 }
 
 export interface GithubTileModel {
   title: string;
   label: string;
   proxyState: ProxyState;
+  latestCommit: LatestCommitInfo | null;
   emptyState: string | null;
   hasData: boolean;
+  footnote: string;
 }
 
 export function githubTileModel(input: GithubTileModelInput): GithubTileModel {
-  const { proxyState = 'disabled' } = input;
-  const title = 'GitHub CI';
-  const label = 'GitHub CI';
+  const { proxyState = 'disabled', latestCommit = null } = input;
+  const title = 'GitHub';
+  const label = 'GitHub';
+  const footnote = "CI runs aren't available through the proxy yet.";
 
   if (proxyState !== 'reachable') {
     return {
       title,
       label,
       proxyState,
-      emptyState: 'Connect the local proxy to see CI',
+      latestCommit: null,
+      emptyState: 'Connect the local proxy to see the latest commit',
       hasData: false,
+      footnote,
     };
   }
 
@@ -268,8 +341,10 @@ export function githubTileModel(input: GithubTileModelInput): GithubTileModel {
     title,
     label,
     proxyState,
+    latestCommit: latestCommit ?? null,
     emptyState: null,
     hasData: true,
+    footnote,
   };
 }
 

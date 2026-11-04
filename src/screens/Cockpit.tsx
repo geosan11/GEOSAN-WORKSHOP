@@ -2,15 +2,26 @@ import React from "react";
 import { useProjects } from "../hooks/useProjects";
 import { useTasks } from "../hooks/useTasks";
 import { useCosts } from "../hooks/useCosts";
+import { useSharedStatus } from "../lib/sharedStatus";
 import { isDemoMode } from "../lib/supabase";
 import {
+  parseGitHubRepo,
   topBarModel,
   spendTileModel,
   providersTileModel,
   databaseTileModel,
   githubTileModel,
   agentsModel,
+  type ProxyState,
 } from "../lib/cockpitModel";
+import {
+  shouldProbeProxy,
+  probeProxy,
+  type CommitSummary,
+} from "../lib/cockpitProbe";
+import { proxyUrl } from "../lib/proxyAuth";
+import { formatRelative } from "../lib/format";
+import { cn } from "../lib/utils";
 import { LoadingState } from "../components/LoadingState";
 import { QueryError } from "../components/QueryError";
 import {
@@ -56,28 +67,109 @@ export const CockpitScreen: React.FC = () => {
     error: cError,
     refetch: cRefetch,
   } = useCosts();
+  const { statusData } = useSharedStatus();
+
+  // Track initial load for full-screen skeleton
+  const initialLoadRef = React.useRef(true);
+
+  React.useEffect(() => {
+    if (!pLoading && !tLoading && !cLoading) {
+      initialLoadRef.current = false;
+    }
+    if (pError || tError || cError) {
+      initialLoadRef.current = false;
+    }
+  }, [pLoading, tLoading, cLoading, pError, tError, cError]);
+
+  const firstProject = projects && projects.length > 0 ? projects[0] : null;
+  const repo = parseGitHubRepo(
+    firstProject?.github_repo_url || firstProject?.repo_url
+  );
+  const projectId = firstProject?.id ?? null;
+
+  const [proxyState, setProxyState] = React.useState<ProxyState>("disabled");
+  const [latestCommit, setLatestCommit] = React.useState<CommitSummary | null>(
+    null
+  );
+
+  // Dev-only proxy probe: runs once on mount in useEffect if shouldProbeProxy is true and repo is known
+  React.useEffect(() => {
+    let isMounted = true;
+    const isDev = Boolean(import.meta.env?.DEV);
+    const proxyUrlConfigured = Boolean(import.meta.env?.VITE_PROXY_URL);
+    const hostname =
+      typeof window !== "undefined" ? window.location.hostname : "";
+
+    if (!shouldProbeProxy({ isDev, proxyUrlConfigured, hostname }) || !repo) {
+      setProxyState("disabled");
+      setLatestCommit(null);
+      return;
+    }
+
+    setProxyState("unknown");
+    probeProxy({
+      repo,
+      projectId,
+      url: proxyUrl("/api/github/proxy"),
+    }).then((result) => {
+      if (!isMounted) return;
+      setProxyState(result.state);
+      if (result.state === "reachable") {
+        setLatestCommit(result.latestCommit);
+      } else {
+        setLatestCommit(null);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [repo, projectId]);
 
   const handleRefreshAll = async () => {
-    await Promise.all([pRefetch(), tRefetch(), cRefetch()]);
+    const isDev = Boolean(import.meta.env?.DEV);
+    const proxyUrlConfigured = Boolean(import.meta.env?.VITE_PROXY_URL);
+    const hostname =
+      typeof window !== "undefined" ? window.location.hostname : "";
+
+    const canProbe =
+      shouldProbeProxy({ isDev, proxyUrlConfigured, hostname }) &&
+      Boolean(repo);
+
+    if (canProbe) {
+      setProxyState("unknown");
+    }
+
+    const probePromise = canProbe
+      ? probeProxy({
+          repo,
+          projectId,
+          url: proxyUrl("/api/github/proxy"),
+        }).then((result) => {
+          setProxyState(result.state);
+          if (result.state === "reachable") {
+            setLatestCommit(result.latestCommit);
+          } else {
+            setLatestCommit(null);
+          }
+        })
+      : Promise.resolve();
+
+    await Promise.all([pRefetch(), tRefetch(), cRefetch(), probePromise]);
   };
 
-  if (pError || tError || cError) {
-    return (
-      <div className="min-h-full p-4 sm:p-6 max-w-4xl mx-auto text-center space-y-4 pt-12">
-        <QueryError
-          message="Failed to load cockpit telemetry."
-          onRetry={handleRefreshAll}
-        />
-      </div>
-    );
-  }
-
-  if (
+  // Keep full-screen skeleton only for the very first load
+  const isInitialLoading =
+    initialLoadRef.current &&
     (pLoading || tLoading || cLoading) &&
     projects.length === 0 &&
     tasks.length === 0 &&
-    costEvents.length === 0
-  ) {
+    costEvents.length === 0 &&
+    !pError &&
+    !tError &&
+    !cError;
+
+  if (isInitialLoading) {
     return (
       <div className="min-h-full p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
         <LoadingState type="cards" count={4} />
@@ -86,17 +178,20 @@ export const CockpitScreen: React.FC = () => {
   }
 
   // Pure view-model computations
-  // In PR 1, proxy network probe is not implemented: screen passes 'disabled'
   const topBar = topBarModel({
     projects,
     isDemoMode,
-    proxyState: "disabled",
+    proxyState,
   });
 
-  const spendTile = spendTileModel({ costEvents });
+  const capUsd = statusData?.budget?.totalCapUsd;
+  const spendTile = spendTileModel({ costEvents, capUsd });
   const providersTile = providersTileModel({ costEvents });
-  const databaseTile = databaseTileModel({ isDemoMode, connectionError: null });
-  const githubTile = githubTileModel({ proxyState: "disabled" });
+  const databaseTile = databaseTileModel({
+    isDemoMode,
+    connectionError: pError,
+  });
+  const githubTile = githubTileModel({ proxyState, latestCommit });
   const agentsData = agentsModel({ tasks });
 
   return (
@@ -111,10 +206,11 @@ export const CockpitScreen: React.FC = () => {
             {topBar.repoLabel && (
               <Badge
                 variant="outline"
-                className="font-mono text-[10px] text-muted-foreground flex items-center gap-1"
+                className="font-mono text-[10px] text-muted-foreground flex items-center gap-1 max-w-full min-w-0"
+                title={topBar.repoLabel}
               >
                 <GitBranch className="size-3" />
-                <span className="truncate max-w-[200px]">
+                <span className="truncate min-w-0 max-w-[200px]">
                   {topBar.repoLabel}
                 </span>
               </Badge>
@@ -172,14 +268,55 @@ export const CockpitScreen: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                {spendTile.hasData ? (
-                  <p className="text-xl font-semibold text-foreground font-mono">
-                    {spendTile.formattedTotal}
-                  </p>
+                {cError ? (
+                  <QueryError
+                    message="Failed to load spend telemetry."
+                    onRetry={cRefetch}
+                  />
+                ) : spendTile.hasData ? (
+                  <div className="space-y-2">
+                    <p className="text-xl font-semibold text-foreground font-mono">
+                      {spendTile.formattedCap
+                        ? `${spendTile.formattedTotal} / ${spendTile.formattedCap}`
+                        : spendTile.formattedTotal}
+                    </p>
+                    {spendTile.formattedCap && (
+                      <div
+                        role="progressbar"
+                        aria-label="Weekly spend vs cap"
+                        aria-valuenow={spendTile.percent ?? 0}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        className="h-1.5 w-full rounded-full bg-muted overflow-hidden"
+                      >
+                        <div
+                          className={cn(
+                            "h-full transition-all",
+                            spendTile.level === "ok" && "bg-primary",
+                            spendTile.level === "warn" && "bg-(--warning)",
+                            spendTile.level === "over" && "bg-destructive"
+                          )}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(0, spendTile.percent ?? 0)
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground font-mono">
-                    {spendTile.emptyState}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      {spendTile.emptyState}
+                    </p>
+                    {spendTile.formattedCap && (
+                      <p className="text-xs text-muted-foreground font-mono">
+                        Cap {spendTile.formattedCap}
+                      </p>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -195,20 +332,31 @@ export const CockpitScreen: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                {providersTile.hasData ? (
+                {cError ? (
+                  <QueryError
+                    message="Failed to load AI providers."
+                    onRetry={cRefetch}
+                  />
+                ) : providersTile.hasData ? (
                   <div className="flex flex-wrap gap-1.5">
-                    {(providersTile.models.length
-                      ? providersTile.models
-                      : providersTile.providers
-                    ).map((name) => (
+                    {providersTile.chips.map((name) => (
                       <Badge
                         key={name}
                         variant="outline"
-                        className="font-mono text-[10px]"
+                        className="font-mono text-[10px] max-w-full min-w-0"
+                        title={name}
                       >
-                        {name}
+                        <span className="truncate">{name}</span>
                       </Badge>
                     ))}
+                    {providersTile.moreCount > 0 && (
+                      <Badge
+                        variant="outline"
+                        className="font-mono text-[10px] text-muted-foreground"
+                      >
+                        +{providersTile.moreCount} more
+                      </Badge>
+                    )}
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground font-mono">
@@ -229,13 +377,20 @@ export const CockpitScreen: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <p className="text-xs text-muted-foreground font-mono">
-                  {databaseTile.emptyState}
+                <p
+                  className={cn(
+                    "text-xs font-mono",
+                    databaseTile.status === "Connection error"
+                      ? "text-destructive"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {databaseTile.status}
                 </p>
               </CardContent>
             </Card>
 
-            {/* Tile 4: GitHub CI */}
+            {/* Tile 4: GitHub */}
             <Card className="bg-card border-border">
               <CardHeader className="p-4 pb-2">
                 <div className="flex items-center justify-between">
@@ -246,9 +401,33 @@ export const CockpitScreen: React.FC = () => {
                 </div>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <p className="text-xs text-muted-foreground font-mono">
-                  {githubTile.emptyState}
-                </p>
+                {githubTile.hasData && githubTile.latestCommit ? (
+                  <div className="space-y-1">
+                    <p className="text-xs font-mono text-foreground break-words">
+                      <span className="font-semibold text-primary">
+                        {githubTile.latestCommit.sha7}
+                      </span>
+                      {" · "}
+                      <span>{githubTile.latestCommit.message}</span>
+                      {" · "}
+                      <span className="text-muted-foreground">
+                        {formatRelative(githubTile.latestCommit.date)}
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {githubTile.footnote}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground font-mono">
+                      {githubTile.emptyState}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {githubTile.footnote}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -264,22 +443,33 @@ export const CockpitScreen: React.FC = () => {
               Fleet
             </Badge>
           </div>
-          <Card className="bg-card border-border">
-            <CardContent className="p-6 text-center">
-              <div className="flex flex-col items-center justify-center gap-2">
-                <Bot className="size-8 text-muted-foreground" />
-                <p className="text-xs font-medium text-foreground">
-                  {agentsData.hasData
-                    ? `${agentsData.totalActiveTasks} active ${agentsData.totalActiveTasks === 1 ? "task" : "tasks"} across ${agentsData.totalAgents} ${agentsData.totalAgents === 1 ? "agent" : "agents"}`
-                    : agentsData.emptyState}
-                </p>
-                <p className="text-xs text-muted-foreground max-w-sm">
-                  Per-agent cards aren't shown here yet. Open Agents for the
-                  full list.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {tError ? (
+            <QueryError
+              message="Failed to load agent fleet."
+              onRetry={tRefetch}
+            />
+          ) : (
+            <Card className="bg-card border-border">
+              <CardContent className="p-6 text-center">
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <Bot className="size-8 text-muted-foreground" />
+                  <p className="text-xs font-medium text-foreground">
+                    {agentsData.hasData
+                      ? `${agentsData.totalActiveTasks} active ${
+                          agentsData.totalActiveTasks === 1 ? "task" : "tasks"
+                        } across ${agentsData.totalAgents} ${
+                          agentsData.totalAgents === 1 ? "agent" : "agents"
+                        }`
+                      : agentsData.emptyState}
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-sm">
+                    Per-agent cards aren't shown here yet. Open Agents for the
+                    full list.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </section>
 
         {/* (d) Activity section placeholder */}
