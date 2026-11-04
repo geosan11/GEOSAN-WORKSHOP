@@ -300,6 +300,36 @@ alter default privileges for role postgres grant execute on functions to public;
 commit;
 ```
 
+## Workshop tables: owner policy fix (20261104000000_fix_workshop_owner_policies.sql)
+
+### What the bug was
+
+`supabase/migrations/20261028000000_workshop_aligned.sql` created owner policies on `public.projects`, `public.project_logs`, `public.agent_assignments`, `public.provider_configs`, and `public.user_preferences` with `USING` and `WITH CHECK` expressions containing `not exists (select 1 from public.app_owner)`.
+
+Under `20261020000000_lock_db_to_owner.sql`, all privileges on `public.app_owner` were revoked from `authenticated`. Because PostgreSQL evaluates RLS policy expressions under the privileges of the querying user, any query by the signed-in owner on these 5 tables resulted in `permission denied for table app_owner`. The original 7 tables worked because they only invoked `public.is_app_owner()`, which is `SECURITY DEFINER`.
+
+### The new migration
+
+`supabase/migrations/20261104000000_fix_workshop_owner_policies.sql` fixes this in a single idempotent transaction:
+1. Creates `public.app_owner_unset()` (`SECURITY DEFINER`, `STABLE`, `SET search_path = ''`, owned by `postgres`, returning boolean `select not exists (select 1 from public.app_owner)`), revoking privileges from `public` and `anon` and granting `EXECUTE` to `authenticated`.
+2. Drops and recreates the owner policies on the 5 workshop tables ("Owner only projects", "Owner only project_logs", "Owner only agent_assignments", "Owner only provider_configs", "Owner only user_preferences") with identical semantics but replacing the direct subquery with `public.app_owner_unset()`.
+
+### Live database rollout
+
+On the live database, this migration **must be applied right after `20261028000000_workshop_aligned.sql`** (and before anyone uses the app).
+
+It must be run **by the owner in the Supabase SQL editor after taking a backup**; **never via `supabase db push`**.
+
+Apply it in the same transaction as 20261028 if that one isn't live yet, so the owner is never locked out in between. Then record both versions in `supabase_migrations.schema_migrations`, so the migration history matches.
+
+### Rollback
+
+Restore the 20261028 policy definitions by re-running the policy block from `20261028000000_workshop_aligned.sql`, then `drop function if exists public.app_owner_unset();`. Note that this brings the permission-denied bug back while the #5 lock is in place.
+
+### Test
+
+`bash scripts/db/run-owner-policies-test.sh` runs on a throwaway local Postgres 17 as `authenticated`/`anon` with JWT claims set, not as a superuser. It proves the bug before the fix, checks owner, stranger, anon and no-owner-registered behaviour on all 5 tables, and checks that a re-run changes nothing. CI doesn't run it yet.
+
 ## Demo mode still works
 
 When `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` aren't set (and none are
