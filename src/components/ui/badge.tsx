@@ -17,7 +17,7 @@ const badgeVariants = cva(
       variant: {
         default: "border-border bg-background text-muted-foreground",
         primary:
-          "border-[rgba(240,178,48,0.45)] bg-accent text-(--color-gold-text)",
+          "border-[color-mix(in_srgb,var(--primary)_45%,transparent)] bg-accent text-(--color-gold-text)",
         success:
           "border-[color-mix(in_srgb,var(--success)_40%,transparent)] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-(--success-foreground)",
         warning:

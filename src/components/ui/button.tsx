@@ -5,12 +5,12 @@ import { Slot } from "radix-ui"
 
 /*
  * Mirrors the legacy .btn primitives in src/index.css:
- *   default   = .btn-primary (gold, dark ink text)
+ *   default   = .btn-primary (primary, on-primary text)
  *   secondary = .btn-ink
  *   outline   = .btn-ghost (it has a hairline)
  *   ghost     = borderless ghost
  * Mono / uppercase / 11px lives in the cva base, not at call sites.
- * Focus uses the global gold :focus-visible outline, like .btn.
+ * Focus uses the global primary :focus-visible outline, like .btn.
  */
 const buttonVariants = cva(
   "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-(--radius-control) border border-transparent font-mono text-[11px] leading-none font-bold tracking-[.04em] whitespace-nowrap uppercase transition-[background-color,border-color,color,transform] duration-[120ms] ease-[ease] active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3.5",

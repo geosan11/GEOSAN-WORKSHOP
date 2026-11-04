@@ -21,7 +21,7 @@ function SelectValue({
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
-/* Trigger mirrors legacy .field (app surface, hairline, mono 12px, gold focus), like Input. */
+/* Trigger mirrors legacy .field (app surface, hairline, mono 12px, primary focus), like Input. */
 function SelectTrigger({
   className,
   size = "default",

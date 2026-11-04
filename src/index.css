@@ -180,9 +180,9 @@ html.dark {
   --card-foreground: var(--text-main);
   --popover: var(--bg-card-elevated);
   --popover-foreground: var(--text-main);
-  --primary: var(--color-primary);              /* gold */
+  --primary: var(--color-primary);              /* indigo in Obsidian, gold in Cream */
   --primary-hover: var(--color-primary-hover);
-  --primary-foreground: var(--color-on-primary); /* dark gold-ink */
+  --primary-foreground: var(--color-on-primary); /* on-primary ink */
   --secondary: var(--color-ink);                /* = .btn-ink */
   --secondary-foreground: var(--color-on-ink);
   --muted: var(--color-surface-3);
@@ -195,7 +195,7 @@ html.dark {
   --border: var(--border-app);
   --border-strong: var(--color-border-strong);
   --input: var(--border-app);                   /* = .field border */
-  --ring: var(--color-primary);                 /* gold focus */
+  --ring: var(--color-primary);                 /* primary focus */
   --radius: var(--radius-card);                 /* 6px card */
   /* --radius-control (4px) and --radius-stamp (2px) are used directly */
 
