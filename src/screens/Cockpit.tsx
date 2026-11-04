@@ -2,8 +2,12 @@ import React from "react";
 import { useProjects } from "../hooks/useProjects";
 import { useTasks } from "../hooks/useTasks";
 import { useCosts } from "../hooks/useCosts";
+import { useQA } from "../hooks/useQA";
+import { useNavigation } from "../lib/navigation";
 import { useSharedStatus } from "../lib/sharedStatus";
 import { isDemoMode } from "../lib/supabase";
+import { isProjectBudgetBlocked } from "../lib/projectBudgetGuard";
+import type { AgentTask } from "../lib/types";
 import {
   parseGitHubRepo,
   topBarModel,
@@ -24,6 +28,8 @@ import { formatRelative } from "../lib/format";
 import { cn } from "../lib/utils";
 import { LoadingState } from "../components/LoadingState";
 import { QueryError } from "../components/QueryError";
+import { AgentCard } from "../components/cockpit/AgentCard";
+import { TaskDetailDrawer } from "../components/TaskDetailDrawer";
 import {
   Card,
   CardHeader,
@@ -49,6 +55,7 @@ import {
 } from "lucide-react";
 
 export const CockpitScreen: React.FC = () => {
+  const { navigate } = useNavigation();
   const {
     projects,
     loading: pLoading,
@@ -60,6 +67,10 @@ export const CockpitScreen: React.FC = () => {
     loading: tLoading,
     error: tError,
     refetch: tRefetch,
+    approveTask,
+    rejectTask,
+    cancelTask,
+    retryTask,
   } = useTasks();
   const {
     costEvents,
@@ -67,7 +78,12 @@ export const CockpitScreen: React.FC = () => {
     error: cError,
     refetch: cRefetch,
   } = useCosts();
+  const { qaRuns, refetch: qRefetch } = useQA();
   const { statusData } = useSharedStatus();
+
+  const [selectedTask, setSelectedTask] = React.useState<AgentTask | null>(
+    null,
+  );
 
   // Track initial load for full-screen skeleton
   const initialLoadRef = React.useRef(true);
@@ -83,13 +99,13 @@ export const CockpitScreen: React.FC = () => {
 
   const firstProject = projects && projects.length > 0 ? projects[0] : null;
   const repo = parseGitHubRepo(
-    firstProject?.github_repo_url || firstProject?.repo_url
+    firstProject?.github_repo_url || firstProject?.repo_url,
   );
   const projectId = firstProject?.id ?? null;
 
   const [proxyState, setProxyState] = React.useState<ProxyState>("disabled");
   const [latestCommit, setLatestCommit] = React.useState<CommitSummary | null>(
-    null
+    null,
   );
 
   // Dev-only proxy probe: runs once on mount in useEffect if shouldProbeProxy is true and repo is known
@@ -155,7 +171,13 @@ export const CockpitScreen: React.FC = () => {
         })
       : Promise.resolve();
 
-    await Promise.all([pRefetch(), tRefetch(), cRefetch(), probePromise]);
+    await Promise.all([
+      pRefetch(),
+      tRefetch(),
+      cRefetch(),
+      qRefetch(),
+      probePromise,
+    ]);
   };
 
   // Keep full-screen skeleton only for the very first load
@@ -192,7 +214,7 @@ export const CockpitScreen: React.FC = () => {
     connectionError: pError,
   });
   const githubTile = githubTileModel({ proxyState, latestCommit });
-  const agentsData = agentsModel({ tasks });
+  const agentsData = agentsModel({ tasks, qaRuns });
 
   return (
     <div className="min-h-full w-full bg-background text-foreground">
@@ -294,12 +316,12 @@ export const CockpitScreen: React.FC = () => {
                             "h-full transition-all",
                             spendTile.level === "ok" && "bg-primary",
                             spendTile.level === "warn" && "bg-(--warning)",
-                            spendTile.level === "over" && "bg-destructive"
+                            spendTile.level === "over" && "bg-destructive",
                           )}
                           style={{
                             width: `${Math.min(
                               100,
-                              Math.max(0, spendTile.percent ?? 0)
+                              Math.max(0, spendTile.percent ?? 0),
                             )}%`,
                           }}
                         />
@@ -382,7 +404,7 @@ export const CockpitScreen: React.FC = () => {
                     "text-xs font-mono",
                     databaseTile.status === "Connection error"
                       ? "text-destructive"
-                      : "text-muted-foreground"
+                      : "text-muted-foreground",
                   )}
                 >
                   {databaseTile.status}
@@ -433,42 +455,63 @@ export const CockpitScreen: React.FC = () => {
           </div>
         </section>
 
-        {/* (c) Agents section placeholder */}
+        {/* (c) Agents section */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2 min-w-0">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Agents
             </h2>
-            <Badge variant="outline" className="font-mono text-[10px]">
-              Fleet
-            </Badge>
+            {agentsData.hasData && (
+              <Badge
+                variant="outline"
+                className="font-mono text-[10px] max-w-full min-w-0"
+              >
+                <span className="truncate">
+                  {agentsData.totalAgents}{" "}
+                  {agentsData.totalAgents === 1 ? "agent" : "agents"} ·{" "}
+                  {agentsData.totalActiveTasks} active{" "}
+                  {agentsData.totalActiveTasks === 1 ? "task" : "tasks"}
+                </span>
+              </Badge>
+            )}
           </div>
           {tError ? (
             <QueryError
               message="Failed to load agent fleet."
               onRetry={tRefetch}
             />
-          ) : (
+          ) : !agentsData.hasData ? (
             <Card className="bg-card border-border">
               <CardContent className="p-6 text-center">
                 <div className="flex flex-col items-center justify-center gap-2">
                   <Bot className="size-8 text-muted-foreground" />
                   <p className="text-xs font-medium text-foreground">
-                    {agentsData.hasData
-                      ? `${agentsData.totalActiveTasks} active ${
-                          agentsData.totalActiveTasks === 1 ? "task" : "tasks"
-                        } across ${agentsData.totalAgents} ${
-                          agentsData.totalAgents === 1 ? "agent" : "agents"
-                        }`
-                      : agentsData.emptyState}
+                    {agentsData.emptyState}
                   </p>
-                  <p className="text-xs text-muted-foreground max-w-sm">
-                    Per-agent cards aren't shown here yet. Open Agents for the
-                    full list.
-                  </p>
+                  <Button
+                    variant="link"
+                    onClick={() => navigate({ kind: "runs" })}
+                    className="text-xs font-mono"
+                  >
+                    Open Agents
+                  </Button>
                 </div>
               </CardContent>
             </Card>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {agentsData.agents.map((card) => (
+                <AgentCard
+                  key={card.agent}
+                  card={card}
+                  onClick={() => {
+                    const fullTask =
+                      tasks.find((t) => t.id === card.currentTask.id) ?? null;
+                    setSelectedTask(fullTask);
+                  }}
+                />
+              ))}
+            </div>
           )}
         </section>
 
@@ -498,6 +541,22 @@ export const CockpitScreen: React.FC = () => {
           </Card>
         </section>
       </div>
+
+      <TaskDetailDrawer
+        task={selectedTask}
+        onClose={() => setSelectedTask(null)}
+        onApprove={approveTask}
+        onReject={rejectTask}
+        onCancel={cancelTask}
+        onRetry={async (id) => {
+          try {
+            await retryTask(id);
+            setSelectedTask(null);
+          } catch (err) {
+            if (!isProjectBudgetBlocked(err)) throw err;
+          }
+        }}
+      />
     </div>
   );
 };

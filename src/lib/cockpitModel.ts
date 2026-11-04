@@ -1,5 +1,5 @@
 import { getIsoWeekKey } from './budget';
-import type { Project, CostEvent, AgentTask } from './types';
+import type { Project, CostEvent, AgentTask, TaskType, QARun } from './types';
 
 export type ProxyState = 'unknown' | 'reachable' | 'unreachable' | 'disabled' | 'refused';
 
@@ -354,19 +354,44 @@ export interface AgentStatusCounts {
   awaiting_approval: number;
 }
 
+export type AgentCardStatus = 'running' | 'awaiting_approval' | 'queued';
+
+export interface CurrentTaskInfo {
+  id: string;
+  title: string;
+  task_type: TaskType;
+  branch_name: string | null;
+  pr_url: string | null;
+  sinceIso: string;
+}
+
+export interface AgentLastQa {
+  status: QARun['status'];
+  verdict?: QARun['status'];
+  created_at: string;
+}
+
 export interface AgentGroup {
   agent: string;
   tasks: AgentTask[];
   totalTasks: number;
   counts: AgentStatusCounts;
+  status: AgentCardStatus;
+  statusLabel: 'Running' | 'Awaiting approval' | 'Queued';
+  currentTask: CurrentTaskInfo;
+  lastQa: AgentLastQa | null;
 }
+
+export type AgentCardModel = AgentGroup;
 
 export interface AgentsModelInput {
   tasks?: AgentTask[] | null;
+  qaRuns?: QARun[] | null;
+  now?: Date;
 }
 
 export interface AgentsModel {
-  agents: AgentGroup[];
+  agents: AgentCardModel[];
   totalAgents: number;
   totalActiveTasks: number;
   emptyState: string | null;
@@ -379,8 +404,62 @@ const NON_TERMINAL_STATUSES = new Set<AgentTask['status']>([
   'awaiting_approval',
 ]);
 
+const STATUS_PRIORITY: Record<AgentCardStatus, number> = {
+  running: 0,
+  awaiting_approval: 1,
+  queued: 2,
+};
+
+export function computeTaskTitle(task: AgentTask): string {
+  if (task.goal && task.goal.trim().length > 0) {
+    return task.goal.trim().slice(0, 90);
+  }
+  const prompt = task.prompt || '';
+  const firstLine = prompt.split(/[\r\n]/)[0].trim();
+  return firstLine.slice(0, 90);
+}
+
+function parseIsoTime(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
+function selectCurrentTask(groupTasks: AgentTask[]): AgentTask {
+  const runningTasks = groupTasks.filter((t) => t.status === 'running');
+  if (runningTasks.length > 0) {
+    // Newest running task by started_at (fallback to created_at if started_at missing)
+    return [...runningTasks].sort((a, b) => {
+      const timeA = parseIsoTime(a.started_at || a.created_at);
+      const timeB = parseIsoTime(b.started_at || b.created_at);
+      if (timeB !== timeA) return timeB - timeA;
+      return a.id.localeCompare(b.id);
+    })[0];
+  }
+
+  const awaitingTasks = groupTasks.filter((t) => t.status === 'awaiting_approval');
+  if (awaitingTasks.length > 0) {
+    // Oldest awaiting_approval by created_at
+    return [...awaitingTasks].sort((a, b) => {
+      const timeA = parseIsoTime(a.created_at);
+      const timeB = parseIsoTime(b.created_at);
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id.localeCompare(b.id);
+    })[0];
+  }
+
+  const queuedTasks = groupTasks.filter((t) => t.status === 'queued');
+  // Oldest queued by created_at
+  return [...queuedTasks].sort((a, b) => {
+    const timeA = parseIsoTime(a.created_at);
+    const timeB = parseIsoTime(b.created_at);
+    if (timeA !== timeB) return timeA - timeB;
+    return a.id.localeCompare(b.id);
+  })[0];
+}
+
 export function agentsModel(input: AgentsModelInput): AgentsModel {
-  const { tasks = [] } = input;
+  const { tasks = [], qaRuns = [] } = input;
 
   if (!tasks || tasks.length === 0) {
     return {
@@ -416,7 +495,7 @@ export function agentsModel(input: AgentsModelInput): AgentsModel {
     }
   }
 
-  const agents: AgentGroup[] = Array.from(groups.entries()).map(([agent, groupTasks]) => {
+  const agents: AgentCardModel[] = Array.from(groups.entries()).map(([agent, groupTasks]) => {
     const counts: AgentStatusCounts = {
       queued: 0,
       running: 0,
@@ -429,12 +508,79 @@ export function agentsModel(input: AgentsModelInput): AgentsModel {
       else if (t.status === 'awaiting_approval') counts.awaiting_approval++;
     }
 
+    let status: AgentCardStatus;
+    let statusLabel: 'Running' | 'Awaiting approval' | 'Queued';
+    if (counts.running > 0) {
+      status = 'running';
+      statusLabel = 'Running';
+    } else if (counts.awaiting_approval > 0) {
+      status = 'awaiting_approval';
+      statusLabel = 'Awaiting approval';
+    } else {
+      status = 'queued';
+      statusLabel = 'Queued';
+    }
+
+    const currentTaskEntity = selectCurrentTask(groupTasks);
+    const sinceIso =
+      currentTaskEntity.status === 'running'
+        ? currentTaskEntity.started_at || currentTaskEntity.created_at
+        : currentTaskEntity.created_at;
+
+    const currentTask: CurrentTaskInfo = {
+      id: currentTaskEntity.id,
+      title: computeTaskTitle(currentTaskEntity),
+      task_type: currentTaskEntity.task_type,
+      branch_name: currentTaskEntity.branch_name || null,
+      pr_url: currentTaskEntity.pr_url || null,
+      sinceIso,
+    };
+
+    // Find all tasks of this agent (any status: active or terminal)
+    const agentAllTasks = tasks.filter(
+      (t) => (t.assigned_agent?.trim() || 'Unassigned') === agent
+    );
+    const agentTaskIds = new Set(agentAllTasks.map((t) => t.id).filter(Boolean));
+
+    let lastQa: AgentLastQa | null = null;
+    if (qaRuns && qaRuns.length > 0 && agentTaskIds.size > 0) {
+      const matchingQa = qaRuns.filter(
+        (qa) => typeof qa.task_id === 'string' && qa.task_id.trim() !== '' && agentTaskIds.has(qa.task_id)
+      );
+
+      if (matchingQa.length > 0) {
+        const sortedQa = [...matchingQa].sort((a, b) => {
+          const timeA = parseIsoTime(a.created_at);
+          const timeB = parseIsoTime(b.created_at);
+          if (timeB !== timeA) return timeB - timeA;
+          return a.id.localeCompare(b.id);
+        });
+        const newestQa = sortedQa[0];
+        lastQa = {
+          status: newestQa.status,
+          verdict: newestQa.status,
+          created_at: newestQa.created_at,
+        };
+      }
+    }
+
     return {
       agent,
       tasks: groupTasks,
       totalTasks: groupTasks.length,
       counts,
+      status,
+      statusLabel,
+      currentTask,
+      lastQa,
     };
+  });
+
+  // Sort: running first, then awaiting_approval, then queued, then by agent name
+  agents.sort((a, b) => {
+    const priorityDiff = STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status];
+    if (priorityDiff !== 0) return priorityDiff;
+    return a.agent.localeCompare(b.agent);
   });
 
   return {
