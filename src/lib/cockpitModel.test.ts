@@ -10,7 +10,6 @@ import {
   parseGitHubRepo,
 } from './cockpitModel';
 import { Project, CostEvent, AgentTask } from './types';
-import { getIsoWeekKey } from './budget';
 
 const FORBIDDEN_WORDS = [
   'K8S',
@@ -109,9 +108,27 @@ test('topBarModel: full data parses various GitHub repo URL formats and proxy st
     proxyState: 'unknown',
   });
   assert.equal(m3.repoLabel, 'geosan-ai/fleet-monitor');
-  assert.equal(m3.proxyLabel, 'Proxy unknown');
+  assert.equal(m3.proxyLabel, 'Checking proxy…');
 
-  assertNoForbiddenCopy({ m1, m2, m3 }, 'topBarModel(full)');
+  // Refused format
+  const m4 = topBarModel({
+    projects: [makeProj('geosan-ai/fleet-monitor')],
+    proxyState: 'refused',
+  });
+  assert.equal(m4.proxyLabel, 'Proxy refused (sign in as owner / repo not assigned)');
+
+  assertNoForbiddenCopy({ m1, m2, m3, m4 }, 'topBarModel(full)');
+});
+
+test('topBarModel: all 5 proxy state labels match PR 2 requirements exactly', () => {
+  assert.equal(topBarModel({ proxyState: 'reachable' }).proxyLabel, 'Proxy connected');
+  assert.equal(
+    topBarModel({ proxyState: 'refused' }).proxyLabel,
+    'Proxy refused (sign in as owner / repo not assigned)'
+  );
+  assert.equal(topBarModel({ proxyState: 'unreachable' }).proxyLabel, 'Proxy unreachable');
+  assert.equal(topBarModel({ proxyState: 'disabled' }).proxyLabel, 'Proxy disabled');
+  assert.equal(topBarModel({ proxyState: 'unknown' }).proxyLabel, 'Checking proxy…');
 });
 
 test('parseGitHubRepo: helper correctly validates and extracts owner/repo', () => {
@@ -133,9 +150,26 @@ test('spendTileModel: empty data returns honest empty state without delta', () =
   assert.equal(model.label, 'Spend this week');
   assert.equal(model.total, null);
   assert.equal(model.formattedTotal, null);
+  assert.equal(model.capUsd, null);
+  assert.equal(model.formattedCap, null);
+  assert.equal(model.percent, null);
+  assert.equal(model.level, null);
   assert.equal(model.emptyState, 'No spend recorded this week');
   assert.equal(model.hasData, false);
   assertNoForbiddenCopy(model, 'spendTileModel(empty)');
+});
+
+test('spendTileModel: empty-with-cap returns emptyState but preserves cap and 0 percent ok level', () => {
+  const model = spendTileModel({ costEvents: [], capUsd: 3.0 });
+  assert.equal(model.total, null);
+  assert.equal(model.formattedTotal, null);
+  assert.equal(model.capUsd, 3.0);
+  assert.equal(model.formattedCap, '$3.00');
+  assert.equal(model.percent, 0);
+  assert.equal(model.level, 'ok');
+  assert.equal(model.emptyState, 'No spend recorded this week');
+  assert.equal(model.hasData, false);
+  assertNoForbiddenCopy(model, 'spendTileModel(empty-with-cap)');
 });
 
 test('spendTileModel: partial data with cost events outside current week', () => {
@@ -213,10 +247,92 @@ test('spendTileModel: full data sums this ISO week events precisely without delt
   assert.equal(model.emptyState, null);
   assert.equal(model.total, 1.5);
   assert.equal(model.formattedTotal, '$1.50');
+  assert.equal(model.capUsd, null);
+  assert.equal(model.formattedCap, null);
+  assert.equal(model.percent, null);
+  assert.equal(model.level, null);
   // Check no delta or monthly burn property exists
   assert.equal('delta' in (model as unknown as Record<string, unknown>), false);
   assert.equal('monthlyBurn' in (model as unknown as Record<string, unknown>), false);
   assertNoForbiddenCopy(model, 'spendTileModel(full)');
+});
+
+test('spendTileModel: cap thresholds ok (<80%), warn (80-99%), over (>=100%) and no cap', () => {
+  const makeEvent = (cost_usd: number): CostEvent => ({
+    id: 'c-test',
+    org_id: 'org-1',
+    project_id: 'proj-1',
+    task_id: null,
+    provider: 'anthropic',
+    model: 'claude-3-5-sonnet',
+    tokens_input: 10,
+    tokens_output: 10,
+    cost_usd,
+    attributed_to: null,
+    created_at: new Date('2026-11-04T12:00:00Z').toISOString(),
+  });
+  const now = new Date('2026-11-04T12:00:00Z');
+
+  // ok: spend $1.50 vs cap $3.00 = 50% (<80%)
+  const okModel = spendTileModel({
+    costEvents: [makeEvent(1.5)],
+    capUsd: 3.0,
+    now,
+  });
+  assert.equal(okModel.capUsd, 3.0);
+  assert.equal(okModel.formattedCap, '$3.00');
+  assert.equal(okModel.percent, 50);
+  assert.equal(okModel.level, 'ok');
+
+  // warn: spend $2.40 vs cap $3.00 = 80% (80-99%)
+  const warnModel80 = spendTileModel({
+    costEvents: [makeEvent(2.4)],
+    capUsd: 3.0,
+    now,
+  });
+  assert.equal(warnModel80.percent, 80);
+  assert.equal(warnModel80.level, 'warn');
+
+  // warn: spend $2.97 vs cap $3.00 = 99% (80-99%)
+  const warnModel99 = spendTileModel({
+    costEvents: [makeEvent(2.97)],
+    capUsd: 3.0,
+    now,
+  });
+  assert.equal(warnModel99.percent, 99);
+  assert.equal(warnModel99.level, 'warn');
+
+  // over: spend $3.00 vs cap $3.00 = 100% (>=100%)
+  const overModel100 = spendTileModel({
+    costEvents: [makeEvent(3.0)],
+    capUsd: 3.0,
+    now,
+  });
+  assert.equal(overModel100.percent, 100);
+  assert.equal(overModel100.level, 'over');
+
+  // over: spend $4.50 vs cap $3.00 = 150% (>=100%)
+  const overModel150 = spendTileModel({
+    costEvents: [makeEvent(4.5)],
+    capUsd: 3.0,
+    now,
+  });
+  assert.equal(overModel150.percent, 150);
+  assert.equal(overModel150.level, 'over');
+
+  // no cap: capUsd undefined or <= 0
+  const noCapModel = spendTileModel({
+    costEvents: [makeEvent(1.5)],
+    capUsd: 0,
+    now,
+  });
+  assert.equal(noCapModel.capUsd, null);
+  assert.equal(noCapModel.formattedCap, null);
+  assert.equal(noCapModel.percent, null);
+  assert.equal(noCapModel.level, null);
+  assert.equal(noCapModel.formattedTotal, '$1.50');
+
+  assertNoForbiddenCopy({ okModel, warnModel80, warnModel99, overModel100, noCapModel }, 'spendTileModel(cap thresholds)');
 });
 
 // ----------------------------------------------------------------------------
@@ -228,6 +344,8 @@ test('providersTileModel: empty data yields honest empty state', () => {
   assert.equal(model.label, 'AI providers');
   assert.deepEqual(model.providers, []);
   assert.deepEqual(model.models, []);
+  assert.deepEqual(model.chips, []);
+  assert.equal(model.moreCount, 0);
   assert.equal(model.emptyState, 'No AI providers used yet');
   assert.equal(model.hasData, false);
   assertNoForbiddenCopy(model, 'providersTileModel(empty)');
@@ -268,6 +386,8 @@ test('providersTileModel: partial data extracts distinct providers even with bla
   assert.equal(model.emptyState, null);
   assert.deepEqual(model.providers, ['google']);
   assert.deepEqual(model.models, ['gemini-1.5-pro']);
+  assert.deepEqual(model.chips, ['gemini-1.5-pro']);
+  assert.equal(model.moreCount, 0);
   assertNoForbiddenCopy(model, 'providersTileModel(partial)');
 });
 
@@ -319,7 +439,45 @@ test('providersTileModel: full data extracts distinct providers and models', () 
   assert.equal(model.emptyState, null);
   assert.deepEqual(model.providers, ['anthropic', 'deepseek', 'openai']);
   assert.deepEqual(model.models, ['claude-3-5-sonnet', 'deepseek-r1', 'gpt-4o']);
+  assert.deepEqual(model.chips, ['claude-3-5-sonnet', 'deepseek-r1', 'gpt-4o']);
+  assert.equal(model.moreCount, 0);
   assertNoForbiddenCopy(model, 'providersTileModel(full)');
+});
+
+test('providersTileModel: caps chips at 6 and computes +N more', () => {
+  const modelNames = [
+    'gpt-4o',
+    'gpt-4o-mini',
+    'claude-3-5-sonnet',
+    'claude-3-5-haiku',
+    'deepseek-r1',
+    'deepseek-v3',
+    'gemini-1.5-pro',
+    'gemini-1.5-flash',
+  ];
+
+  const events: CostEvent[] = modelNames.map((name, i) => ({
+    id: `c-${i}`,
+    org_id: 'org-1',
+    project_id: 'p-1',
+    task_id: null,
+    provider: 'openai',
+    model: name,
+    tokens_input: 100,
+    tokens_output: 100,
+    cost_usd: 0.01,
+    attributed_to: null,
+    created_at: new Date().toISOString(),
+  }));
+
+  const model = providersTileModel({ costEvents: events });
+  assert.equal(model.hasData, true);
+  assert.equal(model.models.length, 8);
+  assert.equal(model.chips.length, 6);
+  assert.deepEqual(model.chips, modelNames.slice(0, 6));
+  assert.equal(model.moreCount, 2);
+  assert.equal(model.overflowCount, 2);
+  assertNoForbiddenCopy(model, 'providersTileModel(+N more)');
 });
 
 // ----------------------------------------------------------------------------
@@ -354,22 +512,41 @@ test('databaseTileModel: maps connection error, demo mode, and connected state',
 // ----------------------------------------------------------------------------
 // githubTileModel Tests
 // ----------------------------------------------------------------------------
-test('githubTileModel: requires reachable proxy, otherwise prompts connection', () => {
+test('githubTileModel: requires reachable proxy, otherwise prompts connection with muted footnote', () => {
   const disabled = githubTileModel({ proxyState: 'disabled' });
-  assert.equal(disabled.title, 'GitHub CI');
-  assert.equal(disabled.emptyState, 'Connect the local proxy to see CI');
+  assert.equal(disabled.title, 'GitHub');
+  assert.equal(disabled.emptyState, 'Connect the local proxy to see the latest commit');
+  assert.equal(disabled.footnote, "CI runs aren't available through the proxy yet.");
   assert.equal(disabled.hasData, false);
+  assert.equal(disabled.latestCommit, null);
   assertNoForbiddenCopy(disabled, 'githubTileModel(disabled)');
 
   const unknownState = githubTileModel({ proxyState: 'unknown' });
-  assert.equal(unknownState.emptyState, 'Connect the local proxy to see CI');
+  assert.equal(unknownState.emptyState, 'Connect the local proxy to see the latest commit');
 
   const unreachable = githubTileModel({ proxyState: 'unreachable' });
-  assert.equal(unreachable.emptyState, 'Connect the local proxy to see CI');
+  assert.equal(unreachable.emptyState, 'Connect the local proxy to see the latest commit');
 
-  const reachable = githubTileModel({ proxyState: 'reachable' });
+  const refused = githubTileModel({ proxyState: 'refused' });
+  assert.equal(refused.emptyState, 'Connect the local proxy to see the latest commit');
+
+  const reachable = githubTileModel({
+    proxyState: 'reachable',
+    latestCommit: {
+      sha7: '1234567',
+      message: 'feat: cockpit updates',
+      date: '2026-11-04T12:00:00Z',
+    },
+  });
+  assert.equal(reachable.title, 'GitHub');
   assert.equal(reachable.emptyState, null);
   assert.equal(reachable.hasData, true);
+  assert.deepEqual(reachable.latestCommit, {
+    sha7: '1234567',
+    message: 'feat: cockpit updates',
+    date: '2026-11-04T12:00:00Z',
+  });
+  assert.equal(reachable.footnote, "CI runs aren't available through the proxy yet.");
   assertNoForbiddenCopy(reachable, 'githubTileModel(reachable)');
 });
 
@@ -551,7 +728,11 @@ test('anti-slop invariant: zero selector outputs contain forbidden words', () =>
   const allOutputs = [
     topBarModel({}),
     topBarModel({ isDemoMode: true, proxyState: 'reachable' }),
+    topBarModel({ proxyState: 'refused' }),
+    topBarModel({ proxyState: 'unreachable' }),
+    topBarModel({ proxyState: 'unknown' }),
     spendTileModel({}),
+    spendTileModel({ capUsd: 3.0 }),
     spendTileModel({
       costEvents: [
         {
@@ -568,13 +749,35 @@ test('anti-slop invariant: zero selector outputs contain forbidden words', () =>
           created_at: new Date().toISOString(),
         },
       ],
+      capUsd: 3.0,
     }),
     providersTileModel({}),
+    providersTileModel({
+      costEvents: [
+        {
+          id: 'c-1',
+          org_id: 'org-1',
+          project_id: 'p-1',
+          task_id: null,
+          provider: 'anthropic',
+          model: 'claude-3-5-sonnet',
+          tokens_input: 10,
+          tokens_output: 10,
+          cost_usd: 1.0,
+          attributed_to: null,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    }),
     databaseTileModel({ isDemoMode: false }),
     databaseTileModel({ isDemoMode: true }),
     databaseTileModel({ connectionError: 'fail' }),
     githubTileModel({ proxyState: 'disabled' }),
-    githubTileModel({ proxyState: 'reachable' }),
+    githubTileModel({ proxyState: 'refused' }),
+    githubTileModel({
+      proxyState: 'reachable',
+      latestCommit: { sha7: '1234567', message: 'test', date: '2026-11-04T12:00:00Z' },
+    }),
     agentsModel({}),
     agentsModel({
       tasks: [
