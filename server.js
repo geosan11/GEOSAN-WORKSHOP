@@ -6,6 +6,7 @@ import {
   assertLocalHost,
   authenticate,
   corsHeaders,
+  signOutSession,
   loadAuthConfig,
   loadProjectCredentials,
   prepareAiRequest,
@@ -52,6 +53,13 @@ app.use('/api', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// The browser is signing out: drop its token from the session cache now
+// instead of waiting for the entry to lapse (src/lib/proxyAuth.ts).
+app.post('/api/auth/signout', (req, res) => {
+  signOutSession(req.headers);
+  res.status(200).json({ ok: true });
 });
 
 app.post('/api/github/proxy', async (req, res, next) => {

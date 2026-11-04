@@ -28,6 +28,8 @@ export const GITHUB_ALLOWLIST = [
 const ALLOWED_QUERY = new Set(['sha', 'per_page', 'page', 'recursive']);
 const FORWARDED_HEADERS = new Set(['accept', 'x-github-api-version']);
 
+import { assertOwner, loadOwnerConfig } from './ownerCheck.js';
+
 export class ProxyError extends Error {
   constructor(status, message) {
     super(message);
@@ -41,7 +43,7 @@ function envKey(projectId, suffix) {
 
 /**
  * Reads per-project credentials from the environment.
- *   PROXY_PROJECTS=proj-ehi-001,proj-iya-001
+ *   PROXY_PROJECTS=proj-ehi-001,proj-iya-002
  *   PROJ_EHI_001_GITHUB_TOKEN=...            (required)
  *   PROJ_EHI_001_GITHUB_REPOS=owner/repo,... (required)
  *   PROJ_EHI_001_OPENAI_API_KEY=...          (optional)
@@ -102,11 +104,12 @@ export function loadAuthConfig(env = process.env) {
   const localDev = env.PROXY_AUTH_MODE === 'local-dev';
   const listed = (env.PROXY_ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
   const allowedOrigins = listed.length ? listed : DEFAULT_ALLOWED_ORIGINS;
-  const errors = [];
+  const owner = loadOwnerConfig(env);
+  const errors = [...owner.errors];
   if (!(supabaseUrl && supabaseAnonKey) && !apiKey && !localDev) {
     errors.push('No proxy auth configured: set SUPABASE_URL + SUPABASE_ANON_KEY, PROXY_API_KEY, or PROXY_AUTH_MODE=local-dev.');
   }
-  return { supabaseUrl, supabaseAnonKey, apiKey, localDev, allowedOrigins, errors };
+  return { supabaseUrl, supabaseAnonKey, apiKey, localDev, allowedOrigins, owner, errors };
 }
 
 function bearer(headers) {
@@ -141,9 +144,60 @@ export function assertLocalHost(headers, allowed = (process.env.PROXY_ALLOWED_HO
 }
 
 const sessionCache = new Map();
-const SESSION_TTL_MS = 60_000;
+// Short on purpose: a signed-out token can be accepted from the cache for at
+// most this long if the client's POST /api/auth/signout didn't reach us.
+const SESSION_TTL_MS = 10_000;
+const SESSION_CACHE_MAX = 1000;
 
-/** Throws ProxyError(401) unless the caller is signed in. */
+/** The JWT's exp in ms, or null if the token has no readable exp claim. */
+export function tokenExpiryMs(token) {
+  try {
+    const payload = JSON.parse(Buffer.from(String(token).split('.')[1] || '', 'base64url').toString('utf8'));
+    return typeof payload?.exp === 'number' && Number.isFinite(payload.exp) ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cache a validated session until min(10 s, the token's own exp), so an
+ * expired token is never accepted from the cache. Tokens without an exp are
+ * not cached (checked with Supabase every time).
+ */
+function cacheSession(token, user, now = Date.now()) {
+  const exp = tokenExpiryMs(token);
+  if (exp === null || exp <= now) return;
+  if (sessionCache.size >= SESSION_CACHE_MAX) {
+    for (const [k, v] of sessionCache) if (v.expires <= now) sessionCache.delete(k);
+    if (sessionCache.size >= SESSION_CACHE_MAX) sessionCache.delete(sessionCache.keys().next().value);
+  }
+  sessionCache.set(token, { user, expires: Math.min(now + SESSION_TTL_MS, exp) });
+}
+
+/** Drop a token from the session cache (e.g. after Supabase answered 401 for it). */
+export function forgetSession(token) {
+  sessionCache.delete(token);
+}
+
+/**
+ * POST /api/auth/signout (after authenticate): the browser is signing out,
+ * so stop accepting its token from the cache straight away.
+ */
+export function signOutSession(headers) {
+  const token = bearer(headers);
+  if (token) forgetSession(token);
+}
+
+/** 403 unless a Supabase user is the owner (OWNER_USER_ID / ALLOWED_USER_IDS). */
+function ownerOnly(auth, user) {
+  try {
+    return assertOwner(auth.owner, user);
+  } catch (e) {
+    throw new ProxyError(e.status || 403, e.message);
+  }
+}
+
+/** Throws ProxyError(401) unless the caller is signed in, 403 if not the owner. */
 export async function authenticate(auth, headers, remoteAddress, fetchImpl = fetch) {
   const token = bearer(headers);
 
@@ -151,16 +205,19 @@ export async function authenticate(auth, headers, remoteAddress, fetchImpl = fet
 
   if (token && auth.supabaseUrl && auth.supabaseAnonKey) {
     const cached = sessionCache.get(token);
-    if (cached && cached.expires > Date.now()) return cached.user;
+    if (cached && cached.expires > Date.now()) return ownerOnly(auth, cached.user);
+    if (cached) sessionCache.delete(token);
     const res = await fetchImpl(`${auth.supabaseUrl}/auth/v1/user`, {
       headers: { apikey: auth.supabaseAnonKey, Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
       const data = await res.json();
       const user = { kind: 'supabase', id: data.id, email: data.email };
-      sessionCache.set(token, { user, expires: Date.now() + SESSION_TTL_MS });
-      return user;
+      cacheSession(token, user);
+      return ownerOnly(auth, user);
     }
+    // Signed out, revoked or expired upstream: never serve this token from the cache.
+    if (res.status === 401 || res.status === 403) forgetSession(token);
   }
 
   // local-dev already admits tokenless loopback callers, so a token that isn't

@@ -4,8 +4,7 @@
  * list). Otherwise the server answers 403. Without this, anyone who can sign
  * up to the Supabase project would have a valid session.
  *
- * Self-contained on purpose: it is not wired in yet. After PR #3
- * (fix/secure-proxy) merges, server/proxySecurity.js `authenticate` calls
+ * Wired in by server/proxySecurity.js: `authenticate` calls
  * `assertOwner(auth.owner, user)` on every Supabase user it returns (cached
  * or fresh), and `loadAuthConfig` adds `owner: loadOwnerConfig(env)` and its
  * errors. API-key and local-dev callers are not Supabase users and pass

@@ -14,6 +14,7 @@ import {
   ProxyError,
   addLearningRecord,
   guardGatewayRequest,
+  signOutSession,
   loadLearningLimits,
   loadAuthConfig,
   loadProjectCredentials,
@@ -313,6 +314,23 @@ export function handleTelemetryGateway(
       } catch (err: any) {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ success: false, error: err.message || 'Internal sync error' }));
+      }
+    });
+    return true;
+  }
+
+  // 5a. Sign-out: POST /api/auth/signout drops the caller's token from the
+  // session cache (same guard as the proxy routes; see server.js).
+  if (pathname === '/api/auth/signout' && req.method === 'POST') {
+    req.resume();
+    req.on('end', async () => {
+      try {
+        await guardProxyRoute(req, 'Sign-out');
+        signOutSession(req.headers);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err: any) {
+        sendProxyError(res, err, 'Sign-out');
       }
     });
     return true;

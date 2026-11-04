@@ -51,6 +51,9 @@ jobs:
       - name: Unit tests
         run: npx tsx --test "src/**/*.test.ts"
 
+      - name: Proxy tests
+        run: npm run test:proxy
+
       - name: Design / slop critic lint
         run: npx tsx scripts/design-lint.ts
 
