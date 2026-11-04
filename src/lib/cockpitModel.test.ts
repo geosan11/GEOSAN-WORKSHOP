@@ -9,7 +9,7 @@ import {
   agentsModel,
   parseGitHubRepo,
 } from './cockpitModel';
-import { Project, CostEvent, AgentTask } from './types';
+import { Project, CostEvent, AgentTask, QARun } from './types';
 
 const FORBIDDEN_WORDS = [
   'K8S',
@@ -19,6 +19,7 @@ const FORBIDDEN_WORDS = [
   'latency',
   'Monthly burn',
   'alive',
+  'heartbeat',
 ];
 
 function assertNoForbiddenCopy(obj: unknown, context: string): void {
@@ -719,6 +720,354 @@ test('agentsModel: groups non-terminal tasks by assigned_agent with status count
   assert.equal(security.counts.awaiting_approval, 1);
 
   assertNoForbiddenCopy(model, 'agentsModel(full)');
+});
+
+// Helper factories for agent model testing
+function makeTestTask(overrides: Partial<AgentTask> = {}): AgentTask {
+  return {
+    id: overrides.id || `task-${Math.random().toString(36).substring(2, 9)}`,
+    org_id: 'org-test',
+    project_id: 'proj-test',
+    parent_task_id: null,
+    task_type: overrides.task_type || 'BUILD_FEATURE',
+    prompt: overrides.prompt || 'Default prompt',
+    status: overrides.status || 'running',
+    assigned_agent: overrides.assigned_agent !== undefined ? overrides.assigned_agent : 'WorkerAgent',
+    plan: null,
+    result: null,
+    branch_name: overrides.branch_name !== undefined ? overrides.branch_name : null,
+    pr_url: overrides.pr_url !== undefined ? overrides.pr_url : null,
+    created_at: overrides.created_at || '2026-11-04T10:00:00.000Z',
+    started_at: overrides.started_at !== undefined ? overrides.started_at : null,
+    completed_at: overrides.completed_at !== undefined ? overrides.completed_at : null,
+    goal: overrides.goal,
+  };
+}
+
+function makeTestQaRun(overrides: Partial<QARun> = {}): QARun {
+  return {
+    id: overrides.id || `qa-${Math.random().toString(36).substring(2, 9)}`,
+    org_id: 'org-test',
+    project_id: 'proj-test',
+    task_id: overrides.task_id !== undefined ? overrides.task_id : null,
+    run_type: 'explore',
+    target_url: 'http://localhost:3000',
+    target_platform: 'web',
+    role_tested: null,
+    status: overrides.status || 'completed',
+    engine_used: null,
+    findings_count: 0,
+    replay_script_path: null,
+    created_at: overrides.created_at || '2026-11-04T12:00:00.000Z',
+    completed_at: null,
+  };
+}
+
+test('agentsModel: grouping by real assigned_agent incl. null/blank → Unassigned', () => {
+  const tasks = [
+    makeTestTask({ id: 't-null', assigned_agent: null, status: 'running' }),
+    makeTestTask({ id: 't-empty', assigned_agent: '', status: 'queued' }),
+    makeTestTask({ id: 't-spaces', assigned_agent: '   ', status: 'awaiting_approval' }),
+    makeTestTask({ id: 't-named', assigned_agent: 'SpecialAgent', status: 'running' }),
+  ];
+
+  const model = agentsModel({ tasks });
+  assert.equal(model.totalAgents, 2);
+  assert.equal(model.totalActiveTasks, 4);
+
+  const unassigned = model.agents.find((a) => a.agent === 'Unassigned');
+  assert.ok(unassigned);
+  assert.equal(unassigned.totalTasks, 3);
+  assert.equal(unassigned.counts.running, 1);
+  assert.equal(unassigned.counts.queued, 1);
+  assert.equal(unassigned.counts.awaiting_approval, 1);
+
+  const named = model.agents.find((a) => a.agent === 'SpecialAgent');
+  assert.ok(named);
+  assert.equal(named.totalTasks, 1);
+  assert.equal(named.counts.running, 1);
+});
+
+test('agentsModel: terminal tasks excluded from agents and task counts', () => {
+  const tasks = [
+    makeTestTask({ id: 't-done', assigned_agent: 'DoneAgentOnly', status: 'done' }),
+    makeTestTask({ id: 't-failed', assigned_agent: 'DoneAgentOnly', status: 'failed' }),
+    makeTestTask({ id: 't-cancelled', assigned_agent: 'CancelledAgent', status: 'cancelled' }),
+    makeTestTask({ id: 't-proposed', assigned_agent: 'ProposedAgent', status: 'proposed' }),
+    makeTestTask({ id: 't-blocked', assigned_agent: 'BlockedAgent', status: 'blocked' }),
+    makeTestTask({ id: 't-active', assigned_agent: 'ActiveAgent', status: 'running' }),
+    makeTestTask({ id: 't-terminal-also', assigned_agent: 'ActiveAgent', status: 'done' }),
+  ];
+
+  const model = agentsModel({ tasks });
+  assert.equal(model.totalAgents, 1);
+  assert.equal(model.totalActiveTasks, 1);
+  assert.equal(model.agents[0].agent, 'ActiveAgent');
+  assert.equal(model.agents[0].totalTasks, 1);
+});
+
+test('agentsModel: status priority running > awaiting_approval > queued', () => {
+  const agent1Tasks = [
+    makeTestTask({ id: 't1-run', assigned_agent: 'Agent1', status: 'running' }),
+    makeTestTask({ id: 't1-await', assigned_agent: 'Agent1', status: 'awaiting_approval' }),
+    makeTestTask({ id: 't1-queue', assigned_agent: 'Agent1', status: 'queued' }),
+  ];
+
+  const agent2Tasks = [
+    makeTestTask({ id: 't2-await', assigned_agent: 'Agent2', status: 'awaiting_approval' }),
+    makeTestTask({ id: 't2-queue', assigned_agent: 'Agent2', status: 'queued' }),
+  ];
+
+  const agent3Tasks = [
+    makeTestTask({ id: 't3-queue', assigned_agent: 'Agent3', status: 'queued' }),
+  ];
+
+  const model = agentsModel({ tasks: [...agent1Tasks, ...agent2Tasks, ...agent3Tasks] });
+  const a1 = model.agents.find((a) => a.agent === 'Agent1');
+  const a2 = model.agents.find((a) => a.agent === 'Agent2');
+  const a3 = model.agents.find((a) => a.agent === 'Agent3');
+
+  assert.equal(a1?.status, 'running');
+  assert.equal(a1?.statusLabel, 'Running');
+
+  assert.equal(a2?.status, 'awaiting_approval');
+  assert.equal(a2?.statusLabel, 'Awaiting approval');
+
+  assert.equal(a3?.status, 'queued');
+  assert.equal(a3?.statusLabel, 'Queued');
+});
+
+test('agentsModel: currentTask selection rules incl. goal vs prompt first line and 90-char cap', () => {
+  // Agent running: newest by started_at wins
+  const runningTasks = [
+    makeTestTask({
+      id: 't-run-old',
+      assigned_agent: 'Runner',
+      status: 'running',
+      started_at: '2026-11-04T10:00:00.000Z',
+      goal: 'Older running goal',
+    }),
+    makeTestTask({
+      id: 't-run-new',
+      assigned_agent: 'Runner',
+      status: 'running',
+      started_at: '2026-11-04T12:00:00.000Z',
+      goal: 'Newest running goal',
+    }),
+  ];
+  const m1 = agentsModel({ tasks: runningTasks });
+  assert.equal(m1.agents[0].currentTask.id, 't-run-new');
+  assert.equal(m1.agents[0].currentTask.title, 'Newest running goal');
+
+  // Agent awaiting: oldest by created_at wins
+  const awaitingTasks = [
+    makeTestTask({
+      id: 't-await-newer',
+      assigned_agent: 'Approver',
+      status: 'awaiting_approval',
+      created_at: '2026-11-04T11:00:00.000Z',
+      prompt: 'Newer awaiting prompt',
+    }),
+    makeTestTask({
+      id: 't-await-older',
+      assigned_agent: 'Approver',
+      status: 'awaiting_approval',
+      created_at: '2026-11-04T09:00:00.000Z',
+      prompt: 'Older awaiting prompt',
+    }),
+  ];
+  const m2 = agentsModel({ tasks: awaitingTasks });
+  assert.equal(m2.agents[0].currentTask.id, 't-await-older');
+
+  // Agent queued: oldest by created_at wins
+  const queuedTasks = [
+    makeTestTask({
+      id: 't-queue-newer',
+      assigned_agent: 'Queuer',
+      status: 'queued',
+      created_at: '2026-11-04T11:00:00.000Z',
+    }),
+    makeTestTask({
+      id: 't-queue-older',
+      assigned_agent: 'Queuer',
+      status: 'queued',
+      created_at: '2026-11-04T08:00:00.000Z',
+    }),
+  ];
+  const m3 = agentsModel({ tasks: queuedTasks });
+  assert.equal(m3.agents[0].currentTask.id, 't-queue-older');
+
+  // Title rules:
+  // (a) goal non-empty wins over prompt
+  const tGoal = makeTestTask({
+    id: 't-goal',
+    assigned_agent: 'TitleTest',
+    status: 'running',
+    goal: 'Goal wins over prompt',
+    prompt: 'Prompt first line\nSecond line',
+  });
+  assert.equal(agentsModel({ tasks: [tGoal] }).agents[0].currentTask.title, 'Goal wins over prompt');
+
+  // (b) empty or whitespace goal falls back to prompt first line
+  const tPromptFallback = makeTestTask({
+    id: 't-pf',
+    assigned_agent: 'TitleTest',
+    status: 'running',
+    goal: '   ',
+    prompt: 'First line of prompt\nSecond line of prompt\nThird line',
+  });
+  assert.equal(agentsModel({ tasks: [tPromptFallback] }).agents[0].currentTask.title, 'First line of prompt');
+
+  // (c) 90-char cap on goal
+  const longGoal = 'X'.repeat(120);
+  const tLongGoal = makeTestTask({
+    id: 't-lg',
+    assigned_agent: 'TitleTest',
+    status: 'running',
+    goal: longGoal,
+  });
+  const longGoalTitle = agentsModel({ tasks: [tLongGoal] }).agents[0].currentTask.title;
+  assert.equal(longGoalTitle.length, 90);
+  assert.equal(longGoalTitle, 'X'.repeat(90));
+
+  // (d) 90-char cap on prompt first line
+  const longPrompt = 'Y'.repeat(150) + '\nnext line';
+  const tLongPrompt = makeTestTask({
+    id: 't-lp',
+    assigned_agent: 'TitleTest',
+    status: 'running',
+    goal: '',
+    prompt: longPrompt,
+  });
+  const longPromptTitle = agentsModel({ tasks: [tLongPrompt] }).agents[0].currentTask.title;
+  assert.equal(longPromptTitle.length, 90);
+  assert.equal(longPromptTitle, 'Y'.repeat(90));
+});
+
+test('agentsModel: sinceIso choice (started_at for running, else created_at)', () => {
+  // Running with started_at
+  const runWithStart = makeTestTask({
+    id: 't-rs',
+    assigned_agent: 'A1',
+    status: 'running',
+    created_at: '2026-11-04T08:00:00.000Z',
+    started_at: '2026-11-04T09:30:00.000Z',
+  });
+  assert.equal(agentsModel({ tasks: [runWithStart] }).agents[0].currentTask.sinceIso, '2026-11-04T09:30:00.000Z');
+
+  // Running without started_at (fallback to created_at)
+  const runWithoutStart = makeTestTask({
+    id: 't-rns',
+    assigned_agent: 'A2',
+    status: 'running',
+    created_at: '2026-11-04T08:00:00.000Z',
+    started_at: null,
+  });
+  assert.equal(agentsModel({ tasks: [runWithoutStart] }).agents[0].currentTask.sinceIso, '2026-11-04T08:00:00.000Z');
+
+  // Awaiting approval (uses created_at even if started_at exists)
+  const awaitTask = makeTestTask({
+    id: 't-aw',
+    assigned_agent: 'A3',
+    status: 'awaiting_approval',
+    created_at: '2026-11-04T07:15:00.000Z',
+    started_at: '2026-11-04T07:20:00.000Z',
+  });
+  assert.equal(agentsModel({ tasks: [awaitTask] }).agents[0].currentTask.sinceIso, '2026-11-04T07:15:00.000Z');
+
+  // Queued (uses created_at)
+  const queuedTask = makeTestTask({
+    id: 't-q',
+    assigned_agent: 'A4',
+    status: 'queued',
+    created_at: '2026-11-04T06:00:00.000Z',
+    started_at: null,
+  });
+  assert.equal(agentsModel({ tasks: [queuedTask] }).agents[0].currentTask.sinceIso, '2026-11-04T06:00:00.000Z');
+});
+
+test('agentsModel: lastQa only by task_id match (qaRun with no or other task_id must NOT attach)', () => {
+  const agentTasks = [
+    makeTestTask({ id: 't-alpha-active', assigned_agent: 'AlphaAgent', status: 'running' }),
+    makeTestTask({ id: 't-alpha-terminal', assigned_agent: 'AlphaAgent', status: 'done' }),
+    makeTestTask({ id: 't-beta-active', assigned_agent: 'BetaAgent', status: 'running' }),
+  ];
+
+  const qaRuns: QARun[] = [
+    makeTestQaRun({ id: 'qa-null', task_id: null, status: 'failed', created_at: '2026-11-04T15:00:00.000Z' }),
+    makeTestQaRun({ id: 'qa-empty', task_id: '', status: 'failed', created_at: '2026-11-04T15:00:00.000Z' }),
+    makeTestQaRun({ id: 'qa-unrelated', task_id: 't-other', status: 'failed', created_at: '2026-11-04T15:00:00.000Z' }),
+    // Older QA on active task
+    makeTestQaRun({ id: 'qa-alpha-old', task_id: 't-alpha-active', status: 'failed', created_at: '2026-11-04T10:00:00.000Z' }),
+    // Newest QA on terminal task belonging to AlphaAgent (any status of task)
+    makeTestQaRun({ id: 'qa-alpha-new', task_id: 't-alpha-terminal', status: 'completed', created_at: '2026-11-04T12:00:00.000Z' }),
+  ];
+
+  const model = agentsModel({ tasks: agentTasks, qaRuns });
+
+  // BetaAgent has no matching qaRun -> null
+  const beta = model.agents.find((a) => a.agent === 'BetaAgent');
+  assert.ok(beta);
+  assert.equal(beta.lastQa, null);
+
+  // AlphaAgent matches newest QA run by created_at across all its tasks
+  const alpha = model.agents.find((a) => a.agent === 'AlphaAgent');
+  assert.ok(alpha);
+  assert.ok(alpha.lastQa);
+  assert.equal(alpha.lastQa.status, 'completed');
+  assert.equal(alpha.lastQa.created_at, '2026-11-04T12:00:00.000Z');
+});
+
+test('agentsModel: sort order running first, then awaiting_approval, then queued, then by agent name', () => {
+  const tasks = [
+    makeTestTask({ id: 't-1', assigned_agent: 'ZetaAgent', status: 'running' }),
+    makeTestTask({ id: 't-2', assigned_agent: 'BetaAgent', status: 'running' }),
+    makeTestTask({ id: 't-3', assigned_agent: 'OmegaAgent', status: 'awaiting_approval' }),
+    makeTestTask({ id: 't-4', assigned_agent: 'AlphaAgent', status: 'awaiting_approval' }),
+    makeTestTask({ id: 't-5', assigned_agent: 'GammaAgent', status: 'queued' }),
+    makeTestTask({ id: 't-6', assigned_agent: 'DeltaAgent', status: 'queued' }),
+  ];
+
+  const model = agentsModel({ tasks });
+  const names = model.agents.map((a) => a.agent);
+
+  assert.deepEqual(names, [
+    'BetaAgent',   // running (B < Z)
+    'ZetaAgent',   // running
+    'AlphaAgent',  // awaiting_approval (A < O)
+    'OmegaAgent',  // awaiting_approval
+    'DeltaAgent',  // queued (D < G)
+    'GammaAgent',  // queued
+  ]);
+});
+
+test('agentsModel: forbidden-words check extended to full agents output', () => {
+  const tasks = [
+    makeTestTask({
+      id: 't-1',
+      assigned_agent: 'CoordinatorAgent',
+      status: 'running',
+      branch_name: 'feat/cockpit',
+      pr_url: 'https://github.com/geosan/repo/pull/12',
+      started_at: '2026-11-04T10:00:00.000Z',
+      goal: 'Deliver cockpit agent cards without slop',
+    }),
+  ];
+  const qaRuns = [
+    makeTestQaRun({
+      id: 'qa-1',
+      task_id: 't-1',
+      status: 'completed',
+      created_at: '2026-11-04T11:00:00.000Z',
+    }),
+  ];
+
+  const model = agentsModel({ tasks, qaRuns });
+  assertNoForbiddenCopy(model, 'agentsModel(full extended)');
+
+  const json = JSON.stringify(model);
+  assert.equal(json.includes('"progress"'), false, 'agents model should not include progress field');
+  assert.equal(/\b\d+%\b/.test(json), false, 'agents model should not include percent strings');
 });
 
 // ----------------------------------------------------------------------------
