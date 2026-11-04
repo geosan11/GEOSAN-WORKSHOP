@@ -14,10 +14,10 @@ import {
   Check,
   Code2,
   Globe,
-  Github,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
+import { GitHubLogo } from './ServiceLogos';
 
 export type WorkshopModalMode = 'create' | 'attach';
 
@@ -463,7 +463,7 @@ export const WorkshopProjectModal: React.FC<WorkshopProjectModalProps> = ({
                         {repoVerifiedState === 'valid' ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                         ) : (
-                          <Github className="w-3.5 h-3.5" />
+                          <GitHubLogo className="w-3.5 h-3.5" />
                         )}
                         <span>{repoVerifiedState === 'valid' ? 'Verified' : 'Verify repo'}</span>
                       </button>
