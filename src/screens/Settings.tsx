@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../lib/auth';
 import { useTheme } from '../lib/theme';
 import { useFontScale, type FontScale } from '../lib/fontScale';
-import { LogOut, Key, Github, Sparkles, Moon, Sun } from 'lucide-react';
+import { LogOut, Key, Sparkles, Moon, Sun } from 'lucide-react';
+import { GitHubLogo } from '../components/ServiceLogos';
 import { useToast } from '../components/Toast';
 import { isDemoMode } from '../lib/supabase';
 import { seedDemoScenario } from '../lib/demoScenario';
@@ -164,7 +165,7 @@ export const SettingsScreen: React.FC = () => {
                       onClick={() => toast.info('GitHub ready. Add your PAT in ~/.github_token or project settings.')}
                       className="h-6 px-2 rounded text-[10px] text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-white/[0.06] flex items-center gap-1 transition-colors"
                     >
-                      <Github className="w-3 h-3" />
+                      <GitHubLogo className="w-3 h-3" />
                       <span>Connect</span>
                     </button>
                   )}
