@@ -16,6 +16,7 @@ import { LoadingState } from './components/LoadingState';
 
 // Screens
 import { LoginScreen } from './screens/LoginScreen';
+import { CockpitScreen } from './screens/Cockpit';
 import { PortfolioScreen } from './screens/Portfolio';
 import { ProjectsScreen } from './screens/ProjectsScreen';
 import { RunsScreen } from './screens/Runs';
@@ -109,6 +110,7 @@ const AppContent: React.FC = () => {
           className="flex-1 overflow-y-auto"
           tabIndex={-1}
         >
+          {screen.kind === 'cockpit' && <CockpitScreen />}
           {(screen.kind === 'portfolio' || screen.kind === 'inbox') && <PortfolioScreen />}
           {screen.kind === 'projects' && <ProjectsScreen />}
           {(screen.kind === 'runs' || screen.kind === 'console') && (

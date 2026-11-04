@@ -13,7 +13,8 @@ import {
   Radio,
   LayoutDashboard,
   Activity,
-  DollarSign
+  DollarSign,
+  Gauge
 } from 'lucide-react';
 
 interface WorkshopSidebarProps {
@@ -30,6 +31,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
   const { screen, navigate } = useNavigation();
   const { user, signOut } = useAuth();
 
+  const isCockpitActive = screen.kind === 'cockpit';
   const isPortfolioActive = screen.kind === 'portfolio' || screen.kind === 'inbox';
   const isProjectsActive = screen.kind === 'projects' || screen.kind === 'project';
   const isAgentsActive = screen.kind === 'runs' || screen.kind === 'console';
@@ -77,6 +79,21 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
 
       {/* Navigation Links */}
       <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
+        {/* 0. Cockpit */}
+        <button
+          type="button"
+          onClick={() => navigate({ kind: 'cockpit' })}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg font-medium transition-all duration-150 ease-out text-left focus-visible:ring-1 focus-visible:ring-indigo-500/50 outline-none ${
+            isCockpitActive
+              ? 'bg-indigo-600/10 text-indigo-300 border border-indigo-500/30 shadow-xs'
+              : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] border border-transparent'
+          }`}
+          title="Cockpit"
+        >
+          <Gauge className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Cockpit</span>}
+        </button>
+
         {/* 1. Portfolio */}
         <button
           type="button"
