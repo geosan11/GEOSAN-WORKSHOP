@@ -16,12 +16,12 @@ import {
   Terminal,
   Clock,
   Code2,
-  Github,
   ChevronDown,
   ChevronUp,
   Activity,
   ExternalLink
 } from 'lucide-react';
+import { GitHubLogo } from '../components/ServiceLogos';
 
 interface ProjectDetailProps {
   projectId: string;
@@ -332,7 +332,7 @@ export const ProjectDetailScreen: React.FC<ProjectDetailProps> = ({
               className="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04] transition-colors ml-auto sm:ml-0"
               title="View repository on GitHub"
             >
-              <Github className="w-3.5 h-3.5" />
+              <GitHubLogo className="w-3.5 h-3.5" />
             </a>
           )}
         </div>
