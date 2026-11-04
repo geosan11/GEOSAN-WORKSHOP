@@ -4,6 +4,9 @@ import {
   ProxyError,
   assertBrowserSafe,
   authenticate,
+  forgetSession,
+  signOutSession,
+  tokenExpiryMs,
   isLoopback,
   addLearningRecord,
   assertLocalHost,
@@ -19,12 +22,12 @@ import {
 
 const SHA = 'a'.repeat(40);
 const env = {
-  PROXY_PROJECTS: 'proj-ehi-001,proj-iya-001',
+  PROXY_PROJECTS: 'proj-ehi-001,proj-iya-002',
   PROJ_EHI_001_GITHUB_TOKEN: 'ehi-token',
   PROJ_EHI_001_GITHUB_REPOS: 'geosan11/EHI-MULTISYSTEMS',
   PROJ_EHI_001_OPENAI_API_KEY: 'ehi-openai',
-  PROJ_IYA_001_GITHUB_TOKEN: 'iya-token',
-  PROJ_IYA_001_GITHUB_REPOS: 'acme/iya-oil',
+  PROJ_IYA_002_GITHUB_TOKEN: 'iya-token',
+  PROJ_IYA_002_GITHUB_REPOS: 'acme/iya-oil',
 };
 const { projects } = loadProjectCredentials(env);
 const status = (fn) => {
@@ -46,14 +49,14 @@ test('startup config fails when keys are missing', () => {
 });
 
 test('a repo cannot belong to two projects', () => {
-  const { errors } = loadProjectCredentials({ ...env, PROJ_IYA_001_GITHUB_REPOS: 'geosan11/ehi-multisystems' });
+  const { errors } = loadProjectCredentials({ ...env, PROJ_IYA_002_GITHUB_REPOS: 'geosan11/ehi-multisystems' });
   assert.ok(errors.some((e) => e.includes('assigned to both')));
 });
 
 test('uses the token of the project that owns the repo', () => {
   const r = prepareGitHubRequest(projects, { endpoint: '/repos/acme/iya-oil' });
   assert.equal(r.headers.Authorization, 'Bearer iya-token');
-  assert.equal(r.projectId, 'proj-iya-001');
+  assert.equal(r.projectId, 'proj-iya-002');
 });
 
 test('unknown repo or mismatched project is refused, never falls back', () => {
@@ -91,11 +94,14 @@ test('AI chat needs a known project with its own provider key', () => {
   const msgs = [{ role: 'user', content: 'hi' }];
   assert.equal(prepareAiRequest(projects, { messages: msgs, project_id: 'proj-ehi-001' }).apiKey, 'ehi-openai');
   assert.equal(status(() => prepareAiRequest(projects, { messages: msgs })), 400);
-  assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-iya-001' })), 403);
+  assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-iya-002' })), 403);
   assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-ehi-001', modelId: 'claude-3-7-sonnet-20250219' })), 403);
   assert.equal(status(() => prepareAiRequest(projects, { messages: msgs, project_id: 'proj-ehi-001', modelId: 'o1-pro' })), 400);
   assert.equal(status(() => prepareAiRequest(projects, { messages: [{ role: 'tool', content: 'x' }], project_id: 'proj-ehi-001' })), 400);
 });
+
+const testJwt = (expInSeconds, tag = Math.random().toString(36).slice(2)) =>
+  `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: 'u1', exp: Math.floor(Date.now() / 1000) + expInSeconds, tag })).toString('base64url')}.sig`;
 
 test('auth: api key, supabase session, local-dev loopback only', async () => {
   const apiAuth = loadAuthConfig({ PROXY_API_KEY: 'k3y' });
@@ -103,13 +109,19 @@ test('auth: api key, supabase session, local-dev loopback only', async () => {
   await assert.rejects(authenticate(apiAuth, { authorization: 'Bearer nope' }, '1.2.3.4'), { status: 401 });
   await assert.rejects(authenticate(apiAuth, {}, '127.0.0.1'), { status: 401 });
 
-  const sbAuth = loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon' });
+  const sbAuth = loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', OWNER_USER_ID: 'u1' });
+  const good = testJwt(3600);
   const fakeFetch = async (url, init) => ({
-    ok: init.headers.Authorization === 'Bearer good',
+    ok: init.headers.Authorization === `Bearer ${good}`,
+    status: init.headers.Authorization === `Bearer ${good}` ? 200 : 401,
     json: async () => ({ id: 'u1', email: 'a@b.c' }),
   });
-  assert.equal((await authenticate(sbAuth, { authorization: 'Bearer good' }, '1.2.3.4', fakeFetch)).id, 'u1');
+  assert.equal((await authenticate(sbAuth, { authorization: `Bearer ${good}` }, '1.2.3.4', fakeFetch)).id, 'u1');
   await assert.rejects(authenticate(sbAuth, { authorization: 'Bearer bad' }, '1.2.3.4', fakeFetch), { status: 401 });
+  // A valid session from any other account is refused, cached or not.
+  const otherAuth = loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', OWNER_USER_ID: 'owner' });
+  await assert.rejects(authenticate(otherAuth, { authorization: `Bearer ${good}` }, '1.2.3.4', fakeFetch), { status: 403 });
+  assert.ok(loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon' }).errors.length > 0);
 
   const devAuth = loadAuthConfig({ PROXY_AUTH_MODE: 'local-dev' });
   assert.equal((await authenticate(devAuth, {}, '127.0.0.1')).kind, 'local-dev');
@@ -264,4 +276,70 @@ test('assertLocalHost: a trailing comma in PROXY_ALLOWED_HOSTS does not admit an
   for (const host of ['[::1]:3001', 'localhost', '127.0.0.1:3001']) {
     assert.doesNotThrow(() => assertLocalHost({ host }), host);
   }
+});
+
+test('session cache: min(10 s, token exp), dropped when Supabase answers 401', async (t) => {
+  const auth = loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', OWNER_USER_ID: 'u1' });
+  let upstream = 200;
+  let calls = 0;
+  const fetchUser = async () => {
+    calls++;
+    return { ok: upstream === 200, status: upstream, json: async () => ({ id: 'u1', email: 'a@b.c' }) };
+  };
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+
+  // Token expires in 5 s: cached for 5 s, not 10 s.
+  const short = testJwt(5);
+  await authenticate(auth, { authorization: `Bearer ${short}` }, '1.2.3.4', fetchUser);
+  await authenticate(auth, { authorization: `Bearer ${short}` }, '1.2.3.4', fetchUser);
+  assert.equal(calls, 1, 'second call served from the cache');
+  t.mock.timers.tick(5_001);
+  upstream = 401; // Supabase now rejects the expired token
+  await assert.rejects(authenticate(auth, { authorization: `Bearer ${short}` }, '1.2.3.4', fetchUser), { status: 401 });
+  assert.equal(calls, 2, 'expired token re-checked upstream, not served from the cache');
+
+  // A long-lived token is still cached for at most 10 s.
+  upstream = 200;
+  const long = testJwt(3600);
+  await authenticate(auth, { authorization: `Bearer ${long}` }, '1.2.3.4', fetchUser);
+  t.mock.timers.tick(9_000);
+  await authenticate(auth, { authorization: `Bearer ${long}` }, '1.2.3.4', fetchUser);
+  assert.equal(calls, 3);
+  t.mock.timers.tick(1_001);
+  upstream = 401; // signed out: the cache entry has lapsed and the 401 drops it
+  await assert.rejects(authenticate(auth, { authorization: `Bearer ${long}` }, '1.2.3.4', fetchUser), { status: 401 });
+  upstream = 200;
+  await authenticate(auth, { authorization: `Bearer ${long}` }, '1.2.3.4', fetchUser);
+  assert.equal(calls, 5, 'nothing cached after the 401');
+
+  // A token without exp is never cached.
+  const noExp = `${Buffer.from('{"alg":"HS256"}').toString('base64url')}.${Buffer.from('{"sub":"u1"}').toString('base64url')}.sig`;
+  await authenticate(auth, { authorization: `Bearer ${noExp}` }, '1.2.3.4', fetchUser);
+  await authenticate(auth, { authorization: `Bearer ${noExp}` }, '1.2.3.4', fetchUser);
+  assert.equal(calls, 7);
+
+  // forgetSession drops a live entry at once.
+  await authenticate(auth, { authorization: `Bearer ${long}` }, '1.2.3.4', fetchUser);
+  forgetSession(long);
+  await authenticate(auth, { authorization: `Bearer ${long}` }, '1.2.3.4', fetchUser);
+  assert.equal(calls, 8);
+  assert.equal(tokenExpiryMs('not-a-jwt'), null);
+});
+
+test('signOutSession (POST /api/auth/signout) drops the caller token from the cache at once', async () => {
+  const auth = loadAuthConfig({ SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', OWNER_USER_ID: 'u1' });
+  let calls = 0;
+  const fetchUser = async () => {
+    calls++;
+    return { ok: true, status: 200, json: async () => ({ id: 'u1', email: 'a@b.c' }) };
+  };
+  const token = testJwt(3600);
+  const headers = { authorization: `Bearer ${token}` };
+  await authenticate(auth, headers, '1.2.3.4', fetchUser);
+  await authenticate(auth, headers, '1.2.3.4', fetchUser);
+  assert.equal(calls, 1, 'cached');
+  signOutSession(headers);
+  await authenticate(auth, headers, '1.2.3.4', fetchUser);
+  assert.equal(calls, 2, 're-checked with Supabase after sign-out');
+  signOutSession({}); // no token: nothing to do, no throw
 });

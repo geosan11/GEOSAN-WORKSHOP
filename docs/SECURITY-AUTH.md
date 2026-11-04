@@ -87,9 +87,11 @@ the existing `ehi_auth_session` localStorage key.
   `http://192.168.1.5:3000`), there is no lock: two tabs can still refresh at
   the same moment with the same refresh token. The losing tab then adopts the
   winner's token from storage, *if* the winner has saved it by the time the
-  rejection arrives. If not, the losing tab signs out (the other tab stays
-  signed in). Supabase's refresh-token reuse interval (10 s by default) makes
-  this rare.
+  rejection arrives. If not, the losing tab signs out, and **both tabs end up
+  signed out**: the sign-out clears the shared session key and bumps the
+  session generation, so the other tab follows it and its own in-flight
+  refresh result is discarded (see the next point). Supabase's refresh-token
+  reuse interval (10 s by default) makes this rare.
 - **A sign-out always wins over an in-flight refresh.** Each sign-in,
   sign-out and cross-tab change bumps a session generation. A refresh result
   is saved only if the generation is unchanged and the stored refresh token

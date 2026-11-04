@@ -4,6 +4,8 @@
  * Supports REST queries, auth, and graceful fallback when schema tables are being initialized.
  */
 
+import { forgetProxySessions } from './proxyAuth';
+
 export interface SupabaseResponse<T = any> {
   data: T | null;
   error: Error | null;
@@ -839,5 +841,8 @@ export const isDemoMode: boolean = !isConfigured;
 export const supabase = isConfigured
   ? new ProductionSupabaseClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key)
   : null;
+
+// On sign-out, tell our proxies to drop the token from their caches first.
+supabase?.setBeforeSignOut(forgetProxySessions);
 
 export type SupabaseClient = ProductionSupabaseClient;

@@ -33,3 +33,20 @@ export function proxyBaseUrl(): string {
 export function proxyUrl(path: string): string {
   return `${proxyBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
 }
+
+/**
+ * Sign-out, best effort: ask our proxies to drop this token from their
+ * session caches now, so they stop accepting it at once. That is server.js
+ * (proxyUrl) and, in dev, the Vite gateway on the page's own origin; each has
+ * its own cache. Failures are ignored (the cache entry lapses within 10 s).
+ */
+export async function forgetProxySessions(accessToken: string): Promise<void> {
+  const init: RequestInit = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+    body: '{}',
+  };
+  const targets = new Set([proxyUrl('/api/auth/signout')]);
+  if (typeof window !== 'undefined') targets.add('/api/auth/signout');
+  await Promise.allSettled([...targets].map((url) => fetch(url, init)));
+}
