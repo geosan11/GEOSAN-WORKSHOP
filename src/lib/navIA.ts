@@ -165,5 +165,6 @@ export function screenTitle(screen: Screen): string {
     const leaf = leafForScreen(screen);
     if (leaf) return leaf.label;
     if (screen.kind === 'project') return 'Projects';
+    if (screen.kind === 'cockpit') return 'Cockpit';
     return 'Command Center';
 }

@@ -19,6 +19,7 @@ export type ProjectTab =
   | 'components';
 
 export type Screen =
+  | { kind: 'cockpit' }
   | { kind: 'inbox' }
   | { kind: 'portfolio' }
   | { kind: 'projects' }
