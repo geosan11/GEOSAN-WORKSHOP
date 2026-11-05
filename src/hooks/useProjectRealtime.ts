@@ -109,7 +109,7 @@ export function useProjectRealtime({
 
     // 2. Supabase Realtime Subscription (when configured)
     let channel: any = null;
-    if (supabase && !isDemoMode) {
+    if (supabase && !isDemoMode && Boolean(projectId)) {
       try {
         channel = supabase
           .channel(`project_realtime:${projectId}`)

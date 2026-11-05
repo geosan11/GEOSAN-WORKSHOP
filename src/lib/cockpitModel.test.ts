@@ -7,8 +7,14 @@ import {
   databaseTileModel,
   githubTileModel,
   agentsModel,
+  activityFeedModel,
+  filterActivityLogs,
+  redactSecrets,
+  sanitizePayloadForExport,
+  exportActivityLogsAsJson,
   parseGitHubRepo,
 } from './cockpitModel';
+import type { ProjectLogItem } from '../hooks/useProjectRealtime';
 import { Project, CostEvent, AgentTask, QARun } from './types';
 
 const FORBIDDEN_WORDS = [
@@ -1071,6 +1077,320 @@ test('agentsModel: forbidden-words check extended to full agents output', () => 
 });
 
 // ----------------------------------------------------------------------------
+// Activity Feed Model & Pure Selectors (PR 4)
+// ----------------------------------------------------------------------------
+test('activityFeedModel: empty data yields honest empty state and zero counts', () => {
+  const empty1 = activityFeedModel({});
+  assert.equal(empty1.hasData, false);
+  assert.equal(empty1.emptyState, 'No activity recorded yet');
+  assert.equal(empty1.items.length, 0);
+  assert.equal(empty1.totalCount, 0);
+  assert.deepEqual(empty1.counts, { all: 0, errors: 0, status: 0, agent: 0 });
+
+  const empty2 = activityFeedModel({ logs: [], tasks: [] });
+  assert.equal(empty2.hasData, false);
+  assert.equal(empty2.emptyState, 'No activity recorded yet');
+  assert.equal(empty2.items.length, 0);
+  assert.equal(empty2.totalCount, 0);
+  assert.deepEqual(empty2.counts, { all: 0, errors: 0, status: 0, agent: 0 });
+});
+
+test('activityFeedModel: unifies project_logs and agent task state events in reverse chronological order', () => {
+  const t1 = '2026-11-04T10:00:00.000Z';
+  const t2 = '2026-11-04T11:00:00.000Z';
+  const t3 = '2026-11-04T12:00:00.000Z';
+
+  const logs: ProjectLogItem[] = [
+    {
+      id: 'log-1',
+      project_id: 'p-1',
+      timestamp: '11:00:00',
+      agent: 'CodingAgent',
+      provider: 'deepseek',
+      actionType: 'code',
+      level: 'info',
+      message: 'Generated migration patch',
+      payload: {
+        created_at: t2,
+        diff: '+ CREATE TABLE audit_events();',
+      },
+    },
+  ];
+
+  const tasks: AgentTask[] = [
+    {
+      id: 'task-1',
+      org_id: 'org-1',
+      project_id: 'p-1',
+      parent_task_id: null,
+      task_type: 'BUILD_FEATURE',
+      prompt: 'Implement issue filter',
+      goal: 'Issue filter bar',
+      status: 'done',
+      assigned_agent: 'ReviewAgent',
+      plan: null,
+      result: {
+        diff: '+ export function filterIssues() {}',
+      },
+      branch_name: 'feat/filter',
+      pr_url: 'https://github.com/geosan11/taskpulse/pull/12',
+      created_at: t1,
+      started_at: t1,
+      completed_at: t3,
+    },
+  ];
+
+  const feed = activityFeedModel({ logs, tasks });
+  assert.equal(feed.hasData, true);
+  assert.equal(feed.emptyState, null);
+  assert.equal(feed.totalCount, 2);
+  assert.equal(feed.items.length, 2);
+
+  // Newest first: task-1 completed at t3 (12:00), log-1 at t2 (11:00)
+  assert.equal(feed.items[0].id, 'task-1-terminal');
+  assert.equal(feed.items[0].actionType, 'TASK_DONE');
+  assert.equal(feed.items[0].diff, '+ export function filterIssues() {}');
+
+  assert.equal(feed.items[1].id, 'log-1');
+  assert.equal(feed.items[1].actionType, 'code');
+  assert.equal(feed.items[1].diff, '+ CREATE TABLE audit_events();');
+});
+
+test('activityFeedModel: caps at 200 rows when input has 1,000 rows and completes in under 100 ms', () => {
+  const thousandLogs: ProjectLogItem[] = [];
+  const baseTime = new Date('2026-11-04T10:00:00.000Z').getTime();
+
+  for (let i = 0; i < 1000; i++) {
+    const iso = new Date(baseTime + i * 1000).toISOString();
+    thousandLogs.push({
+      id: `log-${i}`,
+      project_id: 'p-perf',
+      timestamp: iso.slice(11, 19),
+      agent: i % 2 === 0 ? 'CodingAgent' : 'ReviewAgent',
+      provider: 'anthropic',
+      actionType: i % 5 === 0 ? 'error' : 'code',
+      level: i % 5 === 0 ? 'error' : 'info',
+      message: `Perf event ${i} executed`,
+      payload: {
+        created_at: iso,
+        tokens_used: i * 10,
+      },
+    });
+  }
+
+  const startTime = performance.now();
+  const feed = activityFeedModel({ logs: thousandLogs });
+  const durationMs = performance.now() - startTime;
+
+  assert.equal(feed.totalCount, 1000);
+  assert.equal(feed.items.length, 200);
+  assert.equal(feed.counts.all, 200);
+  assert.ok(
+    durationMs < 100,
+    `activityFeedModel took ${durationMs.toFixed(2)} ms, expected < 100 ms`
+  );
+
+  // The 200 items should be the 200 newest (log-999 down to log-800)
+  assert.equal(feed.items[0].id, 'log-999');
+  assert.equal(feed.items[199].id, 'log-800');
+});
+
+test('filterActivityLogs: filters correctly for all, errors, status, and agent tabs', () => {
+  const items = [
+    {
+      id: 'item-1',
+      timestamp: '10:00:00',
+      timestampIso: '2026-11-04T10:00:00Z',
+      agent: 'CodingAgent',
+      actionType: 'code',
+      level: 'info' as const,
+      message: 'Synthesized patch',
+      source: 'project_log' as const,
+    },
+    {
+      id: 'item-2',
+      timestamp: '10:01:00',
+      timestampIso: '2026-11-04T10:01:00Z',
+      agent: 'ReviewAgent',
+      actionType: 'error_audit',
+      level: 'error' as const,
+      message: 'Invariant failure in policy',
+      source: 'project_log' as const,
+    },
+    {
+      id: 'item-3',
+      timestamp: '10:02:00',
+      timestampIso: '2026-11-04T10:02:00Z',
+      agent: 'Supervisor',
+      actionType: 'STATUS_TOGGLE',
+      level: 'info' as const,
+      message: 'Operator paused agent executions',
+      source: 'project_log' as const,
+      payload: { agent_assignments_status: 'paused' },
+    },
+    {
+      id: 'item-4',
+      timestamp: '10:03:00',
+      timestampIso: '2026-11-04T10:03:00Z',
+      agent: 'CoordinatorAgent',
+      actionType: 'TASK_RUNNING',
+      level: 'info' as const,
+      message: 'Task running: Setup test suite',
+      source: 'task_state' as const,
+    },
+    {
+      id: 'item-5',
+      timestamp: '10:04:00',
+      timestampIso: '2026-11-04T10:04:00Z',
+      agent: 'System',
+      actionType: 'sys_ping',
+      level: 'info' as const,
+      message: 'System initialization',
+      source: 'project_log' as const,
+    },
+  ];
+
+  // ALL tab
+  const allFiltered = filterActivityLogs(items, 'all');
+  assert.equal(allFiltered.length, 5);
+
+  // ERRORS tab
+  const errorsFiltered = filterActivityLogs(items, 'errors');
+  assert.equal(errorsFiltered.length, 1);
+  assert.equal(errorsFiltered[0].id, 'item-2');
+
+  // STATUS tab
+  const statusFiltered = filterActivityLogs(items, 'status');
+  assert.equal(statusFiltered.length, 2);
+  const statusIds = statusFiltered.map((i) => i.id);
+  assert.ok(statusIds.includes('item-3'));
+  assert.ok(statusIds.includes('item-4'));
+
+  // AGENT tab: CodingAgent, ReviewAgent, Supervisor, CoordinatorAgent (excludes System)
+  const agentFiltered = filterActivityLogs(items, 'agent');
+  assert.equal(agentFiltered.length, 4);
+  assert.ok(!agentFiltered.some((i) => i.id === 'item-5'));
+});
+
+test('activityFeedModel: realtime update reflects new log items immediately', () => {
+  const initialLogs: ProjectLogItem[] = [
+    {
+      id: 'log-1',
+      project_id: 'p-1',
+      timestamp: '10:00:00',
+      agent: 'CodingAgent',
+      provider: 'deepseek',
+      actionType: 'code',
+      level: 'info',
+      message: 'First log item',
+      payload: { created_at: '2026-11-04T10:00:00Z' },
+    },
+  ];
+
+  const feed1 = activityFeedModel({ logs: initialLogs });
+  assert.equal(feed1.items.length, 1);
+  assert.equal(feed1.items[0].id, 'log-1');
+
+  // Realtime push: new log item arrives
+  const newLog: ProjectLogItem = {
+    id: 'log-2',
+    project_id: 'p-1',
+    timestamp: '10:05:00',
+    agent: 'ReviewAgent',
+    provider: 'anthropic',
+    actionType: 'review',
+    level: 'info',
+    message: 'Second log item arrived via realtime',
+    payload: { created_at: '2026-11-04T10:05:00Z' },
+  };
+
+  const feed2 = activityFeedModel({ logs: [newLog, ...initialLogs] });
+  assert.equal(feed2.items.length, 2);
+  assert.equal(feed2.items[0].id, 'log-2');
+  assert.equal(feed2.items[1].id, 'log-1');
+  assert.equal(feed2.counts.all, 2);
+});
+
+test('redactSecrets: redacts GitHub tokens, provider keys, Bearer headers, and JWTs', () => {
+  const rawGhp = 'ghp_abcdef1234567890abcdef123456';
+  assert.equal(redactSecrets(rawGhp), 'ghp_***');
+
+  const rawPat = 'github_pat_11ABCD0123456789_abcdefghijklmnopqrstuvwxyz';
+  assert.equal(redactSecrets(rawPat), 'github_pat_***');
+
+  const rawGho = 'gho_1234567890abcdef1234567890';
+  assert.equal(redactSecrets(rawGho), 'gho_***');
+
+  const rawSk = 'sk-proj-1234567890abcdefghijklmnopqrst';
+  assert.equal(redactSecrets(rawSk), 'sk-***');
+
+  const rawBearer = 'Authorization: Bearer mySecretToken12345.abc';
+  assert.equal(redactSecrets(rawBearer), 'Authorization: Bearer ***');
+
+  const rawJwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
+  assert.equal(redactSecrets(rawJwt), 'eyJ***');
+
+  const rawAssignment = 'database connection string password="secret_pwd_99" host=db';
+  const redactedAssignment = redactSecrets(rawAssignment);
+  assert.ok(!redactedAssignment.includes('secret_pwd_99'));
+  assert.ok(redactedAssignment.includes('[REDACTED]'));
+});
+
+test('exportActivityLogsAsJson: allow-list filtering and sensitive payload redaction', () => {
+  const secretToken = 'ghp_super_secret_token_12345678';
+  const openAiKey = 'sk-proj-open_ai_secret_key_1234567';
+
+  const feedItems = [
+    {
+      id: 'log-export-1',
+      timestamp: '14:22:18',
+      timestampIso: '2026-11-04T14:22:18.000Z',
+      agent: 'CodingAgent',
+      actionType: 'code',
+      level: 'info' as const,
+      message: `Generated patch using ${openAiKey}`,
+      source: 'project_log' as const,
+      diff: `+ git remote set-url origin https://${secretToken}@github.com/repo`,
+      payload: {
+        model: 'deepseek-r1',
+        tokens_used: 1200,
+        // Disallowed / sensitive fields that must NOT appear in export:
+        database_password: 'super_secret_db_password',
+        internal_auth_secret: 'secret_12345',
+        arbitrary_unlisted_field: 'should_be_stripped',
+      },
+    },
+  ];
+
+  const exportedJson = exportActivityLogsAsJson(feedItems);
+  const parsed = JSON.parse(exportedJson);
+
+  assert.equal(Array.isArray(parsed), true);
+  assert.equal(parsed.length, 1);
+
+  const item = parsed[0];
+  // Allowed top-level fields
+  assert.equal(item.id, 'log-export-1');
+  assert.equal(item.agent, 'CodingAgent');
+  assert.equal(item.actionType, 'code');
+  assert.equal(item.level, 'info');
+
+  // Secrets in message and diff must be redacted
+  assert.ok(!exportedJson.includes(secretToken), 'ghp token must not leak in exported JSON');
+  assert.ok(!exportedJson.includes(openAiKey), 'sk token must not leak in exported JSON');
+  assert.ok(item.message.includes('sk-***'));
+  assert.ok(item.diff.includes('ghp_***'));
+
+  // Disallowed payload fields stripped
+  assert.equal(item.payload.model, 'deepseek-r1');
+  assert.equal(item.payload.tokens_used, 1200);
+  assert.equal(item.payload.database_password, undefined);
+  assert.equal(item.payload.internal_auth_secret, undefined);
+  assert.equal(item.payload.arbitrary_unlisted_field, undefined);
+  assert.ok(!exportedJson.includes('super_secret_db_password'));
+});
+
+// ----------------------------------------------------------------------------
 // Global Forbidden Copy Invariant Test
 // ----------------------------------------------------------------------------
 test('anti-slop invariant: zero selector outputs contain forbidden words', () => {
@@ -1149,6 +1469,33 @@ test('anti-slop invariant: zero selector outputs contain forbidden words', () =>
         },
       ],
     }),
+    activityFeedModel({}),
+    activityFeedModel({
+      logs: [
+        {
+          id: 'l-1',
+          project_id: 'p-1',
+          timestamp: '14:22:04',
+          agent: 'Supervisor',
+          provider: 'local',
+          actionType: 'status',
+          level: 'info',
+          message: 'Initialized plan',
+        },
+      ],
+    }),
+    exportActivityLogsAsJson([
+      {
+        id: 'l-1',
+        timestamp: '14:22:04',
+        timestampIso: new Date().toISOString(),
+        agent: 'Supervisor',
+        actionType: 'status',
+        level: 'info',
+        message: 'Initialized plan',
+        source: 'project_log',
+      },
+    ]),
   ];
 
   for (let i = 0; i < allOutputs.length; i++) {
