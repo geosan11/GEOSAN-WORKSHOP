@@ -980,3 +980,39 @@ export function activityFeedModel(input: ActivityFeedInput): ActivityFeedModel {
   };
 }
 
+export interface CommandAction {
+  id: string;
+  label: string;
+  category: 'screen' | 'project';
+  query?: string;
+  shortcut?: string;
+}
+
+export interface CommandBarModel {
+  placeholder: string;
+  actions: CommandAction[];
+  shortcutLabel: string;
+}
+
+export function commandBarModel(): CommandBarModel {
+  return {
+    placeholder: 'Jump to screen, open project…',
+    shortcutLabel: 'Cmd+K',
+    actions: [
+      {
+        id: 'jump-screen',
+        label: 'Jump to screen',
+        category: 'screen',
+        query: 'screen',
+        shortcut: '/',
+      },
+      {
+        id: 'open-project',
+        label: 'Open project',
+        category: 'project',
+        query: 'project',
+      },
+    ],
+  };
+}
+
