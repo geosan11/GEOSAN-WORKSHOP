@@ -13,6 +13,7 @@ import {
   sanitizePayloadForExport,
   exportActivityLogsAsJson,
   parseGitHubRepo,
+  commandBarModel,
 } from './cockpitModel';
 import type { ProjectLogItem } from '../hooks/useProjectRealtime';
 import { Project, CostEvent, AgentTask, QARun } from './types';
@@ -1391,10 +1392,45 @@ test('exportActivityLogsAsJson: allow-list filtering and sensitive payload redac
 });
 
 // ----------------------------------------------------------------------------
+// commandBarModel Tests (PR 5)
+// ----------------------------------------------------------------------------
+test('commandBarModel: returns pure view-model with honest placeholder and Cmd+K shortcut', () => {
+  const model = commandBarModel();
+  assert.equal(typeof model.placeholder, 'string');
+  assert.equal(model.shortcutLabel, 'Cmd+K');
+  assert.ok(model.placeholder.length > 0);
+  assertNoForbiddenCopy(model, 'commandBarModel()');
+});
+
+test('commandBarModel: lists only globally callable actions (jump to screen, open project)', () => {
+  const model = commandBarModel();
+  assert.equal(model.actions.length, 2);
+
+  const jumpScreen = model.actions.find((a) => a.id === 'jump-screen');
+  assert.ok(jumpScreen, 'jump-screen action must exist');
+  assert.equal(jumpScreen.label, 'Jump to screen');
+  assert.equal(jumpScreen.category, 'screen');
+  assert.equal(jumpScreen.query, 'screen');
+
+  const openProject = model.actions.find((a) => a.id === 'open-project');
+  assert.ok(openProject, 'open-project action must exist');
+  assert.equal(openProject.label, 'Open project');
+  assert.equal(openProject.category, 'project');
+  assert.equal(openProject.query, 'project');
+
+  // Verify no screen-local actions or fake toggles exist
+  const actionIds = model.actions.map((a) => a.id);
+  assert.ok(!actionIds.includes('new-run'), 'Must not include screen-local new-run');
+  assert.ok(!actionIds.includes('supervisor-advisor-toggle'), 'Must not include fake toggle');
+  assert.ok(!actionIds.includes('override-agent-loop'), 'Must not include slop prompt actions');
+});
+
+// ----------------------------------------------------------------------------
 // Global Forbidden Copy Invariant Test
 // ----------------------------------------------------------------------------
 test('anti-slop invariant: zero selector outputs contain forbidden words', () => {
   const allOutputs = [
+    commandBarModel(),
     topBarModel({}),
     topBarModel({ isDemoMode: true, proxyState: 'reachable' }),
     topBarModel({ proxyState: 'refused' }),

@@ -38,6 +38,7 @@ Every tile and section derives view models through pure selectors in `src/lib/co
 | **Integrations: GitHub** | `proxyState`, `latestCommit` | `cockpitProbe.ts` (`probeProxy`) → `githubTileModel()` | `"Connect the local proxy to see the latest commit"` | Built in PR 2 (renamed from GitHub CI): shows latest commit (`sha7 · message · relative date`) when reachable; muted footnote `"CI runs aren't available through the proxy yet."` (Actions runs excluded from proxy allowlist). |
 | **Agents Section** | `task.assigned_agent`, `task.status`, `task.goal`, `task.prompt`, `task.task_type`, `task.branch_name`, `task.pr_url`, `task.started_at`, `task.created_at`, `qaRun.task_id`, `qaRun.status`, `qaRun.created_at` | `useTasks()` + `useQA()` → `agentsModel()` | `"No active agent tasks"` with `"Open Agents"` link-button navigating to `{ kind: 'runs' }` | Built in PR 3: responsive grid (1 col @ 360px, 2 col sm, 3 col lg) of `AgentCard`s. Cards are keyboard-accessible button cards (`role="button"`, `tabIndex 0`, Enter/Space) opening `TaskDetailDrawer` with real task lookup & approval actions. In-section `QueryError` on tasks error. |
 | **Activity Section** | `project_logs`, agent tasks | `useProjectRealtime()` + `useTasks()` → `activityFeedModel()` | `"No activity recorded yet"` | Built in PR 4: unified feed of project logs and task state events, tabs (ALL/ERRORS/STATUS/AGENT), expandable rows with syntax-highlighted inline diffs and JSONB payloads, copy to clipboard, 200-row cap, and JSON export with safe allow-list and secret redaction |
+| **Command Bar** | Globals (`NAV_LEAVES`, `projects`) | `commandBarModel()` + `CommandPalette` (`openCommandPalette`) | Persistent bottom dock with quick actions and command palette trigger | Built in PR 5: bottom dock opening existing CommandPalette, listing only globally callable actions (jump to screen, open project), no second Cmd+K handler, no fake Supervisor/Advisor toggle, zero network calls, keyboard navigable, responsive to 360px viewport |
 
 ---
 
@@ -92,5 +93,33 @@ The Activity log section provides a unified, realtime stream of project executio
 - **Responsive & Theme Fidelity**:
   - Strictly uses semantic tokens (`bg-card`, `bg-muted`, `border-border`, `text-foreground`, `text-muted-foreground`, etc.) adapting seamlessly to Dark and Light modes.
   - Mobile responsiveness down to 360px viewport without horizontal page overflow (code blocks scroll internally with `overflow-x-auto`).
+
+---
+
+## 5. Command Bar Specifications (PR 5)
+
+The Command Bar provides a persistent bottom dock at the foot of the Cockpit that opens the existing `CommandPalette` (`src/components/CommandPalette.tsx`) without adding a second `Cmd+K` keyboard listener or inventing fake multi-model routing toggles.
+
+- **Single Cmd+K Listener**:
+  - The application's global keyboard shortcut (`Cmd+K` / `Ctrl+K` and `/`) lives solely inside `src/components/CommandPalette.tsx` mounted at the app root.
+  - The Cockpit `CommandBar` component does NOT register any secondary window `keydown` listener, preventing duplicate toggles and key conflict regressions.
+- **Global Event Integration**:
+  - `CommandPalette` listens to the custom event `aether:open-command-palette` (`OPEN_COMMAND_PALETTE_EVENT`) exported via `openCommandPalette({ query?: string })`.
+  - Tapping or clicking the Command Bar dock or activating it via keyboard (`Enter`, `Space`) opens `CommandPalette` directly.
+- **Globally Callable Actions Only**:
+  - Lists only actions that are already globally accessible:
+    1. Jump to screen: Inbox, Projects, Runs, Health, Spend, Knowledge, Settings, and Cockpit.
+    2. Open project: opens the project directly in the Work tab (`{ kind: 'project', projectId, tab: 'work' }`).
+  - Screen-local actions (such as `New run` or project-local sub-actions) are deliberately omitted per the architecture plan rather than introducing out-of-scope refactoring.
+- **No Supervisor/Advisor Toggle**:
+  - The Superdesign mock included a visual placeholder for Supervisor/Advisor toggling. Because multi-model brain routing does not yet exist in the backend, the fake toggle is omitted entirely to uphold GEOSAN's truth-in-telemetry invariant.
+- **Theme & Token Fidelity**:
+  - Strictly reuses #21 UI components (`Button` from `src/components/ui/button`) and existing Obsidian dark and Cream light tokens (`bg-card`, `border-border`, `text-foreground`, `text-muted-foreground`, `focus-visible:ring-ring`).
+  - CommandPalette updated to adapt seamlessly to both Light and Dark modes.
+- **Mobile Responsive Down to 360px**:
+  - Stacked flex layout (`flex-col sm:flex-row`) with responsive gap and truncation ensures clean rendering at 360px viewport width without horizontal page scroll.
+- **Zero Network Calls**:
+  - CommandBar and CommandPalette operate purely in-memory with local state and event dispatching; zero network requests (`fetch`, Supabase, or REST) are initiated.
+
 
 
