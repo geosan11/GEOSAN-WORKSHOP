@@ -3,9 +3,11 @@ import { useProjects } from "../hooks/useProjects";
 import { useTasks } from "../hooks/useTasks";
 import { useCosts } from "../hooks/useCosts";
 import { useQA } from "../hooks/useQA";
+import { useProjectRealtime } from "../hooks/useProjectRealtime";
 import { useNavigation } from "../lib/navigation";
 import { useSharedStatus } from "../lib/sharedStatus";
 import { isDemoMode } from "../lib/supabase";
+import { DEMO_TASKPULSE_LOGS } from "../lib/demoScenario";
 import { isProjectBudgetBlocked } from "../lib/projectBudgetGuard";
 import type { AgentTask } from "../lib/types";
 import {
@@ -16,6 +18,7 @@ import {
   databaseTileModel,
   githubTileModel,
   agentsModel,
+  activityFeedModel,
   type ProxyState,
 } from "../lib/cockpitModel";
 import {
@@ -29,6 +32,7 @@ import { cn } from "../lib/utils";
 import { LoadingState } from "../components/LoadingState";
 import { QueryError } from "../components/QueryError";
 import { AgentCard } from "../components/cockpit/AgentCard";
+import { ActivityLogPanel } from "../components/cockpit/ActivityLogPanel";
 import { TaskDetailDrawer } from "../components/TaskDetailDrawer";
 import {
   Card,
@@ -48,7 +52,6 @@ import {
   RefreshCw,
   GitBranch,
   Bot,
-  Activity,
   Database,
   DollarSign,
   BrainCircuit,
@@ -102,6 +105,11 @@ export const CockpitScreen: React.FC = () => {
     firstProject?.github_repo_url || firstProject?.repo_url,
   );
   const projectId = firstProject?.id ?? null;
+
+  const { logs: realtimeLogs } = useProjectRealtime({
+    projectId: projectId ?? '',
+    initialLogs: isDemoMode ? DEMO_TASKPULSE_LOGS : [],
+  });
 
   const [proxyState, setProxyState] = React.useState<ProxyState>("disabled");
   const [latestCommit, setLatestCommit] = React.useState<CommitSummary | null>(
@@ -215,6 +223,7 @@ export const CockpitScreen: React.FC = () => {
   });
   const githubTile = githubTileModel({ proxyState, latestCommit });
   const agentsData = agentsModel({ tasks, qaRuns });
+  const activityData = activityFeedModel({ logs: realtimeLogs, tasks });
 
   return (
     <div className="min-h-full w-full bg-background text-foreground">
@@ -515,31 +524,8 @@ export const CockpitScreen: React.FC = () => {
           )}
         </section>
 
-        {/* (d) Activity section placeholder */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Activity
-            </h2>
-            <Badge variant="outline" className="font-mono text-[10px]">
-              Feed
-            </Badge>
-          </div>
-          <Card className="bg-card border-border">
-            <CardContent className="p-6 text-center">
-              <div className="flex flex-col items-center justify-center gap-2">
-                <Activity className="size-8 text-muted-foreground" />
-                <p className="text-xs font-medium text-foreground">
-                  No activity recorded yet
-                </p>
-                <p className="text-xs text-muted-foreground max-w-sm">
-                  The activity feed isn't shown here yet. Open Monitoring for
-                  current health.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </section>
+        {/* (d) Activity section */}
+        <ActivityLogPanel feed={activityData} />
       </div>
 
       <TaskDetailDrawer

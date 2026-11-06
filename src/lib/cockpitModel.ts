@@ -1,5 +1,6 @@
 import { getIsoWeekKey } from './budget';
 import type { Project, CostEvent, AgentTask, TaskType, QARun } from './types';
+import type { ProjectLogItem } from '../hooks/useProjectRealtime';
 
 export type ProxyState = 'unknown' | 'reachable' | 'unreachable' | 'disabled' | 'refused';
 
@@ -591,3 +592,391 @@ export function agentsModel(input: AgentsModelInput): AgentsModel {
     hasData: true,
   };
 }
+
+// ============================================================================
+// Activity Feed Model & Pure Selectors (PR 4)
+// ============================================================================
+
+export type ActivityLogTab = 'all' | 'errors' | 'status' | 'agent';
+
+export interface ActivityLogItem {
+  id: string;
+  timestamp: string;
+  timestampIso: string;
+  agent: string;
+  actionType: string;
+  level: 'info' | 'error' | 'warn';
+  message: string;
+  source: 'project_log' | 'task_state';
+  diff?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface ActivityFeedInput {
+  logs?: ProjectLogItem[] | null;
+  tasks?: AgentTask[] | null;
+  maxRows?: number;
+  now?: Date;
+}
+
+export interface ActivityFeedCounts {
+  all: number;
+  errors: number;
+  status: number;
+  agent: number;
+}
+
+export interface ActivityFeedModel {
+  items: ActivityLogItem[];
+  totalCount: number;
+  hasData: boolean;
+  emptyState: string | null;
+  counts: ActivityFeedCounts;
+}
+
+export function formatLogTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+export function buildTaskStateEvents(tasks?: AgentTask[] | null): ActivityLogItem[] {
+  if (!tasks || tasks.length === 0) return [];
+  const events: ActivityLogItem[] = [];
+
+  for (const task of tasks) {
+    const agent = task.assigned_agent?.trim() || 'Unassigned';
+    const title = computeTaskTitle(task);
+    const diff =
+      task.result && typeof task.result.diff === 'string' && task.result.diff.trim().length > 0
+        ? task.result.diff
+        : task.plan && typeof task.plan.diff === 'string' && task.plan.diff.trim().length > 0
+        ? task.plan.diff
+        : null;
+
+    const basePayload: Record<string, unknown> = {
+      task_id: task.id,
+      status: task.status,
+      task_type: task.task_type,
+      branch_name: task.branch_name || null,
+      pr_url: task.pr_url || null,
+    };
+    if (diff) {
+      basePayload.diff = diff;
+    }
+
+    if (task.status === 'done' || task.status === 'failed' || task.status === 'cancelled') {
+      const iso = task.completed_at || task.started_at || task.created_at;
+      const isFailed = task.status === 'failed';
+      events.push({
+        id: `${task.id}-terminal`,
+        timestamp: formatLogTime(iso),
+        timestampIso: iso,
+        agent,
+        actionType: `TASK_${task.status.toUpperCase()}`,
+        level: isFailed ? 'error' : 'info',
+        message: isFailed
+          ? `Task failed: ${title}`
+          : task.status === 'done'
+          ? `Task completed: ${title}`
+          : `Task cancelled: ${title}`,
+        source: 'task_state',
+        diff,
+        payload: basePayload,
+      });
+    } else if (task.status === 'awaiting_approval') {
+      const iso = task.started_at || task.created_at;
+      events.push({
+        id: `${task.id}-awaiting`,
+        timestamp: formatLogTime(iso),
+        timestampIso: iso,
+        agent,
+        actionType: 'TASK_AWAITING_APPROVAL',
+        level: 'warn',
+        message: `Task awaiting approval: ${title}`,
+        source: 'task_state',
+        diff,
+        payload: basePayload,
+      });
+    } else if (task.status === 'running') {
+      const iso = task.started_at || task.created_at;
+      events.push({
+        id: `${task.id}-running`,
+        timestamp: formatLogTime(iso),
+        timestampIso: iso,
+        agent,
+        actionType: 'TASK_RUNNING',
+        level: 'info',
+        message: `Task running: ${title}`,
+        source: 'task_state',
+        diff,
+        payload: basePayload,
+      });
+    } else {
+      const iso = task.created_at;
+      events.push({
+        id: `${task.id}-queued`,
+        timestamp: formatLogTime(iso),
+        timestampIso: iso,
+        agent,
+        actionType: 'TASK_QUEUED',
+        level: 'info',
+        message: `Task queued: ${title}`,
+        source: 'task_state',
+        diff,
+        payload: basePayload,
+      });
+    }
+  }
+
+  return events;
+}
+
+export function filterActivityLogs(
+  items: ActivityLogItem[],
+  tab: ActivityLogTab
+): ActivityLogItem[] {
+  if (tab === 'all') {
+    return items;
+  }
+
+  if (tab === 'errors') {
+    return items.filter(
+      (item) =>
+        item.level === 'error' ||
+        item.actionType.toLowerCase().includes('error') ||
+        item.actionType.toLowerCase().includes('failed') ||
+        item.message.toLowerCase().includes('error') ||
+        item.message.toLowerCase().includes('failed')
+    );
+  }
+
+  if (tab === 'status') {
+    return items.filter(
+      (item) =>
+        item.source === 'task_state' ||
+        item.actionType.toLowerCase().includes('status') ||
+        item.actionType.toLowerCase().startsWith('task_') ||
+        Boolean(item.payload?.agent_assignments_status) ||
+        Boolean(item.payload?.status)
+    );
+  }
+
+  if (tab === 'agent') {
+    return items.filter(
+      (item) =>
+        Boolean(item.agent && item.agent.trim() !== '' && item.agent.toLowerCase() !== 'system')
+    );
+  }
+
+  return items;
+}
+
+export function redactSecrets(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  return input
+    .replace(/(ghp_[a-zA-Z0-9_]{8,})/g, 'ghp_***')
+    .replace(/(github_pat_[a-zA-Z0-9_]{10,})/g, 'github_pat_***')
+    .replace(/(gho_[a-zA-Z0-9_]{10,})/g, 'gho_***')
+    .replace(/(sk-[a-zA-Z0-9_-]{10,})/g, 'sk-***')
+    .replace(/(Bearer\s+)[a-zA-Z0-9._-]+/gi, '$1***')
+    .replace(/(eyJ[a-zA-Z0-9_-]{8,}\.eyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]+)/g, 'eyJ***')
+    .replace(/((?:password|secret|api[_-]?key|token|auth[_-]?token)\s*[:=]\s*["']?)([^\s"',;}{]+)(["']?)/gi, '$1[REDACTED]$3');
+}
+
+export const ALLOWED_PAYLOAD_KEYS: ReadonlySet<string> = new Set([
+  'model',
+  'tokens_input',
+  'tokens_output',
+  'tokens_used',
+  'cost_usd',
+  'verdict',
+  'invariants_checked',
+  'regressions_found',
+  'checks_passed',
+  'drift_detected',
+  'summary',
+  'phases',
+  'estimated_tokens',
+  'estimated_cost_usd',
+  'advisor_role',
+  'provider',
+  'issued_at',
+  'agent_assignments_status',
+  'task_id',
+  'status',
+  'task_type',
+  'branch_name',
+  'pr_url',
+  'diff',
+  'file',
+  'path',
+  'updated_at',
+  'created_at',
+  'checks',
+  'name',
+  'role',
+]);
+
+export function sanitizePayloadForExport(
+  payload: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const result: Record<string, unknown> = {};
+
+  for (const [key, val] of Object.entries(payload)) {
+    if (!ALLOWED_PAYLOAD_KEYS.has(key)) {
+      continue;
+    }
+    if (/(password|secret|credential|api[_-]?key|access[_-]?token|auth[_-]?token)/i.test(key)) {
+      continue;
+    }
+
+    if (val === null || val === undefined) {
+      result[key] = val;
+    } else if (typeof val === 'string') {
+      result[key] = redactSecrets(val);
+    } else if (typeof val === 'number' || typeof val === 'boolean') {
+      result[key] = val;
+    } else if (Array.isArray(val)) {
+      result[key] = val.map((item) => {
+        if (typeof item === 'string') return redactSecrets(item);
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          return sanitizePayloadForExport(item as Record<string, unknown>);
+        }
+        return item;
+      });
+    } else if (typeof val === 'object') {
+      result[key] = sanitizePayloadForExport(val as Record<string, unknown>);
+    }
+  }
+
+  return result;
+}
+
+export const ALLOWED_EXPORT_FIELDS = [
+  'id',
+  'timestamp',
+  'timestampIso',
+  'agent',
+  'actionType',
+  'level',
+  'message',
+  'diff',
+  'payload',
+] as const;
+
+export function exportActivityLogsAsJson(items: ActivityLogItem[]): string {
+  const sanitized = items.map((item) => {
+    const entry: Record<string, unknown> = {
+      id: item.id,
+      timestamp: item.timestamp,
+      timestampIso: item.timestampIso,
+      agent: item.agent,
+      actionType: item.actionType,
+      level: item.level,
+      message: redactSecrets(item.message),
+    };
+    if (typeof item.diff === 'string' && item.diff.trim().length > 0) {
+      entry.diff = redactSecrets(item.diff);
+    } else {
+      entry.diff = null;
+    }
+    if (item.payload) {
+      entry.payload = sanitizePayloadForExport(item.payload);
+    } else {
+      entry.payload = null;
+    }
+    return entry;
+  });
+
+  return JSON.stringify(sanitized, null, 2);
+}
+
+export function activityFeedModel(input: ActivityFeedInput): ActivityFeedModel {
+  const { logs = [], tasks = [], maxRows = 200, now } = input;
+  const rawLogs = logs ?? [];
+  const rawTasks = tasks ?? [];
+
+  const taskEvents = buildTaskStateEvents(rawTasks);
+
+  const logEvents: ActivityLogItem[] = rawLogs.map((log) => {
+    const diff =
+      log.payload && typeof log.payload.diff === 'string' && log.payload.diff.trim().length > 0
+        ? log.payload.diff
+        : null;
+
+    let timestampIso = '';
+    if (typeof log.payload?.created_at === 'string' && !Number.isNaN(new Date(log.payload.created_at).getTime())) {
+      timestampIso = log.payload.created_at;
+    } else if (typeof log.payload?.updated_at === 'string' && !Number.isNaN(new Date(log.payload.updated_at).getTime())) {
+      timestampIso = log.payload.updated_at;
+    } else if (typeof log.payload?.issued_at === 'string' && !Number.isNaN(new Date(log.payload.issued_at).getTime())) {
+      timestampIso = log.payload.issued_at;
+    } else if (!Number.isNaN(new Date(log.timestamp).getTime())) {
+      timestampIso = new Date(log.timestamp).toISOString();
+    } else {
+      const timeMatch = (log.timestamp || '').match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (timeMatch) {
+        const base = now ? new Date(now) : new Date();
+        base.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), parseInt(timeMatch[3] || '0', 10), 0);
+        timestampIso = base.toISOString();
+      } else {
+        timestampIso = now ? now.toISOString() : new Date().toISOString();
+      }
+    }
+
+    const level: 'info' | 'error' | 'warn' =
+      log.level === 'error' ? 'error' : log.level === 'warn' ? 'warn' : 'info';
+
+    return {
+      id: log.id,
+      timestamp: log.timestamp || formatLogTime(timestampIso),
+      timestampIso,
+      agent: log.agent?.trim() || 'Agent',
+      actionType: log.actionType || 'log',
+      level,
+      message: log.message || '',
+      source: 'project_log',
+      diff,
+      payload: log.payload || null,
+    };
+  });
+
+  const allCombined = [...logEvents, ...taskEvents];
+
+  allCombined.sort((a, b) => {
+    const timeA = parseIsoTime(a.timestampIso);
+    const timeB = parseIsoTime(b.timestampIso);
+    if (timeB !== timeA) return timeB - timeA;
+    return a.id.localeCompare(b.id);
+  });
+
+  const max = typeof maxRows === 'number' && maxRows > 0 ? maxRows : 200;
+  const items = allCombined.slice(0, max);
+  const totalCount = allCombined.length;
+
+  const counts: ActivityFeedCounts = {
+    all: items.length,
+    errors: filterActivityLogs(items, 'errors').length,
+    status: filterActivityLogs(items, 'status').length,
+    agent: filterActivityLogs(items, 'agent').length,
+  };
+
+  const hasData = items.length > 0;
+  const emptyState = hasData ? null : 'No activity recorded yet';
+
+  return {
+    items,
+    totalCount,
+    hasData,
+    emptyState,
+    counts,
+  };
+}
+
