@@ -25,7 +25,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
   };
 
   return (
-    <footer
+    <section
       role="region"
       aria-label="Cockpit command bar"
       className={cn(
@@ -75,7 +75,6 @@ export const CommandBar: React.FC<CommandBarProps> = ({
             }
           }}
           className="relative flex-1 group flex items-center justify-between h-9 px-3 rounded-lg border border-border bg-muted/40 hover:bg-muted/70 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring select-none min-w-0"
-          aria-label="Open command palette (Cmd+K)"
         >
           <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
             <Terminal className="size-3.5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
@@ -88,18 +87,15 @@ export const CommandBar: React.FC<CommandBarProps> = ({
             <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-background text-muted-foreground border border-border shadow-2xs">
               {model.shortcutLabel}
             </kbd>
-            <Button
-              size="icon"
-              variant="default"
-              className="h-6 w-6 rounded-md pointer-events-none"
-              tabIndex={-1}
+            <span
+              className="h-6 w-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center pointer-events-none"
               aria-hidden="true"
             >
               <Send className="size-3" />
-            </Button>
+            </span>
           </div>
         </div>
       </div>
-    </footer>
+    </section>
   );
 };

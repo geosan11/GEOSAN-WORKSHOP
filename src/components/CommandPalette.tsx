@@ -358,6 +358,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         <div
           ref={listRef}
           role="listbox"
+          aria-label="Command suggestions"
           className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[500px]"
         >
           {filtered.length === 0 ? (

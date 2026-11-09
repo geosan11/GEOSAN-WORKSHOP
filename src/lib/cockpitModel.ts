@@ -992,12 +992,16 @@ export interface CommandBarModel {
   placeholder: string;
   actions: CommandAction[];
   shortcutLabel: string;
+  accessibleLabel: string;
 }
 
 export function commandBarModel(): CommandBarModel {
+  const placeholder = 'Jump to screen, open project…';
+  const shortcutLabel = 'Cmd+K';
   return {
-    placeholder: 'Jump to screen, open project…',
-    shortcutLabel: 'Cmd+K',
+    placeholder,
+    shortcutLabel,
+    accessibleLabel: `${placeholder} (${shortcutLabel})`,
     actions: [
       {
         id: 'jump-screen',

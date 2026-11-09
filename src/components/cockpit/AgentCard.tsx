@@ -26,30 +26,13 @@ export const AgentCard: React.FC<AgentCardProps> = ({
   onClick,
   className,
 }) => {
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (
-      e.target !== e.currentTarget &&
-      (e.target as HTMLElement).tagName === 'A'
-    ) {
-      return;
-    }
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onClick();
-    }
-  };
-
   return (
     <Card
-      role="button"
-      tabIndex={0}
       onClick={onClick}
-      onKeyDown={handleKeyDown}
-      aria-label={`Open task ${card.currentTask.title} for ${card.agent}`}
       className={cn(
         'group cursor-pointer select-none text-left transition-[border-color,background-color] duration-150',
         'border-border bg-card hover:border-(--border-strong) hover:bg-accent/30',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background',
         'flex flex-col justify-between p-4 py-4 gap-3 min-w-0',
         className
       )}
@@ -57,12 +40,20 @@ export const AgentCard: React.FC<AgentCardProps> = ({
       <div className="space-y-3 min-w-0">
         {/* Top row: Agent Name + Status Badge */}
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 min-w-0">
-          <h3
-            className="text-sm font-semibold text-foreground tracking-tight truncate min-w-0"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
+            aria-label={`${card.agent}: ${card.currentTask.title} (Open task details)`}
+            className="text-left font-semibold text-foreground tracking-tight truncate min-w-0 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs cursor-pointer"
             title={card.agent}
           >
-            {card.agent}
-          </h3>
+            <h3 className="text-sm font-semibold text-foreground tracking-tight truncate inline">
+              {card.agent}
+            </h3>
+          </button>
           <Badge variant={statusBadgeVariant[card.status]} className="shrink-0">
             {card.statusLabel}
           </Badge>

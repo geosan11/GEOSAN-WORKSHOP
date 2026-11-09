@@ -1399,6 +1399,15 @@ test('commandBarModel: returns pure view-model with honest placeholder and Cmd+K
   assert.equal(typeof model.placeholder, 'string');
   assert.equal(model.shortcutLabel, 'Cmd+K');
   assert.ok(model.placeholder.length > 0);
+  assert.equal(typeof model.accessibleLabel, 'string');
+  assert.ok(
+    model.accessibleLabel.startsWith(model.placeholder),
+    'accessibleLabel must start with the visual placeholder text (WCAG 2.5.3 Label in Name)'
+  );
+  assert.ok(
+    model.accessibleLabel.includes(model.shortcutLabel),
+    'accessibleLabel must include shortcut label'
+  );
   assertNoForbiddenCopy(model, 'commandBarModel()');
 });
 
