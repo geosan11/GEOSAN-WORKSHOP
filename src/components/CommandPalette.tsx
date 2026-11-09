@@ -7,9 +7,32 @@ import {
   FolderGit2,
   FileCode,
   ArrowRight,
-  X
+  X,
+  Gauge
 } from 'lucide-react';
 import { NAV_LEAVES, sectionForScreen } from '../lib/navIA';
+
+export const OPEN_COMMAND_PALETTE_EVENT = 'aether:open-command-palette';
+
+export interface OpenCommandPaletteDetail {
+  query?: string;
+}
+
+export function openCommandPalette(detail?: OpenCommandPaletteDetail): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent<OpenCommandPaletteDetail>(OPEN_COMMAND_PALETTE_EVENT, {
+        detail,
+      })
+    );
+  }
+}
+
+export interface CommandPaletteProps {
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  defaultOpen?: boolean;
+}
 
 interface PaletteOption {
   id: string;
@@ -24,8 +47,23 @@ interface PaletteOption {
   disabledReason?: string;
 }
 
-export const CommandPalette: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+export const CommandPalette: React.FC<CommandPaletteProps> = ({
+  isOpen: propIsOpen,
+  onOpenChange,
+  defaultOpen = false,
+}) => {
+  const isControlled = propIsOpen !== undefined;
+  const [internalIsOpen, setInternalIsOpen] = useState(defaultOpen);
+  const isOpen = isControlled ? propIsOpen : internalIsOpen;
+
+  const setIsOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof next === 'function' ? next(isOpen) : next;
+    if (!isControlled) {
+      setInternalIsOpen(resolved);
+    }
+    onOpenChange?.(resolved);
+  };
+
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recentIds, setRecentIds] = useState<string[]>(() => {
@@ -56,6 +94,20 @@ export const CommandPalette: React.FC = () => {
       localStorage.setItem('aether_recent_destinations', JSON.stringify(updated));
     } catch { }
   };
+
+  // Custom event listener for external open trigger (e.g. Cockpit CommandBar)
+  useEffect(() => {
+    const handleOpen = (e: Event) => {
+      const custom = e as CustomEvent<OpenCommandPaletteDetail>;
+      setIsOpen(true);
+      if (custom.detail?.query !== undefined) {
+        setQuery(custom.detail.query);
+      }
+    };
+
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpen);
+    return () => window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, handleOpen);
+  }, []);
 
   // Global Keyboard Listener for Cmd-K / Ctrl-K
   useEffect(() => {
@@ -120,18 +172,36 @@ export const CommandPalette: React.FC = () => {
       settings: 'Library · MCP plane and platform servers',
     };
 
-    const screens: PaletteOption[] = NAV_LEAVES.map((leaf) => {
-      const section = sectionForScreen(leaf.screen);
-      return {
-        id: `screen-${leaf.id === 'health' ? 'probes' : leaf.id === 'spend' ? 'costs' : leaf.id}`,
-        category: 'Screen' as const,
-        title: leaf.label,
-        subtitle: screenCopy[leaf.id] || (section ? `${section.label} · ${leaf.label}` : leaf.label),
-        keywords: [leaf.label, ...(section ? [section.label] : []), ...leaf.synonyms],
-        icon: leaf.icon,
-        screen: leaf.screen,
-      };
-    });
+    const hasCockpit = NAV_LEAVES.some((leaf) => leaf.screen.kind === 'cockpit');
+    const cockpitScreens: PaletteOption[] = hasCockpit
+      ? []
+      : [
+          {
+            id: 'screen-cockpit',
+            category: 'Screen' as const,
+            title: 'Cockpit',
+            subtitle: 'Engineering Cockpit · Telemetry, agent fleet, and activity',
+            keywords: ['cockpit', 'engineering', 'fleet', 'telemetry', 'integrations'],
+            icon: Gauge,
+            screen: { kind: 'cockpit' },
+          },
+        ];
+
+    const screens: PaletteOption[] = [
+      ...cockpitScreens,
+      ...NAV_LEAVES.map((leaf) => {
+        const section = sectionForScreen(leaf.screen);
+        return {
+          id: `screen-${leaf.id === 'health' ? 'probes' : leaf.id === 'spend' ? 'costs' : leaf.id}`,
+          category: 'Screen' as const,
+          title: leaf.label,
+          subtitle: screenCopy[leaf.id] || (section ? `${section.label} · ${leaf.label}` : leaf.label),
+          keywords: [leaf.label, ...(section ? [section.label] : []), ...leaf.synonyms],
+          icon: leaf.icon,
+          screen: leaf.screen,
+        };
+      }),
+    ];
 
     const projectItems: PaletteOption[] = projects.map((p) => ({
       id: `project-${p.id}`,
@@ -251,33 +321,33 @@ export const CommandPalette: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
       role="dialog"
       aria-modal="true"
       aria-label="Jump to a vertical, run, lesson, or probe"
       onClick={() => setIsOpen(false)}
     >
       <div
-        className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-[color:var(--color-surface-1)] sm:border sm:border-white/10 sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col font-mono text-xs"
+        className="w-full h-full sm:h-auto sm:max-h-[85vh] sm:max-w-2xl bg-card border-border sm:border sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col font-mono text-xs text-foreground"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
-        <div className="p-4 border-b border-white/5 bg-app flex items-center gap-3">
-          <Search className="w-4 h-4 text-[color:var(--color-gold-text)] shrink-0" />
+        <div className="p-4 border-b border-border bg-card flex items-center gap-3">
+          <Search className="w-4 h-4 text-primary shrink-0" />
           <input
             ref={inputRef}
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Jump to a vertical, run, lesson, or probe"
-            aria-label="Jump to a vertical, run, lesson, or probe"
-            className="flex-1 bg-transparent text-main placeholder:text-slate-500 focus:outline-none text-xs font-mono"
+            placeholder="Jump to a screen, project, or task"
+            aria-label="Jump to a screen, project, or task"
+            className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none text-xs font-mono"
           />
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="p-1 rounded text-slate-400 hover:text-white"
+            className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Close jump dialog"
           >
             <X className="w-4 h-4" />
@@ -291,7 +361,7 @@ export const CommandPalette: React.FC = () => {
           className="flex-1 overflow-y-auto p-2 space-y-1 max-h-[500px]"
         >
           {filtered.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 font-sans">
+            <div className="p-8 text-center text-muted-foreground font-sans">
               No matches found for "{query}"
             </div>
           ) : (
@@ -315,13 +385,13 @@ export const CommandPalette: React.FC = () => {
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`w-full text-left p-3 rounded-xl flex items-center justify-between gap-3 transition-colors ${isSelected
-                    ? 'bg-[color:var(--color-surface-2)] border border-[color:var(--color-success-text)]/40 text-main'
-                    : 'bg-transparent text-slate-400 hover:text-slate-100'
+                    ? 'bg-accent border border-primary/40 text-foreground'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                     } ${item.disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <div className="flex items-center gap-3 truncate">
                     <div
-                      className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-[color:var(--color-success-tint)] text-[color:var(--color-success-text)]' : 'bg-white/5 text-slate-400'
+                      className={`p-2 rounded-lg shrink-0 ${isSelected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
                         }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -329,18 +399,18 @@ export const CommandPalette: React.FC = () => {
 
                     <div className="truncate">
                       <div className="flex items-center gap-2">
-                        <span className={`font-bold truncate ${isSelected ? 'text-[color:var(--color-success-text)]' : 'text-slate-200'}`}>
+                        <span className={`font-bold truncate ${isSelected ? 'text-primary' : 'text-foreground'}`}>
                           {item.title}
                         </span>
                         {item.hint && (
                           <span
                             className={`text-[9px] px-1.5 py-0.2 rounded font-bold uppercase ${item.hint === 'Waiting on you'
-                              ? 'bg-amber-500/20 text-[color:var(--color-warning-text)] border border-amber-500/30'
+                              ? 'bg-amber-500/20 text-(--warning-foreground) border border-amber-500/30'
                               : item.hint === 'Working'
-                                ? 'bg-[color:var(--color-success-tint)] text-[color:var(--color-success-text)] border border-emerald-500/30'
+                                ? 'bg-emerald-500/10 text-(--success-foreground) border border-emerald-500/30'
                                 : item.hint === 'Failed'
-                                  ? 'bg-[color:var(--color-danger-tint)] text-[color:var(--color-danger-text)] border border-rose-500/30'
-                                  : 'bg-slate-800 text-slate-400'
+                                  ? 'bg-destructive/10 text-destructive border border-destructive/30'
+                                  : 'bg-muted text-muted-foreground'
                               }`}
                           >
                             {item.hint}
@@ -348,23 +418,23 @@ export const CommandPalette: React.FC = () => {
                         )}
                       </div>
                       {item.subtitle && (
-                        <span className="text-[11px] text-slate-400 truncate block font-sans">
+                        <span className="text-[11px] text-muted-foreground truncate block font-sans">
                           {item.subtitle}
                         </span>
                       )}
                       {item.disabledReason && (
-                        <span className="text-[10px] text-[color:var(--color-danger-text)] italic block">
+                        <span className="text-[10px] text-destructive italic block">
                           {item.disabledReason}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 text-[10px] text-slate-400">
-                    <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-white/5">
+                  <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground">
+                    <span className="uppercase text-[9px] px-1.5 py-0.5 rounded bg-muted/60">
                       {item.category}
                     </span>
-                    {isSelected && <ArrowRight className="w-3.5 h-3.5 text-[color:var(--color-success-text)]" />}
+                    {isSelected && <ArrowRight className="w-3.5 h-3.5 text-primary" />}
                   </div>
                 </button>
               );
@@ -373,7 +443,7 @@ export const CommandPalette: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2.5 border-t border-white/5 bg-app flex items-center justify-between text-[10px] text-slate-400">
+        <div className="px-4 py-2.5 border-t border-border bg-card flex items-center justify-between text-[10px] text-muted-foreground">
           <div className="flex items-center gap-3">
             <span>↑↓ Navigate</span>
             <span>↵ Select</span>
