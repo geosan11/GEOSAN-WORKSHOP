@@ -121,5 +121,31 @@ The Command Bar provides a persistent bottom dock at the foot of the Cockpit tha
 - **Zero Network Calls**:
   - CommandBar and CommandPalette operate purely in-memory with local state and event dispatching; zero network requests (`fetch`, Supabase, or REST) are initiated.
 
+---
+
+## 6. Accessibility (a11y) & Polish Specifications (PR 6)
+
+PR 6 establishes complete WCAG 2.1 AA accessibility compliance across the Cockpit screen and its entry points, verified via axe-core in headless Chrome.
+
+- **Axe-core Audit (0 Critical, 0 Serious Violations)**:
+  - Audited in all 4 mandatory combinations: Desktop (1280px) Dark/Light and Mobile (360px) Dark/Light in demo mode as well as populated/seeded agent card state.
+  - Baseline violations (1 Critical, 8 Serious, 1 Minor) eliminated to 0 violations across all categories.
+- **WAI-ARIA Tabs Structure**:
+  - `ActivityLogPanel` wraps both `TabsList` and `CardContent` within `<Tabs>`.
+  - Mounts `<TabsContent>` for every tab trigger (`all`, `errors`, `status`, `agent`), ensuring all `aria-controls` IDs resolve to real DOM elements.
+- **WCAG 2.5.3 (Label in Name)**:
+  - Activity log expandable rows and CommandBar trigger dock compute accessible names directly from visible subtree text rather than conflicting truncated labels.
+  - `commandBarModel()` selector provides `accessibleLabel` starting with the visual placeholder text.
+- **Elimination of Nested Interactive Controls**:
+  - CommandBar trigger dock replaces inner `<Button>` with an accessible non-interactive `<span>` icon container.
+  - `AgentCard` removes `role="button"` from outer card container and utilizes an inner `<button>` for task details alongside sibling `<a>` PR links.
+- **High-Contrast Theme Tokens**:
+  - Sidebar labels upgraded from `text-zinc-500` (4.12:1) to `text-zinc-400` (7.5:1+) against `#09090b`, exceeding WCAG AA minimum thresholds.
+- **Reduced Motion Support**:
+  - Added universal `@media (prefers-reduced-motion: reduce)` stylesheet rules in `src/index.css` respecting user system accessibility settings.
+- **Zero Horizontal Overflow**:
+  - Verified `scrollWidth === clientWidth` at 1280px and 360px in both Obsidian dark and Cream light themes.
+
+
 
 

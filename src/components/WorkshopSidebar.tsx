@@ -60,7 +60,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
               <span className="font-bold text-xs tracking-wider text-zinc-100 uppercase">
                 GEOSAN
               </span>
-              <span className="text-[9px] text-zinc-500 tracking-normal font-sans">
+              <span className="text-[9px] text-zinc-400 tracking-normal font-sans">
                 Workshop
               </span>
             </div>
@@ -213,7 +213,7 @@ export const WorkshopSidebar: React.FC<WorkshopSidebarProps> = ({
               <p className="text-[11px] text-zinc-300 truncate font-sans">
                 {user?.email || 'operator'}
               </p>
-              <p className="text-[9px] text-zinc-500 uppercase tracking-wider">
+              <p className="text-[9px] text-zinc-400 uppercase tracking-wider">
                 Active
               </p>
             </div>

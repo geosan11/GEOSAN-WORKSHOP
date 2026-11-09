@@ -26,6 +26,7 @@ function getComponentProps(element: React.ReactElement): any {
 
 test('CommandBar: renders with semantic theme tokens and accessible roles', () => {
   const html = renderToString(React.createElement(CommandBar));
+  const model = commandBarModel();
 
   // Role and accessibility
   assert.ok(html.includes('role="region"'), 'Must have region role');
@@ -33,6 +34,22 @@ test('CommandBar: renders with semantic theme tokens and accessible roles', () =
   assert.ok(html.includes('role="toolbar"'), 'Must have toolbar role for global actions');
   assert.ok(html.includes('role="button"'), 'Must have button role on palette trigger');
   assert.ok(html.includes('tabindex="0"'), 'Trigger must be keyboard focusable with tabIndex 0');
+
+  // Accessible label conforms to WCAG 2.5.3 (Label in Name) by using visible subtree text
+  assert.ok(
+    html.includes(model.placeholder),
+    'Trigger must include visible placeholder text (WCAG 2.5.3 Label in Name)'
+  );
+  assert.ok(
+    html.includes(model.shortcutLabel),
+    'Trigger must include visible shortcut label'
+  );
+
+  // Anti-nesting: send icon inside trigger must NOT be a nested button
+  assert.ok(
+    !html.includes('role="button" tabindex="0" class="relative flex-1 group flex items-center justify-between h-9 px-3 rounded-lg border border-border bg-muted/40 hover:bg-muted/70 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring select-none min-w-0" aria-label="Open command palette (Cmd+K)"><div class="flex items-center gap-2 min-w-0 flex-1 mr-2"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-terminal size-3.5 text-muted-foreground group-hover:text-primary transition-colors shrink-0"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" x2="20" y1="19" y2="19"></line></svg><span class="text-xs text-muted-foreground truncate font-mono">Jump to screen, open project…</span></div><div class="flex items-center gap-1.5 shrink-0"><kbd class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono bg-background text-muted-foreground border border-border shadow-2xs">Cmd+K</kbd><button'),
+    'Trigger dock must NOT contain a nested button element'
+  );
 
   // Semantic theme classes (no hardcoded dark hexes)
   assert.ok(html.includes('bg-card'), 'Must use semantic bg-card token');
